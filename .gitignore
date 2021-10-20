@@ -1,3 +1,4 @@
 /iso/boot/kernel
 *.o
 kernel.bin
+**/zig-cache
