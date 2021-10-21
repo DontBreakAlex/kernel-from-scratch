@@ -33,6 +33,9 @@ _start:
 
 	call kernel_main
 
+	sti
+	mov edi, 0
+	div edi
 	cli
 .hang:
 	hlt

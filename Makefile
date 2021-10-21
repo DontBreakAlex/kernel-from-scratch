@@ -1,18 +1,18 @@
 NAME	= kernel.bin
 
+ASM_SRC	= loader.s gdt.s idt.s
+ASM_OBJ	= $(ASM_SRC:%.s=obj/%.o)
+
 all:	$(NAME)
 
-$(NAME):	loader.o gdt.o kernel_main.o
-	ld -melf_i386 -T linker.ld -o kernel.bin gdt.o loader.o kernel_main.o
+$(NAME): $(ASM_OBJ) kernel_main.o
+	ld -melf_i386 -T linker.ld -o kernel.bin $(ASM_OBJ) kernel_main.o
 
-loader.o: loader.s
-	nasm -felf32 loader.s -o loader.o
-
-gdt.o: src/gdt.s
-	nasm -felf32 src/gdt.s -o gdt.o
+$(ASM_OBJ): obj/%.o : src/%.s
+	nasm -felf32 -o $@ $<
 
 kernel_main.o: src/kernel_main.zig
-	zig build-obj -target i386-freestanding src/kernel_main.zig
+	zig build-obj -target i386-freestanding -O ReleaseSafe src/kernel_main.zig
 
 grub.iso:
 	grub-mkrescue -o grub.iso iso
@@ -27,6 +27,6 @@ fclean:	clean
 re:		fclean all
 
 fmt:
-	zig fmt src/kernel_main.zig
+	zig fmt src/kernel_main.zig src/idt.zig
 
 .PHONY:	all clean fclean fmt
