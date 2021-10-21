@@ -40,15 +40,22 @@ inline fn vgaEntry(character: u8, color: VgaEntryColor) VgaEntry {
 }
 
 fn vgaPutChar(char: u8) void {
-    const index = VgaCursor.y * VGA_WIDTH + VgaCursor.x;
-    VGA_BUFFER[index] = vgaEntry(char, TEXT_COLOR);
-    VgaCursor.x += 1;
-    if (VgaCursor.x == VGA_WIDTH) {
-        VgaCursor.x = 0;
+    if (char == '\n') {
         VgaCursor.y += 1;
+        VgaCursor.x = 0;
         if (VgaCursor.y == VGA_HEIGHT) {
-            // TODO: Scrolling
             VgaCursor.y = 0;
+        }
+    } else {
+        const index = VgaCursor.y * VGA_WIDTH + VgaCursor.x;
+        VGA_BUFFER[index] = vgaEntry(char, TEXT_COLOR);
+        VgaCursor.x += 1;
+        if (VgaCursor.x == VGA_WIDTH) {
+            VgaCursor.x = 0;
+            VgaCursor.y += 1;
+            if (VgaCursor.y == VGA_HEIGHT) {
+                VgaCursor.y = 0;
+            }
         }
     }
 }
@@ -72,9 +79,5 @@ export fn kernel_main() void {
     initalize();
     idt.setup();
 
-    var i: usize = 0;
-    for ("Hello world !") |c| {
-        VGA_BUFFER[i] = vgaEntry(c, TEXT_COLOR);
-        i += 1;
-    }
+    vgaPutStr("Hello from main\n");
 }

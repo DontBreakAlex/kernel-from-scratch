@@ -1,3 +1,6 @@
+extern exception_code
+extern exception_nocode
+
 ; These macros are used to setup the cpu expection handlers
 %macro isr_err_stub 1
 isr_stub_%+%1:
@@ -16,8 +19,6 @@ isr_stub_%+%1:
     iret
 %endmacro
 
-extern exception_code
-extern exception_nocode
 isr_no_err_stub 0
 isr_no_err_stub 1
 isr_no_err_stub 2

@@ -1,3 +1,4 @@
+section .data
 ; GDT - Global Descriptor Table
 global gdt_descriptor
 global CODE_SEG

@@ -19,9 +19,9 @@ pub const IdtPtr = packed struct {
 
 const InterruptHandler = fn () callconv(.Naked) void;
 
+const NUMBER_OF_ENTRIES: u16 = 256;
 // The total size of all the IDT entries (-1 for the same reason as the GDT).
 const TABLE_SIZE: u16 = @sizeOf(IdtEntry) * NUMBER_OF_ENTRIES - 1;
-const NUMBER_OF_ENTRIES: u16 = 256;
 const KERNEL_CODE_OFFSET = 0x8; // TODO: Import this from gdt.s
 const ISR_GATE_TYPE = 0xE; // 80386 32-bit interrupt gate
 
@@ -57,18 +57,27 @@ fn buildEntry(base: u32, selector: u16, gate_type: u4, privilege: u2) IdtEntry {
     };
 }
 
+extern var CODE_SEG: u32;
+
 pub fn setIdtEntry(index: u8, handler: InterruptHandler) void {
-    idt_entries[index] = buildEntry(@ptrToInt(handler), KERNEL_CODE_OFFSET, ISR_GATE_TYPE, 0x0);
+    idt_entries[index] = buildEntry(@ptrToInt(handler), @truncate(u16, CODE_SEG), ISR_GATE_TYPE, 0x0);
 }
 
+var buffer: [2048]u8 = undefined;
+extern fn boch_break() void;
+extern fn load_idt(ptr: *const IdtPtr) callconv(.C) void;
+
 pub fn setup() void {
-    comptime var i = 0;
-    inline while (i < 32) : (i += 1) {
+    var i: u8 = 0;
+    while (i < 32) : (i += 1) {
         setIdtEntry(i, isr_stub_table[i]);
     }
 
     idt_ptr.base = @ptrToInt(&idt_entries);
-    lidt(&idt_ptr);
+    idt_ptr.limit = TABLE_SIZE;
+    load_idt(&idt_ptr);
+
+    main.vgaPutStr("IDT Setup\n");
 }
 
 fn lidt(ptr: *const IdtPtr) void {
@@ -78,12 +87,12 @@ fn lidt(ptr: *const IdtPtr) void {
     );
 }
 
-export fn exception_code(code: u32) callconv(.C) void {
-    var buffer: [32]u8 = undefined;
-    const message = std.fmt.bufPrint(&buffer, "Got exception with code {d}", .{code}) catch "Formating failed";
-    main.vgaPutStr(message);
+export fn exception_code(_: u32) callconv(.C) void {
+    // var buffer: [32]u8 = undefined;
+    // const message = std.fmt.bufPrint(&buffer, "Got exception with code {d}", .{code}) catch "Formating failed";
+    main.vgaPutStr("Got exception with code {d}\n");
 }
 
 export fn exception_nocode() callconv(.C) void {
-    main.vgaPutStr("Got exception without code");
+    main.vgaPutStr("Got exception without code\n");
 }
