@@ -1,12 +1,12 @@
 NAME	= kernel.bin
 
-ASM_SRC	= loader.s gdt.s idt.s
+ASM_SRC	= loader.s idt.s
 ASM_OBJ	= $(ASM_SRC:%.s=obj/%.o)
 
 all:	$(NAME)
 
 $(NAME): $(ASM_OBJ) src/kernel_main.zig src/idt.zig
-	zig build-exe src/kernel_main.zig obj/loader.o obj/gdt.o obj/idt.o -target i386-freestanding -T linker.ld -femit-bin=$(NAME)
+	zig build-exe src/kernel_main.zig $(ASM_OBJ) -target i386-freestanding -T linker.ld -femit-bin=$(NAME)
 
 $(ASM_OBJ): obj/%.o : src/%.s
 	nasm -felf32 -o $@ $<

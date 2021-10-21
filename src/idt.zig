@@ -22,7 +22,6 @@ const InterruptHandler = fn () callconv(.Naked) void;
 const NUMBER_OF_ENTRIES: u16 = 256;
 // The total size of all the IDT entries (-1 for the same reason as the GDT).
 const TABLE_SIZE: u16 = @sizeOf(IdtEntry) * NUMBER_OF_ENTRIES - 1;
-const KERNEL_CODE_OFFSET = 0x8; // TODO: Import this from gdt.s
 const ISR_GATE_TYPE = 0xE; // 80386 32-bit interrupt gate
 
 extern var isr_stub_table: [*]InterruptHandler;
@@ -57,10 +56,8 @@ fn buildEntry(base: u32, selector: u16, gate_type: u4, privilege: u2) IdtEntry {
     };
 }
 
-extern var CODE_SEG: u32;
-
 pub fn setIdtEntry(index: u8, handler: InterruptHandler) void {
-    idt_entries[index] = buildEntry(@ptrToInt(handler), @truncate(u16, CODE_SEG), ISR_GATE_TYPE, 0x0);
+    idt_entries[index] = buildEntry(@ptrToInt(handler), 0x08, ISR_GATE_TYPE, 0x0);
 }
 
 var buffer: [2048]u8 = undefined;
