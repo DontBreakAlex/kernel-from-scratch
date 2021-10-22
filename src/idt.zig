@@ -23,8 +23,6 @@ const NUMBER_OF_ENTRIES: u16 = 256;
 const TABLE_SIZE: u16 = @sizeOf(IdtEntry) * NUMBER_OF_ENTRIES - 1;
 const ISR_GATE_TYPE = 0xE; // 80386 32-bit interrupt gate
 
-extern var isr_stub_table: [*]InterruptHandler;
-
 var idt_ptr: IdtPtr = IdtPtr{
     .limit = TABLE_SIZE,
     .base = 0,
@@ -55,18 +53,19 @@ fn buildEntry(base: u32, selector: u16, gate_type: u4, privilege: u2) IdtEntry {
     };
 }
 
-pub fn setIdtEntry(index: u8, handler: *InterruptHandler) void {
-    idt_entries[index] = buildEntry(@ptrToInt(handler), 0x08, ISR_GATE_TYPE, 0x0);
+pub fn setIdtEntry(index: u8, handler: u32) void {
+    idt_entries[index] = buildEntry(handler, 0x08, ISR_GATE_TYPE, 0x0);
 }
 
 extern fn boch_break() void;
 extern fn enable_int() void;
 extern fn load_idt(ptr: *const IdtPtr) callconv(.C) void;
 
+extern var isr_stub_table: [32]u32;
 pub fn setup() void {
     var i: u8 = 0;
     while (i < 32) : (i += 1) {
-        setIdtEntry(i, &isr_stub_table[i]);
+        setIdtEntry(i, isr_stub_table[i]);
     }
 
     idt_ptr.base = @ptrToInt(&idt_entries);
@@ -74,7 +73,6 @@ pub fn setup() void {
     load_idt(&idt_ptr);
 
     vga.putStr("IDT Setup\n");
-    enable_int();
 }
 
 fn lidt(ptr: *const IdtPtr) void {
@@ -85,10 +83,48 @@ fn lidt(ptr: *const IdtPtr) void {
 }
 
 export fn exception_code(code: u32) callconv(.C) void {
-    // vga.format("Exception with code {x}\n", .{code});
-    vga.putStr("Execption with code {x}");
+    // vga.format("Exception with code {d}\n", .{code});
+    vga.putStr("Exception with code\n");
 }
 
 export fn exception_nocode(code: u32) callconv(.C) void {
-    vga.format("Exception {x}\n", .{code});
+    // vga.format("Exception: {s}\n", .{ EXCEPTIONS[code] });
+    vga.putStr("Exception: ");
+    vga.putStr(EXCEPTIONS[code]);
+    vga.putStr("\n");
 }
+
+const EXCEPTIONS: [32][]const u8 = .{
+    "Divide by zero",
+    "Debug",
+    "Non-maskable interrupt",
+    "Breakpoint",
+    "Overflow",
+    "Bound range exceeded",
+    "Invalid opcode",
+    "Device not available",
+    "Double fault",
+    "Coprocessor segment overrun",
+    "Invalid TSS",
+    "Segment not present",
+    "Stack segmentation fault",
+    "General protection fault",
+    "Page fault",
+    "Reserved (0x0F)",
+    "x87 floating-point exception",
+    "Alignemnt check",
+    "Machine check",
+    "SIMD floating-point exception",
+    "Virtualization exception",
+    "Reserved (0x15)",
+    "Reserved (0x16)",
+    "Reserved (0x17)",
+    "Reserved (0x18)",
+    "Reserved (0x19)",
+    "Reserved (0x1a)",
+    "Reserved (0x1b)",
+    "Reserved (0x1c)",
+    "Reserved (0x1d)",
+    "Security exception",
+    "Reserved (0x1f)",
+};

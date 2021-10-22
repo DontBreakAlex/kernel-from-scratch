@@ -40,7 +40,7 @@ _start:
 
 	call kernel_main
 
-	call enable_int
+	int 2
 	cli
 .hang:
 	hlt

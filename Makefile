@@ -8,7 +8,7 @@ ZIG_SRC	= src/kernel_main.zig src/idt.zig src/vga.zig
 all:	$(NAME)
 
 $(NAME): $(ASM_OBJ) $(ZIG_SRC)
-	zig build-exe src/kernel_main.zig $(ASM_OBJ) -target i386-freestanding -T linker.ld -femit-bin=$(NAME) -O ReleaseFast
+	zig build-exe src/kernel_main.zig $(ASM_OBJ) -target i386-freestanding -T linker.ld -femit-bin=$(NAME) -O ReleaseSmall
 
 $(ASM_OBJ): obj/%.o : src/%.s
 	nasm -felf32 -o $@ $<
