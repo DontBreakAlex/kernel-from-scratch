@@ -56,20 +56,20 @@ fn buildEntry(base: u32, selector: u16, gate_type: u4, privilege: u2) IdtEntry {
     };
 }
 
-pub fn setIdtEntry(index: u8, handler: InterruptHandler) void {
+pub fn setIdtEntry(index: u8, handler: *InterruptHandler) void {
     // boch_break();
     // _ = std.fmt.format(main.VgaWriter, "test", .{}) catch void;
     idt_entries[index] = buildEntry(@ptrToInt(handler), 0x08, ISR_GATE_TYPE, 0x0);
 }
 
-var buffer: [2048]u8 = undefined;
 extern fn boch_break() void;
+extern fn enable_int() void;
 extern fn load_idt(ptr: *const IdtPtr) callconv(.C) void;
 
 pub fn setup() void {
     var i: u8 = 0;
     while (i < 32) : (i += 1) {
-        setIdtEntry(i, isr_stub_table[i]);
+        setIdtEntry(i, &isr_stub_table[i]);
     }
 
     idt_ptr.base = @ptrToInt(&idt_entries);
@@ -77,6 +77,7 @@ pub fn setup() void {
     load_idt(&idt_ptr);
 
     main.vgaPutStr("IDT Setup\n");
+    enable_int();
 }
 
 fn lidt(ptr: *const IdtPtr) void {

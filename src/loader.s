@@ -22,7 +22,7 @@ extern kernel_main
 
 global _start:function (_start.end - _start)
 _start:
-	cli ; We don't want any interrupt while seting the GDT
+	call disable_int ; We don't want any interrupt while seting the GDT
 	lgdt [gdtr_descr]
 	; mov eax, cr0
 	; or eax, 1
@@ -40,8 +40,7 @@ _start:
 
 	call kernel_main
 
-	call boch_break
-	sti
+	call enable_int
 	int 4
 
 	cli
@@ -59,6 +58,16 @@ global load_idt
 load_idt:
 	mov edx, [esp + 4]
 	lidt [edx]
+	ret
+
+global enable_int
+enable_int:
+	sti
+	ret
+
+global disable_int
+disable_int:
+	cli
 	ret
 
 section .data
