@@ -14,7 +14,5 @@ export fn kernel_main() void {
     vga.init();
     idt.setup();
 
-    // boch_break();
-    vga.format("Hello from main {d}\n", .{ 4 });
-    // vga.putStr("Hello from main\n");
+    vga.format("Hello from main\n", .{});
 }

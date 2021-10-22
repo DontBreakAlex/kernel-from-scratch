@@ -83,15 +83,11 @@ fn lidt(ptr: *const IdtPtr) void {
 }
 
 export fn exception_code(code: u32) callconv(.C) void {
-    // vga.format("Exception with code {d}\n", .{code});
-    vga.putStr("Exception with code\n");
+    vga.format("Exception with code {d}\n", .{code});
 }
 
 export fn exception_nocode(code: u32) callconv(.C) void {
-    // vga.format("Exception: {s}\n", .{ EXCEPTIONS[code] });
-    vga.putStr("Exception: ");
-    vga.putStr(EXCEPTIONS[code]);
-    vga.putStr("\n");
+    vga.format("Exception: {d}\n", .{ code });
 }
 
 const EXCEPTIONS: [32][]const u8 = .{

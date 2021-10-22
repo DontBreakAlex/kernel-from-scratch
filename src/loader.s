@@ -24,9 +24,14 @@ global _start:function (_start.end - _start)
 _start:
 	call disable_int ; We don't want any interrupt while seting the GDT
 	lgdt [gdtr_descr]
-	; mov eax, cr0
-	; or eax, 1
-	; mov cr0, eax
+	; Enable SSE
+	mov eax, cr0
+	and ax, 0xFFFB
+	or ax, 0x2
+	mov cr0, eax
+	mov eax, cr4
+	or ax, 3 << 9
+	mov cr4, eax
 	jmp 0x08:.setcs; Far jump to the label, switch to the code segment of the new GDT
 
 	.setcs:
