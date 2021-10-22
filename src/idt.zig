@@ -1,5 +1,4 @@
-const std = @import("std");
-const main = @import("kernel_main.zig");
+const vga = @import("vga.zig");
 
 pub const IdtEntry = packed struct {
     base_low: u16,
@@ -57,8 +56,6 @@ fn buildEntry(base: u32, selector: u16, gate_type: u4, privilege: u2) IdtEntry {
 }
 
 pub fn setIdtEntry(index: u8, handler: *InterruptHandler) void {
-    // boch_break();
-    // _ = std.fmt.format(main.VgaWriter, "test", .{}) catch void;
     idt_entries[index] = buildEntry(@ptrToInt(handler), 0x08, ISR_GATE_TYPE, 0x0);
 }
 
@@ -76,7 +73,7 @@ pub fn setup() void {
     idt_ptr.limit = TABLE_SIZE;
     load_idt(&idt_ptr);
 
-    main.vgaPutStr("IDT Setup\n");
+    vga.putStr("IDT Setup\n");
     enable_int();
 }
 
@@ -87,15 +84,11 @@ fn lidt(ptr: *const IdtPtr) void {
     );
 }
 
-const lookup = "0123456789";
-
 export fn exception_code(code: u32) callconv(.C) void {
-    var message = "Got exception with code 00\n".*;
-    message[17] = lookup[code / 10];
-    message[18] = lookup[code % 10];
-    main.vgaPutStr(&message);
+    // vga.format("Exception with code {x}\n", .{code});
+    vga.putStr("Execption with code {x}");
 }
 
 export fn exception_nocode(code: u32) callconv(.C) void {
-    main.vgaPrintFormat("Exception {x}\n", .{ code });
+    vga.format("Exception {x}\n", .{code});
 }
