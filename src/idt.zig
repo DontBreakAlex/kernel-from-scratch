@@ -57,6 +57,8 @@ fn buildEntry(base: u32, selector: u16, gate_type: u4, privilege: u2) IdtEntry {
 }
 
 pub fn setIdtEntry(index: u8, handler: InterruptHandler) void {
+    // boch_break();
+    // _ = std.fmt.format(main.VgaWriter, "test", .{}) catch void;
     idt_entries[index] = buildEntry(@ptrToInt(handler), 0x08, ISR_GATE_TYPE, 0x0);
 }
 

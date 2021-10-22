@@ -81,3 +81,9 @@ export fn kernel_main() void {
 
     vgaPutStr("Hello from main\n");
 }
+
+pub const VgaWriter = struct {
+    pub fn writeAll(value: []const u8) !void {
+        vgaPutStr(value);
+    }
+};

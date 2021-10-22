@@ -62,37 +62,48 @@ load_idt:
 	ret
 
 section .data
-;
-; global descriptor table
-;
+
 gdt_start:
-   ;
-   ; null descriptor
-   ;
-   dd 0
-   dd 0
-   ;
-   ; code descriptor - offset 8
-   ;
-   dw 0xFFFF      ;[lowest byte of mem]
-   dw 0x0         ;[lowest next byte(base)]
-   db 0x0         ;[lowest base addres(middle, base)]
-   db 10011010b      ;[segment permissions look at sec,2]
-   db 11001111b       ;[granuality]"alighment" data at sec,3]
-   db 0         ;[high base]
-   ;
-   ; data descriptor offset 0x10
-   ;
-   dw 0xFFFF      ;Same!
-   dw 0x0         ;Same!
-   db 0x0         ;Same!
-   db 10010010b      ;only type bit different
-   db 11001111b      ;Same!
-   db 0         ;Same!
-gdt_end :
-;
-; load into gdtr with ldgt [gdtr_descr] later
-;
+gdt_null:	; Null entry
+	dd 0x0	; dd means Define Double word (32 bits)
+	dd 0x0
+gdt_code:	; Code segment
+	; Segment Base Address (base) = 0x0
+	; Segment Limit (limit) = 0xfffff
+	; These pointers are split up all around the data structure to allow
+	; the gdt to be backwards compatible with the 80286 (old intel processor)
+	dw 0xffff	; Limit bits 0-15
+	dw 0x0000	; Base bits 0-15
+	db 0x00		; Base bits 16-23
+	; Flag Set 1:
+		; Segment Present: 0b1
+		; Descriptor Privilege level: 0x00 (ring 0)
+		; Descriptor Type: 0b1 (code/data)
+	; Flag Set 2: Type Field
+		; Code: 0b1 (this is a code segment)
+		; Conforming: 0b0 (Code w/ lower privilege may not call this)
+		; Readable: 0b1 (Readable => can read code constants)
+		; Accessed: 0b0 (Used for debugging and virtual memory. CPU sets bit when accessing segment)
+	db 10011010b	; Flag set 1 and 2 form the "Access Byte"
+	; Flag Set 3
+		; Granularity: 0b1 (Set to 1 multiplies limit by 4K. Shift 0xfffff 3 bytes left, allowing to span full 32G of memory)
+		; Size: 0b1 (32 bit segment, of not set 16 bit segment)
+		; Long mode: 0b0 (For 64 bit segments)
+		; Unused: 0b0
+	db 11001111b	; Flag set 3 and limit bits 16-19
+	db 0x00		; Base bits 24-31
+gdt_data:
+	; Same except for code flag:
+		; Code: 0b0
+	dw 0xffff	; Limit bits 0-15
+	dw 0x0000	; Base bits 0-15
+	db 0x00		; Base bits 16-23
+	db 10010010b	; Flag set 1 and 2
+	db 11001111b	; 2nd flags and limit bits 16-19
+	db 0x00		; Base bits 24-31
+
+gdt_end:
+
 gdtr_descr :
   dw gdt_end - gdt_start - 1
   dd gdt_start
