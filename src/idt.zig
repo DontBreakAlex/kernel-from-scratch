@@ -97,8 +97,5 @@ export fn exception_code(code: u32) callconv(.C) void {
 }
 
 export fn exception_nocode(code: u32) callconv(.C) void {
-    var message = "Got exception nb 00\n".*;
-    message[17] = lookup[code / 10];
-    message[18] = lookup[code % 10];
-    main.vgaPutStr(&message);
+    main.vgaPrintFormat("Exception {x}\n", .{ code });
 }

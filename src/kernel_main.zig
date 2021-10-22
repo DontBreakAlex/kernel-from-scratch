@@ -73,17 +73,33 @@ pub fn vgaPutStr(data: []const u8) void {
         vgaPutChar(c);
 }
 
+extern fn boch_break() void;
+const std = @import("std");
+
+pub fn panic(msg: []const u8, error_return_trace: ?*std.builtin.StackTrace) noreturn {
+    @setCold(true);
+    vgaPutStr("KERNEL PANIC\n");
+    boch_break();
+    while (true) {}
+}
+
 const idt = @import("idt.zig");
 
 export fn kernel_main() void {
     initalize();
     idt.setup();
 
-    vgaPutStr("Hello from main\n");
+    vgaPrintFormat("Hello from main\n", .{});
 }
 
-pub const VgaWriter = struct {
-    pub fn writeAll(value: []const u8) !void {
-        vgaPutStr(value);
-    }
-};
+const VgaError = error {};
+fn writeCallBack(context: void, str: []const u8) VgaError!usize {
+    vgaPutStr(str);
+    return str.len;
+}
+
+const Writer = std.io.Writer(void, VgaError, writeCallBack);
+
+pub fn vgaPrintFormat(comptime fmt: []const u8, args: anytype) void {
+    _ = std.fmt.format(Writer{ .context = {} }, fmt, args) catch void;
+}
