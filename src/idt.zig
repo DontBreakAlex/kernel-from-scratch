@@ -87,12 +87,18 @@ fn lidt(ptr: *const IdtPtr) void {
     );
 }
 
-export fn exception_code(_: u32) callconv(.C) void {
-    // var buffer: [32]u8 = undefined;
-    // const message = std.fmt.bufPrint(&buffer, "Got exception with code {d}", .{code}) catch "Formating failed";
-    main.vgaPutStr("Got exception with code {d}\n");
+const lookup = "0123456789";
+
+export fn exception_code(code: u32) callconv(.C) void {
+    var message = "Got exception with code 00\n".*;
+    message[17] = lookup[code / 10];
+    message[18] = lookup[code % 10];
+    main.vgaPutStr(&message);
 }
 
-export fn exception_nocode() callconv(.C) void {
-    main.vgaPutStr("Got exception without code\n");
+export fn exception_nocode(code: u32) callconv(.C) void {
+    var message = "Got exception nb 00\n".*;
+    message[17] = lookup[code / 10];
+    message[18] = lookup[code % 10];
+    main.vgaPutStr(&message);
 }

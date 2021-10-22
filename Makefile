@@ -6,7 +6,7 @@ ASM_OBJ	= $(ASM_SRC:%.s=obj/%.o)
 all:	$(NAME)
 
 $(NAME): $(ASM_OBJ) src/kernel_main.zig src/idt.zig
-	zig build-exe src/kernel_main.zig $(ASM_OBJ) -target i386-freestanding -T linker.ld -femit-bin=$(NAME)
+	zig build-exe src/kernel_main.zig $(ASM_OBJ) -target i386-freestanding -T linker.ld -femit-bin=$(NAME) -O ReleaseFast
 
 $(ASM_OBJ): obj/%.o : src/%.s
 	nasm -felf32 -o $@ $<

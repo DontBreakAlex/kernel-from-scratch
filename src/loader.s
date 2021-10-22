@@ -13,7 +13,7 @@ align 4
 section .bss
 align 16
 stack_bottom:
-resb 32768
+resb 65536
 stack_top:
 
 section .text
@@ -27,7 +27,7 @@ _start:
 	; mov eax, cr0
 	; or eax, 1
 	; mov cr0, eax
-	jmp 8:.setcs; Far jump to the label, switch to the code segment of the new GDT
+	jmp 0x08:.setcs; Far jump to the label, switch to the code segment of the new GDT
 
 	.setcs:
 	mov ax, 0x10 ; Data segment
@@ -41,8 +41,6 @@ _start:
 	call kernel_main
 
 	call enable_int
-	int 4
-
 	cli
 .hang:
 	hlt
