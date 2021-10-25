@@ -5,8 +5,8 @@ const vga = @import("vga.zig");
 
 extern fn boch_break() void;
 
-const KEYBOARD_STATUS: u8 = 0x60;
-const KEYBOARD_DATA: u8 = 0x64;
+const KEYBOARD_STATUS: u8 = 0x64;
+const KEYBOARD_DATA: u8 = 0x60;
 
 pub fn init() void {
     idt.setIdtEntry(pic.PIC1_OFFSET, @ptrToInt(handle_irq0));
@@ -31,9 +31,12 @@ export fn handle_keyboard() callconv(.Naked) void {
     asm volatile (
         \\pusha
     );
-    vga.putStr("KEYBOARD\n");
 
     const status = utils.in(u8, KEYBOARD_STATUS);
+    if (status & 0x1 == 1) {
+        const keycode = utils.in(u8, KEYBOARD_DATA);
+        vga.format("Got key: {x}\n", .{status});
+    }
 
     utils.out(pic.MASTER_CMD, pic.EOI);
     asm volatile (
