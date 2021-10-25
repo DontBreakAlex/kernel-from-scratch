@@ -45,8 +45,6 @@ _start:
 
 	call kernel_main
 
-	int 2
-	cli
 .hang:
 	hlt
 	jmp .hang
@@ -55,12 +53,6 @@ _start:
 global boch_break
 boch_break:
 	xchg bx, bx
-	ret
-
-global load_idt
-load_idt:
-	mov edx, [esp + 4]
-	lidt [edx]
 	ret
 
 global enable_int

@@ -5,8 +5,11 @@ extern exception_nocode
 %macro isr_err_stub 1
 isr_stub_%+%1:
 	pushad
+	push %1
     call exception_code
+	add esp, $4
 	popad
+	add esp, $4
     iretd
 %endmacro
 
@@ -15,7 +18,7 @@ isr_stub_%+%1:
 	pushad
 	push %1
     call exception_nocode
-	add esp, 4
+	add esp, $4
 	popad
     iretd
 %endmacro

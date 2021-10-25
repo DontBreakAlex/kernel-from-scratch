@@ -1,4 +1,5 @@
 const vga = @import("vga.zig");
+const utils = @import("utils.zig");
 
 pub const IdtEntry = packed struct {
     base_low: u16,
@@ -59,10 +60,9 @@ pub fn setIdtEntry(index: u8, handler: u32) void {
 
 extern fn boch_break() void;
 extern fn enable_int() void;
-extern fn load_idt(ptr: *const IdtPtr) callconv(.C) void;
 
 extern var isr_stub_table: [32]u32;
-pub fn setup() void {
+pub fn init() void {
     var i: u8 = 0;
     while (i < 32) : (i += 1) {
         setIdtEntry(i, isr_stub_table[i]);
@@ -70,24 +70,17 @@ pub fn setup() void {
 
     idt_ptr.base = @ptrToInt(&idt_entries);
     idt_ptr.limit = TABLE_SIZE;
-    load_idt(&idt_ptr);
+    utils.lidt(&idt_ptr);
 
-    vga.putStr("IDT Setup\n");
+    vga.putStr("IDT Initialized\n");
 }
 
-fn lidt(ptr: *const IdtPtr) void {
-    asm volatile ("lidt (%%eax)"
-        :
-        : [ptr] "{eax}" (ptr)
-    );
+export fn exception_code(index: u32, code: u32) callconv(.C) void {
+    vga.format("Exception {s} with code {d}\n", .{ EXCEPTIONS[index], code });
 }
 
-export fn exception_code(code: u32) callconv(.C) void {
-    vga.format("Exception with code {d}\n", .{code});
-}
-
-export fn exception_nocode(code: u32) callconv(.C) void {
-    vga.format("Exception: {d}\n", .{ code });
+export fn exception_nocode(index: u32) callconv(.C) void {
+    vga.format("Exception: {s}\n", .{EXCEPTIONS[index]});
 }
 
 const EXCEPTIONS: [32][]const u8 = .{
