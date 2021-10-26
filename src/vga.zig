@@ -41,7 +41,7 @@ inline fn vgaEntry(character: u8, color: VgaEntryColor) VgaEntry {
     return @intCast(u16, character) | @intCast(u16, color) << 8;
 }
 
-fn putChar(char: u8) void {
+pub fn putChar(char: u8) void {
     if (char == '\n') {
         Cursor.y += 1;
         Cursor.x = 0;

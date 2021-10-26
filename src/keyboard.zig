@@ -2,6 +2,7 @@ const pic = @import("pic.zig");
 const idt = @import("idt.zig");
 const utils = @import("utils.zig");
 const vga = @import("vga.zig");
+const keymap = @import("keyboard_map.zig").keymap;
 
 extern fn boch_break() void;
 
@@ -18,7 +19,7 @@ pub fn init() void {
 
 export fn handle_irq0() callconv(.Naked) void {
     asm volatile ("pusha");
-    // utils.out(pic.MASTER_CMD, pic.EOI);
+    utils.out(pic.MASTER_CMD, pic.EOI);
     vga.putStr("Got irq0\n");
     asm volatile (
         \\popa
@@ -35,7 +36,10 @@ export fn handle_keyboard() callconv(.Naked) void {
     const status = utils.in(u8, KEYBOARD_STATUS);
     if (status & 0x1 == 1) {
         const keycode = utils.in(u8, KEYBOARD_DATA);
-        vga.format("Got key: {x}\n", .{status});
+        if (keycode > 0 and keycode < 128) {
+            // vga.format("{d}", .{keycode});
+            vga.putChar(keymap[keycode]);
+        }
     }
 
     utils.out(pic.MASTER_CMD, pic.EOI);
