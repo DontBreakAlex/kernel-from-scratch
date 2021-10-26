@@ -55,6 +55,6 @@ pub fn unMask(irq: u3) void {
     const old_mask = utils.in(u8, MASTER_DATA);
     const tmp_mask = ~(@as(u8, 1) << irq);
     const new_mask = old_mask & tmp_mask;
-    vga.format("Old mask: {b}, tmp mask: {b}, new mask: {b}\n", .{ old_mask, tmp_mask, new_mask });
+    // vga.format("Old mask: {b}, tmp mask: {b}, new mask: {b}\n", .{ old_mask, tmp_mask, new_mask });
     utils.out(MASTER_DATA, new_mask);
 }

@@ -1,66 +1,239 @@
-pub const keymap = [128]u8 {
-  // -------- 0 to 9 --------
-  ' ',
-  ' ', // escape key
-  '1','2','3','4','5','6','7','8',
-  // -------- 10 to 19 --------
-  '9','0','-','=',
-  8, // Backspace
-  ' ', // Tab
-  'q','w','e','r',
-  // -------- 20 to 29 --------
-  't','y','u','i','o','p','[',']',
-  '\n', // Enter
-  ' ', // left Ctrl
-  // -------- 30 to 39 --------
-  'a','s','d','f','g','h','j','k','l',';',
-  // -------- 40 to 49 --------
-  ' ','`',
-  ' ', // left Shift
-  ' ','z','x','c','v','b','n',
-  // -------- 50 to 59 --------
-  'm',',','.',
-  '/', // slash, or numpad slash if preceded by keycode 224
-  ' ', // right Shift
-  '*', // numpad asterisk
-  ' ', // left Alt
-  ' ', // Spacebar
-  ' ',
-  ' ', // F1
-  // -------- 60 to 69 --------
-  ' ', // F2
-  ' ', // F3
-  ' ', // F4
-  ' ', // F5
-  ' ', // F6
-  ' ', // F7
-  ' ', // F8
-  ' ', // F9
-  ' ', // F10
-  ' ',
-  // -------- 70 to 79 --------
-  ' ', // scroll lock
-  '7', // numpad 7, HOME key if preceded by keycode 224
-  '8', // numpad 8, up arrow if preceded by keycode 224
-  '9', // numpad 9, PAGE UP key if preceded by keycode 224
-  '-', // numpad hyphen
-  '4', // numpad 4, left arrow if preceded by keycode 224
-  '5', // numpad 5
-  '6', // numpad 6, right arrow if preceded by keycode 224
-  ' ',
-  '1', // numpad 1, END key if preceded by keycode 224
-  // -------- 80 to 89 --------
-  '2', // numpad 2, down arrow if preceded by keycode 224
-  '3', // numpad 3, PAGE DOWN key if preceded by keycode 224
-  '0', // numpad 0, INSERT key if preceded by keycode 224
-  '.', // numpad dot, DELETE key if preceded by keycode 224
-  ' ',' ',' ',' ',' ',' ',
-  // -------- 90 to 99 --------
-  ' ',' ',' ',' ',' ',' ',' ',' ',' ',' ',
-  // -------- 100 to 109 --------
-  ' ',' ',' ',' ',' ',' ',' ',' ',' ',' ',
-  // -------- 110 to 119 --------
-  ' ',' ',' ',' ',' ',' ',' ',' ',' ',' ',
-  // -------- 120-127 --------
-  ' ',' ',' ',' ',' ',' ',' ',' ',
+pub const Key = enum(u7) {
+    UNKNOWN,
+    ESC,
+    F1,
+    F2,
+    F3,
+    F4,
+    F5,
+    F6,
+    F7,
+    F8,
+    F9,
+    F10,
+    F11,
+    F12,
+    PRINT_SCREEN,
+    SCROLL_LOCK,
+    PAUSE,
+    BACKTICK = 0x60,
+    ONE = 0x31,
+    TWO = 0x32,
+    THREE = 0x33,
+    FOUR = 0x34,
+    FIVE = 0x35,
+    SIX = 0x36,
+    SEVEN = 0x37,
+    EIGHT = 0x38,
+    NINE = 0x39,
+    ZERO = 0x30,
+    HYPHEN = 0x2D,
+    EQUALS = 0x3D,
+    BACKSPACE = 0x08,
+    TAB = 0x09,
+    Q = 0x71,
+    W = 0x77,
+    E = 0x65,
+    R = 0x72,
+    T = 0x74,
+    Y = 0x79,
+    U = 0x75,
+    I = 0x69,
+    O = 0x6F,
+    P = 0x70,
+    LEFT_BRACKET = 0x5B,
+    RIGHT_BRACKET = 0x5D,
+    ENTER = 0x0D,
+    CAPS_LOCK,
+    A = 0x61,
+    S = 0x73,
+    D = 0x64,
+    F = 0x66,
+    G = 0x67,
+    H = 0x68,
+    J = 0x6A,
+    K = 0x6B,
+    L = 0x6C,
+    SEMICOLON = 0x59,
+    APOSTROPHE = 0x27,
+    HASH = 0x23,
+    LEFT_SHIFT,
+    BACKSLASH = 0x5C,
+    Z = 0x7A,
+    X = 0x78,
+    C = 0x63,
+    V = 0x76,
+    B = 0x62,
+    N = 0x6E,
+    M = 0x6D,
+    COMMA = 0x2C,
+    DOT = 0x2E,
+    FORWARD_SLASH = 0x2F,
+    RIGHT_SHIFT,
+    LEFT_CTRL,
+    SPECIAL,
+    LEFT_ALT,
+    SPACE = 0x20,
+    RIGHT_ALT,
+    FN,
+    SPECIAL2,
+    RIGHT_CTRL,
+    INSERT,
+    HOME,
+    PAGE_UP,
+    DELETE,
+    END,
+    PAGE_DOWN,
+    LEFT_ARROW,
+    UP_ARROW,
+    DOWN_ARROW,
+    RIGHT_ARROW,
+    NUM_LOCK,
+    KEYPAD_SLASH,
+    KEYPAD_ASTERISK,
+    KEYPAD_MINUS,
+    KEYPAD_7,
+    KEYPAD_8,
+    KEYPAD_9,
+    KEYPAD_PLUS,
+    KEYPAD_4,
+    KEYPAD_5,
+    KEYPAD_6,
+    KEYPAD_1,
+    KEYPAD_2,
+    KEYPAD_3,
+    KEYPAD_ENTER,
+    KEYPAD_0,
+    KEYPAD_DOT,
+};
+
+pub const map = [128]Key{
+    .UNKNOWN,
+    .ESC,
+    .ONE,
+    .TWO,
+    .THREE,
+    .FOUR,
+    .FIVE,
+    .SIX,
+    .SEVEN,
+    .EIGHT,
+    .NINE,
+    .ZERO,
+    .HYPHEN,
+    .EQUALS,
+    .BACKSPACE,
+    .TAB,
+    .Q,
+    .W,
+    .E,
+    .R,
+    .T,
+    .Y,
+    .U,
+    .I,
+    .O,
+    .P,
+    .LEFT_BRACKET,
+    .RIGHT_BRACKET,
+    .ENTER,
+    .LEFT_CTRL,
+    .A,
+    .S,
+    .D,
+    .F,
+    .G,
+    .H,
+    .J,
+    .K,
+    .L,
+    .SEMICOLON,
+    .APOSTROPHE,
+    .BACKTICK,
+    .LEFT_SHIFT,
+    .BACKSLASH,
+    .Z,
+    .X,
+    .C,
+    .V,
+    .B,
+    .N,
+    .M,
+    .COMMA,
+    .DOT,
+    .FORWARD_SLASH, // or numpad slash if preceded by keycode 224
+    .RIGHT_SHIFT,
+    .KEYPAD_ASTERISK,
+    .LEFT_ALT,
+    .SPACE,
+    .CAPS_LOCK,
+    .F1,
+    .F2,
+    .F3,
+    .F4,
+    .F5,
+    .F6,
+    .F7,
+    .F8,
+    .F9,
+    .F10,
+    .NUM_LOCK,
+    .SCROLL_LOCK,
+    .KEYPAD_7, // HOME key if preceded by keycode 224
+    .KEYPAD_8, // up arrow if preceded by keycode 224
+    .KEYPAD_9, // PAGE UP key if preceded by keycode 224
+    .KEYPAD_MINUS,
+    .KEYPAD_4, // left arrow if preceded by keycode 224
+    .KEYPAD_5,
+    .KEYPAD_6, // right arrow if preceded by keycode 224
+    .KEYPAD_PLUS,
+    .KEYPAD_1, // END key if preceded by keycode 224
+    .KEYPAD_2, // down arrow if preceded by keycode 224
+    .KEYPAD_3, // PAGE DOWN key if preceded by keycode 224
+    .KEYPAD_0, // INSERT key if preceded by keycode 224
+    .KEYPAD_DOT, // DELETE key if preceded by keycode 224
+    .UNKNOWN,
+    .UNKNOWN,
+    .UNKNOWN,
+    .F11,
+    .F12,
+    .UNKNOWN,
+    .UNKNOWN,
+    .UNKNOWN,
+    .UNKNOWN,
+    .UNKNOWN,
+    .UNKNOWN,
+    .UNKNOWN,
+    .UNKNOWN,
+    .UNKNOWN,
+    .UNKNOWN,
+    .UNKNOWN,
+    .UNKNOWN,
+    .UNKNOWN,
+    .UNKNOWN,
+    .UNKNOWN,
+    .UNKNOWN,
+    .UNKNOWN,
+    .UNKNOWN,
+    .UNKNOWN,
+    .UNKNOWN,
+    .UNKNOWN,
+    .UNKNOWN,
+    .UNKNOWN,
+    .UNKNOWN,
+    .UNKNOWN,
+    .UNKNOWN,
+    .UNKNOWN,
+    .UNKNOWN,
+    .UNKNOWN,
+    .UNKNOWN,
+    .UNKNOWN,
+    .UNKNOWN,
+    .UNKNOWN,
+    .UNKNOWN,
+    .UNKNOWN,
+    .UNKNOWN,
+    .UNKNOWN,
+    .UNKNOWN,
+    .UNKNOWN,
 };

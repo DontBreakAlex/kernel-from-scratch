@@ -2,7 +2,9 @@ const pic = @import("pic.zig");
 const idt = @import("idt.zig");
 const utils = @import("utils.zig");
 const vga = @import("vga.zig");
-const keymap = @import("keyboard_map.zig").keymap;
+const kbm = @import("keyboard_map.zig");
+const std = @import("std");
+const Key = kbm.Key;
 
 extern fn boch_break() void;
 
@@ -32,13 +34,20 @@ export fn handle_keyboard() callconv(.Naked) void {
     asm volatile (
         \\pusha
     );
+    const state = struct {
+        var uppercase: bool = false;
+    };
 
     const status = utils.in(u8, KEYBOARD_STATUS);
     if (status & 0x1 == 1) {
-        const keycode = utils.in(u8, KEYBOARD_DATA);
-        if (keycode > 0 and keycode < 128) {
-            // vga.format("{d}", .{keycode});
-            vga.putChar(keymap[keycode]);
+        var released = false;
+        const scan_code = utils.in(u8, KEYBOARD_DATA);
+        if (scan_code >= 128)
+            released = true;
+        const key_code = @truncate(u7, scan_code); // Remove released bit;
+        const key: Key = kbm.map[key_code];
+        if (key == .LEFT_SHIFT) {
+            state.uppercase = !released;
         }
     }
 

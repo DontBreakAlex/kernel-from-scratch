@@ -29,6 +29,7 @@ const Cursor = struct {
 
 const VGA_WIDTH = 80;
 const VGA_HEIGHT = 25;
+const VGA_SIZE = VGA_WIDTH * VGA_HEIGHT;
 
 const VGA_BUFFER = @intToPtr([*]volatile VgaEntry, 0xB8000);
 const TEXT_COLOR = vgaEntryColor(VgaColor.LIGHT_GREY, VgaColor.BLACK);
@@ -41,12 +42,24 @@ inline fn vgaEntry(character: u8, color: VgaEntryColor) VgaEntry {
     return @intCast(u16, character) | @intCast(u16, color) << 8;
 }
 
+fn shiftVga() void {
+    var i: usize = VGA_WIDTH;
+    while (i < VGA_SIZE) : (i += 1) {
+        VGA_BUFFER[i - VGA_WIDTH] = VGA_BUFFER[i];
+    }
+    i = VGA_SIZE - VGA_WIDTH;
+    while (i < VGA_SIZE) : (i += 1) {
+        VGA_BUFFER[i] = vgaEntry(' ', TEXT_COLOR);
+    }
+}
+
 pub fn putChar(char: u8) void {
     if (char == '\n') {
-        Cursor.y += 1;
         Cursor.x = 0;
-        if (Cursor.y == VGA_HEIGHT) {
-            Cursor.y = 0;
+        if (Cursor.y + 1 == VGA_HEIGHT) {
+            shiftVga();
+        } else {
+            Cursor.y += 1;
         }
     } else {
         const index = Cursor.y * VGA_WIDTH + Cursor.x;
@@ -54,9 +67,10 @@ pub fn putChar(char: u8) void {
         Cursor.x += 1;
         if (Cursor.x == VGA_WIDTH) {
             Cursor.x = 0;
-            Cursor.y += 1;
-            if (Cursor.y == VGA_HEIGHT) {
-                Cursor.y = 0;
+            if (Cursor.y + 1 == VGA_HEIGHT) {
+                shiftVga();
+            } else {
+                Cursor.y += 1;
             }
         }
     }
