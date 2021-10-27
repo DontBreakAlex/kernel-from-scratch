@@ -48,6 +48,13 @@ export fn handle_keyboard() callconv(.Naked) void {
         const key: Key = kbm.map[key_code];
         if (key == .LEFT_SHIFT) {
             state.uppercase = !released;
+        } else if (released == false) {
+            const ascii = key.toAscii();
+            if (ascii) |char| {
+                vga.putChar(char);
+            } else {
+                vga.format("{}", .{key});
+            }
         }
     }
 
