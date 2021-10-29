@@ -1,4 +1,5 @@
 const std = @import("std");
+const utils = @import("utils.zig");
 
 const VgaEntryColor = u8;
 const VgaEntry = u16;
@@ -34,12 +35,29 @@ const VGA_SIZE = VGA_WIDTH * VGA_HEIGHT;
 const VGA_BUFFER = @intToPtr([*]volatile VgaEntry, 0xB8000);
 const TEXT_COLOR = vgaEntryColor(VgaColor.LIGHT_GREY, VgaColor.BLACK);
 
+const CURSOR_CMD = 0x03D4;
+const CURSOR_DATA = 0x03D5;
+
 inline fn vgaEntryColor(foreground: VgaColor, background: VgaColor) VgaEntryColor {
     return @enumToInt(foreground) | @enumToInt(background) << 4;
 }
 
 inline fn vgaEntry(character: u8, color: VgaEntryColor) VgaEntry {
     return @intCast(u16, character) | @intCast(u16, color) << 8;
+}
+
+pub fn init() void {
+    clear();
+}
+
+pub fn clear() void {
+    var i: usize = 0;
+    while (i < VGA_WIDTH * VGA_HEIGHT) : (i += 1) {
+        VGA_BUFFER[i] = vgaEntry(' ', TEXT_COLOR);
+    }
+    Cursor.x = 0;
+    Cursor.y = 0;
+    updateCursor();
 }
 
 fn shiftVga() void {
@@ -51,6 +69,14 @@ fn shiftVga() void {
     while (i < VGA_SIZE) : (i += 1) {
         VGA_BUFFER[i] = vgaEntry(' ', TEXT_COLOR);
     }
+}
+
+fn updateCursor() void {
+    const cursor = Cursor.x + Cursor.y * VGA_WIDTH;
+    utils.out(CURSOR_CMD, @as(u8, 0x0F));
+    utils.out(CURSOR_DATA, @truncate(u8, (cursor & 0xFF)));
+    utils.out(CURSOR_CMD, @as(u8, 0x0E));
+    utils.out(CURSOR_DATA, @truncate(u8, (cursor >> 8 & 0xFF)));
 }
 
 pub fn putChar(char: u8) void {
@@ -74,17 +100,7 @@ pub fn putChar(char: u8) void {
             }
         }
     }
-}
-
-pub fn init() void {
-    clear();
-}
-
-pub fn clear() void {
-    var i: usize = 0;
-    while (i < VGA_WIDTH * VGA_HEIGHT) : (i += 1) {
-        VGA_BUFFER[i] = vgaEntry(' ', TEXT_COLOR);
-    }
+    updateCursor();
 }
 
 pub fn putStr(data: []const u8) void {
