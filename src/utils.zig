@@ -49,3 +49,7 @@ pub inline fn out(port: u16, data: anytype) void {
 pub inline fn ioWait() void {
     out(0x80, @as(u8, 0));
 }
+
+pub inline fn boch_break() void {
+    asm volatile ("xchg %%bx, %%bx");
+}

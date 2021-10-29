@@ -106,7 +106,9 @@ pub const Key = enum(u7) {
     KEYPAD_0,
     KEYPAD_DOT,
 
-    pub fn toAscii(self: Key, ) ?u8 {
+    pub fn toAscii(
+        self: Key,
+    ) ?u8 {
         return switch (self) {
             .BACKSPACE => 0x08,
             .TAB => 0x09,

@@ -1,4 +1,4 @@
-#display_library: x, options="gui_debug"
-ata0-master: type=cdrom, path=/home/alexandre/Documents/kfs-1/grub.iso, status=inserted
+display_library: x, options="gui_debug"
+ata0-master: type=cdrom, path=/home/alexandre/Documents/kernel-from-scratch/grub.iso, status=inserted
 boot: cdrom
 magic_break: enabled=1

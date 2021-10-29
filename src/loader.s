@@ -50,11 +50,6 @@ _start:
 	jmp .hang
 .end:
 
-global boch_break
-boch_break:
-	xchg bx, bx
-	ret
-
 global enable_int
 enable_int:
 	sti
