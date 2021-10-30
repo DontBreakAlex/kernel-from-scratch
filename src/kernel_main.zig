@@ -21,4 +21,5 @@ export fn kernel_main() void {
 
     vga.format("Hello from main\n", .{});
     enable_int();
+    vga.readKeys();
 }

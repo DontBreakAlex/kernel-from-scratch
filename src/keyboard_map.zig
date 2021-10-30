@@ -295,3 +295,14 @@ pub const map = [128]Key{
     .UNKNOWN,
     .UNKNOWN,
 };
+
+const vga = @import("vga.zig");
+
+pub fn printKey(key: Key) void {
+    const ascii = key.toAscii();
+    if (ascii) |char| {
+        vga.putChar(char);
+    } else {
+        vga.format("{}", .{key});
+    }
+}

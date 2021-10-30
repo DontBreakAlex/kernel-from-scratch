@@ -1,5 +1,8 @@
 const std = @import("std");
 const utils = @import("utils.zig");
+const kbr = @import("keyboard.zig");
+
+// const KeyPress = @import("keyboard_map.zig").KeyPress;
 
 const VgaEntryColor = u8;
 const VgaEntry = u16;
@@ -24,8 +27,13 @@ const VgaColor = enum(u8) {
 };
 
 const Cursor = struct {
-    var x: usize = 0;
-    var y: usize = 0;
+    x: usize,
+    y: usize,
+};
+
+const VgaBuffer = struct {
+    buffer: [VGA_SIZE]VgaEntry,
+    cursor: Cursor,
 };
 
 const VGA_WIDTH = 80;
@@ -33,7 +41,13 @@ const VGA_HEIGHT = 25;
 const VGA_SIZE = VGA_WIDTH * VGA_HEIGHT;
 
 const VGA_BUFFER = @intToPtr([*]volatile VgaEntry, 0xB8000);
-const TEXT_COLOR = vgaEntryColor(VgaColor.LIGHT_GREY, VgaColor.BLACK);
+var CURSOR = Cursor{ .x = 0, .y = 0 };
+
+var VGA_SAVED: [4]VgaBuffer = undefined;
+var CURRENT_BUFFER: usize = 0;
+
+var TEXT_COLOR = vgaEntryColor(VgaColor.LIGHT_GREY, VgaColor.BLACK);
+var CURRENT_COLOR = VgaColor.BLACK;
 
 const CURSOR_CMD = 0x03D4;
 const CURSOR_DATA = 0x03D5;
@@ -47,16 +61,23 @@ inline fn vgaEntry(character: u8, color: VgaEntryColor) VgaEntry {
 }
 
 pub fn init() void {
+    for (VGA_SAVED) |*saved| {
+        var i: usize = 0;
+        while (i < VGA_SIZE) : (i += 1) {
+            saved.buffer[i] = vgaEntry(' ', TEXT_COLOR);
+        }
+        saved.cursor = Cursor{ .x = 0, .y = 0 };
+    }
     clear();
 }
 
 pub fn clear() void {
     var i: usize = 0;
-    while (i < VGA_WIDTH * VGA_HEIGHT) : (i += 1) {
+    while (i < VGA_SIZE) : (i += 1) {
         VGA_BUFFER[i] = vgaEntry(' ', TEXT_COLOR);
     }
-    Cursor.x = 0;
-    Cursor.y = 0;
+    CURSOR.x = 0;
+    CURSOR.y = 0;
     updateCursor();
 }
 
@@ -71,8 +92,20 @@ fn shiftVga() void {
     }
 }
 
+fn swapBuffer(new: usize) void {
+    var i: usize = 0;
+    while (i < VGA_SIZE) : (i += 1) {
+        VGA_SAVED[CURRENT_BUFFER].buffer[i] = VGA_BUFFER[i];
+        VGA_BUFFER[i] = VGA_SAVED[new].buffer[i];
+    }
+    VGA_SAVED[CURRENT_BUFFER].cursor = CURSOR;
+    CURSOR = VGA_SAVED[new].cursor;
+    CURRENT_BUFFER = new;
+    updateCursor();
+}
+
 fn updateCursor() void {
-    const cursor = Cursor.x + Cursor.y * VGA_WIDTH;
+    const cursor = CURSOR.x + CURSOR.y * VGA_WIDTH;
     utils.out(CURSOR_CMD, @as(u8, 0x0F));
     utils.out(CURSOR_DATA, @truncate(u8, (cursor & 0xFF)));
     utils.out(CURSOR_CMD, @as(u8, 0x0E));
@@ -81,22 +114,22 @@ fn updateCursor() void {
 
 pub fn putChar(char: u8) void {
     if (char == '\n') {
-        Cursor.x = 0;
-        if (Cursor.y + 1 == VGA_HEIGHT) {
+        CURSOR.x = 0;
+        if (CURSOR.y + 1 == VGA_HEIGHT) {
             shiftVga();
         } else {
-            Cursor.y += 1;
+            CURSOR.y += 1;
         }
     } else {
-        const index = Cursor.y * VGA_WIDTH + Cursor.x;
+        const index = CURSOR.y * VGA_WIDTH + CURSOR.x;
         VGA_BUFFER[index] = vgaEntry(char, TEXT_COLOR);
-        Cursor.x += 1;
-        if (Cursor.x == VGA_WIDTH) {
-            Cursor.x = 0;
-            if (Cursor.y + 1 == VGA_HEIGHT) {
+        CURSOR.x += 1;
+        if (CURSOR.x == VGA_WIDTH) {
+            CURSOR.x = 0;
+            if (CURSOR.y + 1 == VGA_HEIGHT) {
                 shiftVga();
             } else {
-                Cursor.y += 1;
+                CURSOR.y += 1;
             }
         }
     }
@@ -118,4 +151,37 @@ const Writer = std.io.Writer(void, VgaError, writeCallBack);
 
 pub fn format(comptime fmt: []const u8, args: anytype) void {
     _ = std.fmt.format(Writer{ .context = {} }, fmt, args) catch void;
+}
+
+pub fn readKeys() void {
+    while (true) {
+        const key: kbr.KeyPress = kbr.wait_key();
+        switch (key.key) {
+            .LEFT_ARROW => {
+                if (CURSOR.x != 0)
+                    CURSOR.x -= 1;
+            },
+            .RIGHT_ARROW => {
+                if (CURSOR.x != VGA_WIDTH)
+                    CURSOR.x += 1;
+            },
+            .PAGE_UP => {
+                if (CURRENT_COLOR != .WHITE) {
+                    CURRENT_COLOR = @intToEnum(VgaColor, @enumToInt(CURRENT_COLOR) + 1);
+                    TEXT_COLOR = vgaEntryColor(VgaColor.LIGHT_GREY, CURRENT_COLOR);
+                }
+            },
+            .PAGE_DOWN => {
+                if (CURRENT_COLOR != .BLACK) {
+                    CURRENT_COLOR = @intToEnum(VgaColor, @enumToInt(CURRENT_COLOR) - 1);
+                    TEXT_COLOR = vgaEntryColor(VgaColor.LIGHT_GREY, CURRENT_COLOR);
+                }
+            },
+            .F1 => swapBuffer(0),
+            .F2 => swapBuffer(1),
+            .F3 => swapBuffer(2),
+            .F4 => swapBuffer(3),
+            else => key.print(),
+        }
+    }
 }
