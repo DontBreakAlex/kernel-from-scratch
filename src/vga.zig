@@ -157,7 +157,7 @@ pub fn readKeys() void {
     while (true) {
         const key: kbr.KeyPress = kbr.wait_key();
         switch (key.key) {
-            .LEFT_ARROW => {
+            .LEFT_ARROW, .BACKSPACE => {
                 if (CURSOR.x != 0)
                     CURSOR.x -= 1;
                 updateCursor();
@@ -183,7 +183,7 @@ pub fn readKeys() void {
             .F2 => swapBuffer(1),
             .F3 => swapBuffer(2),
             .F4 => swapBuffer(3),
-            else => key.print(),
+            else => if (key.toAscii()) |char| putChar(char),
         }
     }
 }

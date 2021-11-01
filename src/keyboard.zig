@@ -11,8 +11,8 @@ pub const KeyPress = struct {
     key: Key,
     uppercase: bool,
 
-    pub fn print(self: KeyPress) void {
-        kbm.printKey(self.key);
+    pub fn toAscii(self: KeyPress) ?u8 {
+        return self.key.toAscii(self.uppercase);
     }
 };
 
@@ -91,7 +91,7 @@ noinline fn handle_scancode(scan_code: u8) void {
     const key_code = @truncate(u7, scan_code); // Remove released bit;
     const key: Key = if (state.special) kbm.parseSpecial(key_code) else kbm.map[key_code];
     // vga.format("Scancode: {x}, Keycode: {x}\n", .{ scan_code, key_code });
-    if (key == .LEFT_SHIFT) {
+    if (key == .LEFT_SHIFT or key == .RIGHT_SHIFT) {
         state.uppercase = !released;
     } else if (released) {
         push_key(key, state.uppercase) catch |_| vga.putStr("Could not handle key: queue is full\n");

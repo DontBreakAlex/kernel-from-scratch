@@ -19,7 +19,8 @@ export fn kernel_main() void {
     pic.init();
     kbr.init();
 
-    vga.format("Hello from main\n", .{});
+    vga.init();
+    vga.putStr("42");
     enable_int();
     vga.readKeys();
 }
