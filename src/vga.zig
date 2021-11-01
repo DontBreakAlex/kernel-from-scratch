@@ -160,10 +160,12 @@ pub fn readKeys() void {
             .LEFT_ARROW => {
                 if (CURSOR.x != 0)
                     CURSOR.x -= 1;
+                updateCursor();
             },
             .RIGHT_ARROW => {
                 if (CURSOR.x != VGA_WIDTH)
                     CURSOR.x += 1;
+                updateCursor();
             },
             .PAGE_UP => {
                 if (CURRENT_COLOR != .WHITE) {

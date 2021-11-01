@@ -296,6 +296,25 @@ pub const map = [128]Key{
     .UNKNOWN,
 };
 
+pub fn parseSpecial(key: u7) Key {
+    return switch (key) {
+        0x1D => .RIGHT_CTRL,
+        0x35 => .KEYPAD_SLASH,
+        0x38 => .RIGHT_ALT,
+        0x47 => .HOME,
+        0x48 => .UP_ARROW,
+        0x49 => .PAGE_UP,
+        0x4B => .LEFT_ARROW,
+        0x4D => .RIGHT_ARROW,
+        0x4F => .END,
+        0x50 => .DOWN_ARROW,
+        0x51 => .PAGE_DOWN,
+        0x52 => .INSERT,
+        0x53 => .DELETE,
+        else => .UNKNOWN,
+    };
+}
+
 const vga = @import("vga.zig");
 
 pub fn printKey(key: Key) void {

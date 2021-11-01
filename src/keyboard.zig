@@ -78,20 +78,25 @@ pub fn wait_key() KeyPress {
 noinline fn handle_scancode(scan_code: u8) void {
     const state = struct {
         var uppercase: bool = false;
+        var special: bool = false;
     };
     var released = false;
+    if (scan_code == 0xe0) {
+        state.special = true;
+        return;
+    }
 
-    if (scan_code >= 128)
-        released = true;
+    if (scan_code >= 128) released = true;
 
     const key_code = @truncate(u7, scan_code); // Remove released bit;
-    const key: Key = kbm.map[key_code];
-    // vga.format("Scancode: {x}, Keycode: {x}, Key: {}\n", .{ scan_code, key_code, key });
+    const key: Key = if (state.special) kbm.parseSpecial(key_code) else kbm.map[key_code];
+    // vga.format("Scancode: {x}, Keycode: {x}\n", .{ scan_code, key_code });
     if (key == .LEFT_SHIFT) {
         state.uppercase = !released;
     } else if (released) {
         push_key(key, state.uppercase) catch |_| vga.putStr("Could not handle key: queue is full\n");
     }
+    if (state.special) state.special = false;
 }
 
 export fn handle_keyboard() callconv(.Naked) void {
