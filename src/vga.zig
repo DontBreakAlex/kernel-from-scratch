@@ -157,14 +157,20 @@ pub fn readKeys() void {
     while (true) {
         const key: kbr.KeyPress = kbr.wait_key();
         switch (key.key) {
-            .LEFT_ARROW, .BACKSPACE => {
-                if (CURSOR.x != 0)
-                    CURSOR.x -= 1;
+            .LEFT_ARROW, .BACKSPACE => if (CURSOR.x != 0) {
+                CURSOR.x -= 1;
                 updateCursor();
             },
-            .RIGHT_ARROW => {
-                if (CURSOR.x != VGA_WIDTH)
-                    CURSOR.x += 1;
+            .RIGHT_ARROW => if (CURSOR.x != VGA_WIDTH) {
+                CURSOR.x += 1;
+                updateCursor();
+            },
+            .UP_ARROW => if (CURSOR.y != 0) {
+                CURSOR.y -= 1;
+                updateCursor();
+            },
+            .DOWN_ARROW => if (CURSOR.y != VGA_HEIGHT) {
+                CURSOR.y += 1;
                 updateCursor();
             },
             .PAGE_UP => {
