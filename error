@@ -1,2 +1,0 @@
-(0).[149558128] [0x0000000000001890] 0008:0000000000001890 (unk. ctxt): movsd xmm0, qword ptr ds:[edx+edi] ; f20f10043a
-00149558128e[CPU0 ] exception(): 3rd (13) exception with no resolution, shutdown status is 00h, resetting
