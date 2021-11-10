@@ -36,8 +36,8 @@ const VgaBuffer = struct {
     cursor: Cursor,
 };
 
-const VGA_WIDTH = 80;
-const VGA_HEIGHT = 25;
+pub const VGA_WIDTH = 80;
+pub const VGA_HEIGHT = 25;
 const VGA_SIZE = VGA_WIDTH * VGA_HEIGHT;
 
 const VGA_BUFFER = @intToPtr([*]volatile VgaEntry, 0xB8000);
@@ -110,6 +110,13 @@ fn updateCursor() void {
     utils.out(CURSOR_DATA, @truncate(u8, (cursor & 0xFF)));
     utils.out(CURSOR_CMD, @as(u8, 0x0E));
     utils.out(CURSOR_DATA, @truncate(u8, (cursor >> 8 & 0xFF)));
+}
+
+
+pub fn moveCursor(x: u8, y: u8) void {
+    CURSOR.x = x;
+    CURSOR.y = y;
+    updateCursor();
 }
 
 pub fn putChar(char: u8) void {

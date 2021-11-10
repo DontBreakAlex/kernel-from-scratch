@@ -5,6 +5,7 @@ const idt = @import("idt.zig");
 const vga = @import("vga.zig");
 const pic = @import("pic.zig");
 const kbr = @import("keyboard.zig");
+const shl = @import("shell.zig");
 
 pub fn panic(msg: []const u8, error_return_trace: ?*std.builtin.StackTrace) noreturn {
     @setCold(true);
@@ -18,9 +19,8 @@ export fn kernel_main() void {
     idt.init();
     pic.init();
     kbr.init();
-
     vga.init();
-    vga.putStr("42");
+
     enable_int();
-    vga.readKeys();
+    shl.run();
 }
