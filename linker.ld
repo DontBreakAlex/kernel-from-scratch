@@ -7,6 +7,10 @@ SECTIONS
             KEEP(*(.multiboot))
         }
 
+	.gdt 0x800 : {
+		*.gdt
+	}
+
 	.text : ALIGN(4K)
 	{
 		*(.text)

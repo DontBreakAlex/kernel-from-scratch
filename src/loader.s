@@ -40,6 +40,7 @@ _start:
 	mov es, ax
 	mov fs, ax
 	mov gs, ax
+	mov ax, 0x18
 	mov ss, ax
 	mov esp, stack_top
 
@@ -60,13 +61,13 @@ disable_int:
 	cli
 	ret
 
-section .data
+section .gdt
 
 gdt_start:
 gdt_null:	; Null entry
 	dd 0x0	; dd means Define Double word (32 bits)
 	dd 0x0
-gdt_code:	; Code segment
+k_code:	; Code segment
 	; Segment Base Address (base) = 0x0
 	; Segment Limit (limit) = 0xfffff
 	; These pointers are split up all around the data structure to allow
@@ -91,7 +92,7 @@ gdt_code:	; Code segment
 		; Unused: 0b0
 	db 11001111b	; Flag set 3 and limit bits 16-19
 	db 0x00		; Base bits 24-31
-gdt_data:
+k_data:
 	; Same except for code flag:
 		; Code: 0b0
 	dw 0xffff	; Limit bits 0-15
@@ -100,6 +101,34 @@ gdt_data:
 	db 10010010b	; Flag set 1 and 2
 	db 11001111b	; 2nd flags and limit bits 16-19
 	db 0x00		; Base bits 24-31
+k_stack:
+	dw 0xffff
+	dw 0x0000
+	db 0x00
+	db 10010010b
+	db 11001111b
+	db 0x00
+u_code:
+	dw 0xffff
+	dw 0x0000
+	db 0x00
+	db 11111010b
+	db 11001111b
+	db 0x00
+u_data:
+	dw 0xffff
+	dw 0x0000
+	db 0x00
+	db 11110010b
+	db 11001111b
+	db 0x00
+u_stack:
+	dw 0xffff
+	dw 0x0000
+	db 0x00
+	db 11110010b
+	db 11001111b
+	db 0x00
 
 gdt_end:
 
