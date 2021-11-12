@@ -1,29 +1,42 @@
 const vga = @import("vga.zig");
 const kbr = @import("keyboard.zig");
 const std = @import("std");
+const commands = @import("commands.zig");
+
+const ArrayList = std.ArrayList;
 
 const motd = "Welcome to kernel-from-scratch !\n";
 
 pub fn run() void {
     vga.clear();
-    vga.moveCursor(0, vga.VGA_HEIGHT - 1);
     vga.putStr(motd);
 
     while (true) {
-        const line = readLine();
-        defer line.deinit();
-        vga.format("{}\n", line);
+        vga.putChar('>');
+        if (readLine()) |line| {
+            defer line.deinit();
+
+            var args = std.mem.tokenize(line.items, " ");
+            if (commands.find(args.next() orelse unreachable)) |command| {
+                _ = command(&args);
+            } else {
+                vga.format("Command not found: {s}\n", .{line.items});
+            }
+        } else |err| {
+            vga.format("Readline error: \"{s}\"\n", .{err});
+        }
     }
 }
 
-pub fn readLine() std.ArrayList(u8) {
-    const line = std.ArrayList(u8).init(allocator);
+pub fn readLine() !ArrayList(u8) {
+    var line: ArrayList(u8) = ArrayList(u8).init(allocator);
+    errdefer line.deinit();
 
     while (true) {
         const key = kbr.wait_key();
         if (key.toAscii()) |char| {
             vga.putChar(char);
-            if (key == '\n')
+            if (char == '\n')
                 return line;
             try line.append(char);
         }

@@ -2,7 +2,7 @@ const std = @import("std");
 const utils = @import("utils.zig");
 const kbr = @import("keyboard.zig");
 
-// const KeyPress = @import("keyboard_map.zig").KeyPress;
+const Cursor = @import("cursor.zig").Cursor;
 
 const VgaEntryColor = u8;
 const VgaEntry = u16;
@@ -26,84 +26,6 @@ const VgaColor = enum(u8) {
     WHITE = 15,
 };
 
-const Cursor = struct {
-    x: usize,
-    y: usize,
-
-    fn left(self: *Cursor) void {
-        if (self.x == 0) {
-            if (self.up()) {
-                self.x = VGA_WIDTH - 1;
-            }
-        } else {
-            self.x -= 1;
-        }
-    }
-    fn right(self: *Cursor) void {
-        if (self.x + 1 == VGA_WIDTH) {
-            self.x = 0;
-            self.down();
-        } else {
-            self.x += 1;
-        }
-    }
-    fn down(self: *Cursor) void {
-        if (self.y + 1 == VGA_HEIGHT) {
-            shiftVga();
-        } else {
-            self.y += 1;
-        }
-    }
-    fn up(self: *Cursor) bool {
-        if (self.y == 0)
-            return false;
-        self.y -= 1;
-        return true;
-    }
-    fn goto(self: *Cursor, x: u8, y: u8) void {
-        self.x = x;
-        self.y = y;
-    }
-    fn update(self: Cursor) void {
-        const cursor = self.x + self.y * VGA_WIDTH;
-        utils.out(CURSOR_CMD, @as(u8, 0x0F));
-        utils.out(CURSOR_DATA, @truncate(u8, (cursor & 0xFF)));
-        utils.out(CURSOR_CMD, @as(u8, 0x0E));
-        utils.out(CURSOR_DATA, @truncate(u8, (cursor >> 8 & 0xFF)));
-    }
-    pub fn reset(self: Cursor) void {
-        self.goto(0, 0);
-        self.update();
-    }
-    pub fn move(self: Cursor, x: u8, y: u8) void {
-        self.goto(x, y);
-        self.update();
-    }
-    pub fn forward(self: Cursor) void {
-        self.right();
-        self.update();
-    }
-    pub fn backward(self: Cursor) void {
-        self.left();
-        self.update();
-    }
-    pub fn downward(self: Cursor) void {
-        self.down();
-        self.update();
-    }
-    pub fn upward(self: Cursor) void {
-        self.up();
-        self.update();
-    }
-    pub fn newline(self: *Cursor) void {
-        self.x = 0;
-        self.downward();
-    }
-    pub fn index(self: Cursor) usize {
-       return self.y * VGA_WIDTH + self.x;
-    }
-};
-
 const VgaBuffer = struct {
     buffer: [VGA_SIZE]VgaEntry,
     cursor: Cursor,
@@ -114,16 +36,13 @@ pub const VGA_HEIGHT = 25;
 const VGA_SIZE = VGA_WIDTH * VGA_HEIGHT;
 
 const VGA_BUFFER = @intToPtr([*]volatile VgaEntry, 0xB8000);
-var CURSOR = Cursor{ .x = 0, .y = 0 };
+pub var CURSOR = Cursor{ .x = 0, .y = 0 };
 
 var VGA_SAVED: [4]VgaBuffer = undefined;
 var CURRENT_BUFFER: usize = 0;
 
 var TEXT_COLOR = vgaEntryColor(VgaColor.LIGHT_GREY, VgaColor.BLACK);
 var CURRENT_COLOR = VgaColor.BLACK;
-
-const CURSOR_CMD = 0x03D4;
-const CURSOR_DATA = 0x03D5;
 
 inline fn vgaEntryColor(foreground: VgaColor, background: VgaColor) VgaEntryColor {
     return @enumToInt(foreground) | @enumToInt(background) << 4;
@@ -152,7 +71,7 @@ pub fn clear() void {
     CURSOR.move(0, 0);
 }
 
-fn shiftVga() void {
+pub fn shiftVga() void {
     var i: usize = VGA_WIDTH;
     while (i < VGA_SIZE) : (i += 1) {
         VGA_BUFFER[i - VGA_WIDTH] = VGA_BUFFER[i];
