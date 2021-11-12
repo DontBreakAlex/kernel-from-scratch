@@ -29,6 +29,79 @@ const VgaColor = enum(u8) {
 const Cursor = struct {
     x: usize,
     y: usize,
+
+    fn left(self: *Cursor) void {
+        if (self.x == 0) {
+            if (self.up()) {
+                self.x = VGA_WIDTH - 1;
+            }
+        } else {
+            self.x -= 1;
+        }
+    }
+    fn right(self: *Cursor) void {
+        if (self.x + 1 == VGA_WIDTH) {
+            self.x = 0;
+            self.down();
+        } else {
+            self.x += 1;
+        }
+    }
+    fn down(self: *Cursor) void {
+        if (self.y + 1 == VGA_HEIGHT) {
+            shiftVga();
+        } else {
+            self.y += 1;
+        }
+    }
+    fn up(self: *Cursor) bool {
+        if (self.y == 0)
+            return false;
+        self.y -= 1;
+        return true;
+    }
+    fn goto(self: *Cursor, x: u8, y: u8) void {
+        self.x = x;
+        self.y = y;
+    }
+    fn update(self: Cursor) void {
+        const cursor = self.x + self.y * VGA_WIDTH;
+        utils.out(CURSOR_CMD, @as(u8, 0x0F));
+        utils.out(CURSOR_DATA, @truncate(u8, (cursor & 0xFF)));
+        utils.out(CURSOR_CMD, @as(u8, 0x0E));
+        utils.out(CURSOR_DATA, @truncate(u8, (cursor >> 8 & 0xFF)));
+    }
+    pub fn reset(self: Cursor) void {
+        self.goto(0, 0);
+        self.update();
+    }
+    pub fn move(self: Cursor, x: u8, y: u8) void {
+        self.goto(x, y);
+        self.update();
+    }
+    pub fn forward(self: Cursor) void {
+        self.right();
+        self.update();
+    }
+    pub fn backward(self: Cursor) void {
+        self.left();
+        self.update();
+    }
+    pub fn downward(self: Cursor) void {
+        self.down();
+        self.update();
+    }
+    pub fn upward(self: Cursor) void {
+        self.up();
+        self.update();
+    }
+    pub fn newline(self: *Cursor) void {
+        self.x = 0;
+        self.downward();
+    }
+    pub fn index(self: Cursor) usize {
+       return self.y * VGA_WIDTH + self.x;
+    }
 };
 
 const VgaBuffer = struct {
@@ -76,9 +149,7 @@ pub fn clear() void {
     while (i < VGA_SIZE) : (i += 1) {
         VGA_BUFFER[i] = vgaEntry(' ', TEXT_COLOR);
     }
-    CURSOR.x = 0;
-    CURSOR.y = 0;
-    updateCursor();
+    CURSOR.move(0, 0);
 }
 
 fn shiftVga() void {
@@ -101,46 +172,17 @@ fn swapBuffer(new: usize) void {
     VGA_SAVED[CURRENT_BUFFER].cursor = CURSOR;
     CURSOR = VGA_SAVED[new].cursor;
     CURRENT_BUFFER = new;
-    updateCursor();
-}
-
-fn updateCursor() void {
-    const cursor = CURSOR.x + CURSOR.y * VGA_WIDTH;
-    utils.out(CURSOR_CMD, @as(u8, 0x0F));
-    utils.out(CURSOR_DATA, @truncate(u8, (cursor & 0xFF)));
-    utils.out(CURSOR_CMD, @as(u8, 0x0E));
-    utils.out(CURSOR_DATA, @truncate(u8, (cursor >> 8 & 0xFF)));
-}
-
-
-pub fn moveCursor(x: u8, y: u8) void {
-    CURSOR.x = x;
-    CURSOR.y = y;
-    updateCursor();
+    CURSOR.update();
 }
 
 pub fn putChar(char: u8) void {
     if (char == '\n') {
-        CURSOR.x = 0;
-        if (CURSOR.y + 1 == VGA_HEIGHT) {
-            shiftVga();
-        } else {
-            CURSOR.y += 1;
-        }
+        CURSOR.newline();
     } else {
-        const index = CURSOR.y * VGA_WIDTH + CURSOR.x;
+        const index = CURSOR.index();
         VGA_BUFFER[index] = vgaEntry(char, TEXT_COLOR);
-        CURSOR.x += 1;
-        if (CURSOR.x == VGA_WIDTH) {
-            CURSOR.x = 0;
-            if (CURSOR.y + 1 == VGA_HEIGHT) {
-                shiftVga();
-            } else {
-                CURSOR.y += 1;
-            }
-        }
+        CURSOR.forward();
     }
-    updateCursor();
 }
 
 pub fn putStr(data: []const u8) void {
@@ -160,43 +202,43 @@ pub fn format(comptime fmt: []const u8, args: anytype) void {
     _ = std.fmt.format(Writer{ .context = {} }, fmt, args) catch void;
 }
 
-pub fn readKeys() void {
-    while (true) {
-        const key: kbr.KeyPress = kbr.wait_key();
-        switch (key.key) {
-            .LEFT_ARROW, .BACKSPACE => if (CURSOR.x != 0) {
-                CURSOR.x -= 1;
-                updateCursor();
-            },
-            .RIGHT_ARROW => if (CURSOR.x != VGA_WIDTH) {
-                CURSOR.x += 1;
-                updateCursor();
-            },
-            .UP_ARROW => if (CURSOR.y != 0) {
-                CURSOR.y -= 1;
-                updateCursor();
-            },
-            .DOWN_ARROW => if (CURSOR.y != VGA_HEIGHT) {
-                CURSOR.y += 1;
-                updateCursor();
-            },
-            .PAGE_UP => {
-                if (CURRENT_COLOR != .WHITE) {
-                    CURRENT_COLOR = @intToEnum(VgaColor, @enumToInt(CURRENT_COLOR) + 1);
-                    TEXT_COLOR = vgaEntryColor(VgaColor.LIGHT_GREY, CURRENT_COLOR);
-                }
-            },
-            .PAGE_DOWN => {
-                if (CURRENT_COLOR != .BLACK) {
-                    CURRENT_COLOR = @intToEnum(VgaColor, @enumToInt(CURRENT_COLOR) - 1);
-                    TEXT_COLOR = vgaEntryColor(VgaColor.LIGHT_GREY, CURRENT_COLOR);
-                }
-            },
-            .F1 => swapBuffer(0),
-            .F2 => swapBuffer(1),
-            .F3 => swapBuffer(2),
-            .F4 => swapBuffer(3),
-            else => if (key.toAscii()) |char| putChar(char),
-        }
-    }
-}
+// pub fn readKeys() void {
+//     while (true) {
+//         const key: kbr.KeyPress = kbr.wait_key();
+//         switch (key.key) {
+//             .LEFT_ARROW, .BACKSPACE => if (CURSOR.x != 0) {
+//                 CURSOR.x -= 1;
+//                 updateCursor();
+//             },
+//             .RIGHT_ARROW => if (CURSOR.x != VGA_WIDTH) {
+//                 CURSOR.x += 1;
+//                 updateCursor();
+//             },
+//             .UP_ARROW => if (CURSOR.y != 0) {
+//                 CURSOR.y -= 1;
+//                 updateCursor();
+//             },
+//             .DOWN_ARROW => if (CURSOR.y != VGA_HEIGHT) {
+//                 CURSOR.y += 1;
+//                 updateCursor();
+//             },
+//             .PAGE_UP => {
+//                 if (CURRENT_COLOR != .WHITE) {
+//                     CURRENT_COLOR = @intToEnum(VgaColor, @enumToInt(CURRENT_COLOR) + 1);
+//                     TEXT_COLOR = vgaEntryColor(VgaColor.LIGHT_GREY, CURRENT_COLOR);
+//                 }
+//             },
+//             .PAGE_DOWN => {
+//                 if (CURRENT_COLOR != .BLACK) {
+//                     CURRENT_COLOR = @intToEnum(VgaColor, @enumToInt(CURRENT_COLOR) - 1);
+//                     TEXT_COLOR = vgaEntryColor(VgaColor.LIGHT_GREY, CURRENT_COLOR);
+//                 }
+//             },
+//             .F1 => swapBuffer(0),
+//             .F2 => swapBuffer(1),
+//             .F3 => swapBuffer(2),
+//             .F4 => swapBuffer(3),
+//             else => if (key.toAscii()) |char| putChar(char),
+//         }
+//     }
+// }
