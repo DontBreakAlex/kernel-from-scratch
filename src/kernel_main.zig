@@ -9,7 +9,8 @@ const utl = @import("utils.zig");
 pub fn panic(msg: []const u8, error_return_trace: ?*std.builtin.StackTrace) noreturn {
     @setCold(true);
     vga.putStr("KERNEL PANIC\n");
-    boch_break();
+    utl.boch_break();
+    utl.halt();
     while (true) {}
 }
 

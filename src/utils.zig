@@ -61,3 +61,20 @@ pub inline fn disable_int() void {
 pub inline fn enable_int() void {
     asm volatile ("sti");
 }
+
+pub inline fn halt() void {
+    asm volatile (
+        \\cli
+        \\hlt
+    );
+}
+
+const Register = enum { esp };
+
+pub fn get_register(comptime reg: Register) usize {
+    return switch (reg) {
+        .esp => asm volatile (""
+            : [ret] "={esp}" (-> usize)
+        ),
+    };
+}

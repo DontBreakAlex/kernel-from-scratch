@@ -36,7 +36,11 @@ pub fn readLine() !ArrayList(u8) {
     while (true) {
         const key: kbr.KeyPress = kbr.wait_key();
         switch (key.key) {
-            .BACKSPACE => if (line.popOrNull()) |_| vga.erase(),
+            .BACKSPACE => if (n != 0 and n == line.items.len) {
+                vga.erase();
+                n -= 1;
+                _ = line.pop();
+            },
             .LEFT_ARROW => if (n != 0) {
                 n -= 1;
                 vga.CURSOR.backward();

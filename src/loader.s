@@ -14,6 +14,7 @@ section .bss
 align 16
 stack_bottom:
 resb 65536
+global stack_top
 stack_top:
 
 section .text
@@ -23,6 +24,7 @@ extern kernel_main
 global _start:function (_start.end - _start)
 _start:
 	mov esp, stack_top
+	xchg bx, bx
 	cli ; We don't want any interrupt while seting the GDT
 	lgdt [gdtr_descr]
 	; Enable SSE
