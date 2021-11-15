@@ -22,7 +22,8 @@ extern kernel_main
 
 global _start:function (_start.end - _start)
 _start:
-	call disable_int ; We don't want any interrupt while seting the GDT
+	mov esp, stack_top
+	cli ; We don't want any interrupt while seting the GDT
 	lgdt [gdtr_descr]
 	; Enable SSE
 	mov eax, cr0
@@ -42,7 +43,6 @@ _start:
 	mov gs, ax
 	mov ax, 0x18
 	mov ss, ax
-	mov esp, stack_top
 
 	call kernel_main
 
@@ -50,16 +50,6 @@ _start:
 	hlt
 	jmp .hang
 .end:
-
-global enable_int
-enable_int:
-	sti
-	ret
-
-global disable_int
-disable_int:
-	cli
-	ret
 
 section .gdt
 

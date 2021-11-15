@@ -53,3 +53,11 @@ pub inline fn ioWait() void {
 pub inline fn boch_break() void {
     asm volatile ("xchg %%bx, %%bx");
 }
+
+pub inline fn disable_int() void {
+    asm volatile ("cli");
+}
+
+pub inline fn enable_int() void {
+    asm volatile ("sti");
+}

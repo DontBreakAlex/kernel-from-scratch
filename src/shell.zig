@@ -17,13 +17,13 @@ pub fn run() void {
             defer line.deinit();
 
             var args = std.mem.tokenize(line.items, " ");
-            if (commands.find(args.next() orelse unreachable)) |command| {
+            if (commands.find(args.next() orelse continue)) |command| {
                 _ = command(&args);
             } else {
                 vga.format("Command not found: {s}\n", .{line.items});
             }
         } else |err| {
-            vga.format("Readline error: \"{s}\"\n", .{err});
+            vga.format("\nReadline error: \"{s}\"\n", .{err});
         }
     }
 }
@@ -31,14 +31,38 @@ pub fn run() void {
 pub fn readLine() !ArrayList(u8) {
     var line: ArrayList(u8) = ArrayList(u8).init(allocator);
     errdefer line.deinit();
+    var n: usize = 0;
 
     while (true) {
-        const key = kbr.wait_key();
-        if (key.toAscii()) |char| {
-            vga.putChar(char);
-            if (char == '\n')
-                return line;
-            try line.append(char);
+        const key: kbr.KeyPress = kbr.wait_key();
+        switch (key.key) {
+            .BACKSPACE => if (line.popOrNull()) |_| vga.erase(),
+            .LEFT_ARROW => if (n != 0) {
+                n -= 1;
+                vga.CURSOR.backward();
+            },
+            .RIGHT_ARROW => if (n < line.items.len) {
+                n += 1;
+                vga.CURSOR.forward();
+            },
+            else => if (key.toAscii()) |char| {
+                if (char == '\n') {
+                    vga.CURSOR.newline();
+                    return line;
+                }
+                if (n == line.items.len) {
+                    try line.append(char);
+                    n += 1;
+                    vga.putChar(char);
+                } else {
+                    try line.insert(n, char);
+                    var cursor = vga.CURSOR;
+                    vga.putStr(line.items[n..line.items.len]);
+                    cursor.forward();
+                    vga.CURSOR = cursor;
+                    n += 1;
+                }
+            },
         }
     }
 

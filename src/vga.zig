@@ -71,6 +71,11 @@ pub fn clear() void {
     CURSOR.move(0, 0);
 }
 
+pub fn erase() void {
+    CURSOR.backward();
+    VGA_BUFFER[CURSOR.index()] = vgaEntry(' ', TEXT_COLOR);
+}
+
 pub fn shiftVga() void {
     var i: usize = VGA_WIDTH;
     while (i < VGA_SIZE) : (i += 1) {
