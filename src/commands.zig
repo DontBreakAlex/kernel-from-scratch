@@ -9,9 +9,10 @@ pub const CommandFn = fn (args: *TokenIterator) u8;
 pub const Command = struct { name: []const u8, cmd: CommandFn };
 extern const stack_top: u8;
 
-pub const commands: [2]Command = .{
+pub const commands: [3]Command = .{
     .{ .name = "echo", .cmd = echo },
     .{ .name = "pstack", .cmd = printStack },
+    .{ .name = "panic", .cmd = pan },
 };
 
 pub fn find(name: []const u8) ?CommandFn {
@@ -68,5 +69,11 @@ fn printStack(args: *TokenIterator) u8 {
         }
         vga.putChar('\n');
     }
+    return 0;
+}
+
+fn pan(args: *TokenIterator) u8 {
+    var i :usize = 0;
+    i -= 1;
     return 0;
 }

@@ -120,7 +120,7 @@ fn writeCallBack(context: void, str: []const u8) VgaError!usize {
     return str.len;
 }
 
-const Writer = std.io.Writer(void, VgaError, writeCallBack);
+pub const Writer = std.io.Writer(void, VgaError, writeCallBack);
 
 pub fn format(comptime fmt: []const u8, args: anytype) void {
     _ = std.fmt.format(Writer{ .context = {} }, fmt, args) catch void;

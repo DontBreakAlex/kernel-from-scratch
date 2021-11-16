@@ -2,6 +2,7 @@ const vga = @import("vga.zig");
 const kbr = @import("keyboard.zig");
 const std = @import("std");
 const commands = @import("commands.zig");
+const utl = @import("utils.zig");
 
 const ArrayList = std.ArrayList;
 
@@ -29,7 +30,7 @@ pub fn run() void {
 }
 
 pub fn readLine() !ArrayList(u8) {
-    var line: ArrayList(u8) = ArrayList(u8).init(allocator);
+    var line: ArrayList(u8) = ArrayList(u8).init(utl.allocator);
     errdefer line.deinit();
     var n: usize = 0;
 
@@ -72,7 +73,3 @@ pub fn readLine() !ArrayList(u8) {
 
     return line;
 }
-
-var buffer: [1000]u8 = undefined;
-var fba = std.heap.FixedBufferAllocator.init(&buffer);
-var allocator = &fba.allocator;

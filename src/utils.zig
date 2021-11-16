@@ -1,4 +1,5 @@
 const IdtPtr = @import("idt.zig").IdtPtr;
+const std = @import("std");
 
 pub inline fn lidt(ptr: *const IdtPtr) void {
     asm volatile ("lidt (%%eax)"
@@ -78,3 +79,7 @@ pub fn get_register(comptime reg: Register) usize {
         ),
     };
 }
+
+var buffer: [8000]u8 = undefined;
+var fba = std.heap.FixedBufferAllocator.init(&buffer);
+pub var allocator = &fba.allocator;
