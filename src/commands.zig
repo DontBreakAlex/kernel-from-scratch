@@ -37,8 +37,7 @@ fn escaped(char: u8) u8 {
     return '.';
 }
 
-fn printStack(args: *TokenIterator) u8 {
-    var yolo: [15]u8 = .{'a', 'b', 'c', 'e', 'f', 'g', 'h', 'i', 'j', 'k', 'l', 'm', 'n', 'o', 'p'};
+fn printStack(_: *TokenIterator) u8 {
     const bottom: usize = utils.get_register(.esp);
     const top: *const u8 = &stack_top;
     const len = (@ptrToInt(top) - bottom);
@@ -46,25 +45,23 @@ fn printStack(args: *TokenIterator) u8 {
     var i = len - 1;
     var line: [16]u8 = undefined;
     while (i >= 16) : (i -= 16) {
-        for (s[i-15..i+1]) |c, p| {
+        for (s[i - 15 .. i + 1]) |c, p| {
             line[p] = escaped(c);
         }
-        vga.format("{x:0>8}  {x:0>2} {x:0>2} {x:0>2} {x:0>2} {x:0>2} {x:0>2} {x:0>2} {x:0>2}  {x:0>2} {x:0>2} {x:0>2} {x:0>2} {x:0>2} {x:0>2} {x:0>2} {x:0>2}  |{s}|\n", .{
-            @ptrToInt(&s[i]), s[i-15], s[i - 14], s[i - 13], s[i - 12], s[i - 11], s[i - 10], s[i - 9], s[i - 8], s[i - 7], s[i - 6], s[i - 5], s[i - 4], s[i - 3], s[i - 2], s[i - 1], s[i], line
-        });
+        vga.format("{x:0>8}  {x:0>2} {x:0>2} {x:0>2} {x:0>2} {x:0>2} {x:0>2} {x:0>2} {x:0>2}  {x:0>2} {x:0>2} {x:0>2} {x:0>2} {x:0>2} {x:0>2} {x:0>2} {x:0>2}  |{s}|\n", .{ @ptrToInt(&s[i]), s[i - 15], s[i - 14], s[i - 13], s[i - 12], s[i - 11], s[i - 10], s[i - 9], s[i - 8], s[i - 7], s[i - 6], s[i - 5], s[i - 4], s[i - 3], s[i - 2], s[i - 1], s[i], line });
     }
     if (i != 0) {
-        vga.format("{x:0>8}  ", .{ @ptrToInt(&s[i] )});
+        vga.format("{x:0>8}  ", .{@ptrToInt(&s[i])});
         var o = i;
         while (i - o < 8) {
-            vga.format("{x:0>2} ", .{ s[o] });
+            vga.format("{x:0>2} ", .{s[o]});
             if (o == 0) break;
             o -= 1;
         }
         if (o != 0) {
             vga.putChar(' ');
             while (o != 0) : (o -= 1) {
-                vga.format("{x:0>2} ", .{ s[o] });
+                vga.format("{x:0>2} ", .{s[o]});
             }
         }
         vga.putChar('\n');
@@ -72,8 +69,8 @@ fn printStack(args: *TokenIterator) u8 {
     return 0;
 }
 
-fn pan(args: *TokenIterator) u8 {
-    var i :usize = 0;
+fn pan(_: *TokenIterator) u8 {
+    var i: usize = 0;
     i -= 1;
     return 0;
 }

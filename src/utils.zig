@@ -4,23 +4,23 @@ const std = @import("std");
 pub inline fn lidt(ptr: *const IdtPtr) void {
     asm volatile ("lidt (%%eax)"
         :
-        : [ptr] "{eax}" (ptr)
+        : [ptr] "{eax}" (ptr),
     );
 }
 
 pub inline fn in(comptime Type: type, port: u16) Type {
     return switch (Type) {
         u8 => asm volatile ("inb %[port], %[result]"
-            : [result] "={al}" (-> Type)
-            : [port] "N{dx}" (port)
+            : [result] "={al}" (-> Type),
+            : [port] "N{dx}" (port),
         ),
         u16 => asm volatile ("inw %[port], %[result]"
-            : [result] "={ax}" (-> Type)
-            : [port] "N{dx}" (port)
+            : [result] "={ax}" (-> Type),
+            : [port] "N{dx}" (port),
         ),
         u32 => asm volatile ("inl %[port], %[result]"
-            : [result] "={eax}" (-> Type)
-            : [port] "N{dx}" (port)
+            : [result] "={eax}" (-> Type),
+            : [port] "N{dx}" (port),
         ),
         else => @compileError("Invalid data type, found: " ++ @typeName(Type)),
     };
@@ -31,17 +31,17 @@ pub inline fn out(port: u16, data: anytype) void {
         u8 => asm volatile ("outb %[data], %[port]"
             :
             : [port] "{dx}" (port),
-              [data] "{al}" (data)
+              [data] "{al}" (data),
         ),
         u16 => asm volatile ("outw %[data], %[port]"
             :
             : [port] "{dx}" (port),
-              [data] "{ax}" (data)
+              [data] "{ax}" (data),
         ),
         u32 => asm volatile ("outl %[data], %[port]"
             :
             : [port] "{dx}" (port),
-              [data] "{eax}" (data)
+              [data] "{eax}" (data),
         ),
         else => @compileError("Invalid data type, found: " ++ @typeName(data)),
     }
@@ -70,12 +70,15 @@ pub inline fn halt() void {
     );
 }
 
-const Register = enum { esp };
+const Register = enum { esp, ebx };
 
 pub fn get_register(comptime reg: Register) usize {
     return switch (reg) {
         .esp => asm volatile (""
-            : [ret] "={esp}" (-> usize)
+            : [ret] "={esp}" (-> usize),
+        ),
+        .ebx => asm volatile (""
+            : [ret] "={ebx}" (-> usize),
         ),
     };
 }

@@ -20,6 +20,7 @@ stack_top:
 section .text
 
 extern kernel_main
+extern read_multiboot
 
 global _start:function (_start.end - _start)
 _start:
@@ -45,9 +46,14 @@ _start:
 	mov ax, 0x18
 	mov ss, ax
 
+	; xchg bx, bx
+	push ebx
+	call read_multiboot
+	add esp, $4
 	call kernel_main
 
 .hang:
+	cli
 	hlt
 	jmp .hang
 .end:

@@ -115,7 +115,7 @@ pub fn putStr(data: []const u8) void {
 }
 
 const VgaError = error{};
-fn writeCallBack(context: void, str: []const u8) VgaError!usize {
+fn writeCallBack(_: void, str: []const u8) VgaError!usize {
     putStr(str);
     return str.len;
 }

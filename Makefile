@@ -3,12 +3,13 @@ NAME	= kernel.bin
 ASM_SRC	= loader.s idt.s
 ASM_OBJ	= $(ASM_SRC:%.s=obj/%.o)
 
-ZIG_SRC	= src/kernel_main.zig src/idt.zig src/vga.zig src/pic.zig src/utils.zig src/keyboard.zig src/keyboard_map.zig src/shell.zig src/cursor.zig src/commands.zig
+ZIG_SRC	= src/kernel_main.zig src/idt.zig src/vga.zig src/pic.zig src/utils.zig src/keyboard.zig src/keyboard_map.zig src/shell.zig src/cursor.zig src/commands.zig src/multiboot.zig src/elf.zig
+ZIG		= zig
 
 all:	$(NAME)
 
 $(NAME): $(ASM_OBJ) $(ZIG_SRC)
-	zig build-exe src/kernel_main.zig $(ASM_OBJ) -target i386-freestanding -T linker.ld -mno-red-zone -femit-bin=$(NAME) -O ReleaseSafe
+	$(ZIG) build-exe src/kernel_main.zig $(ASM_OBJ) -target i386-freestanding -T linker.ld -mno-red-zone -femit-bin=$(NAME) -O ReleaseSafe
 
 $(ASM_OBJ): obj/%.o : src/%.s
 	nasm -felf32 -o $@ $<

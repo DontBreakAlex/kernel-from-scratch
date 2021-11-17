@@ -1,3 +1,4 @@
+const elf = @import("elf.zig");
 // The format of the Multiboot information structure (as defined so far) follows:
 //         +-------------------+
 // 0       | flags             |    (required)
@@ -43,13 +44,73 @@
 // 110-115 | color_info        |
 //         +-------------------+
 
+pub const Flags = packed struct {
+    memory: u1,
+    boot_dev: u1,
+    cmdline: u1,
+    mods: u1,
+    aout_syms: u1,
+    elf_shdr: u1,
+    mem_map: u1,
+    drive_info: u1,
+    config_table: u1,
+    boot_loader_name: u1,
+    apm_table: u1,
+    vbe_info: u1,
+    framebuffer_info: u1,
+    pad1: u3,
+    pad2: u16,
+};
+
+const ElfSections = elf.ElfSections;
 pub const MultibootInfo = packed struct {
-    flags: 32[u1],
+    flags: Flags,
     mem_lower: u32,
     mem_upper: u32,
     boot_device: u32,
     cmdline: u32,
     mods_count: u32,
     mods_addr: u32,
-    
+    syms: ElfSections,
+    mmap_length: u32,
+    mmap_addr: u32,
+    drives_length: u32,
+    drives_addr: u32,
+    config_table: u32,
+    boot_loader_name: u32,
+    apm_table: u32,
+    vbe_control_info: u32,
+    vbe_mode_info: u32,
+    vbe_mode: u16,
+    vbe_interface_seg: u16,
+    vbe_interface_off: u16,
+    vbe_interface_len: u16,
+    framebuffer_addr: u64,
+    framebuffer_pitch: u32,
+    framebuffer_width: u32,
+    framebuffer_height: u32,
+    framebuffer_bpp: u8,
+    framebuffer_type: u8,
+    color_info: u48,
+};
+
+pub var MULTIBOOT: *MultibootInfo = undefined;
+
+export fn read_multiboot(ptr: *MultibootInfo) callconv(.C) void {
+    MULTIBOOT = ptr;
+}
+
+pub const SymbolsError = error{
+    NoSymbol,
+};
+
+const CStr = [*:0]const u8;
+
+pub fn loadSymbols() SymbolsError!void {
+    // TODO: Validate size
+    const section_names = MULTIBOOT.syms.addr[MULTIBOOT.syms.shndx];
+    const symbol_section = for (MULTIBOOT.syms.addr[0..MULTIBOOT.syms.num]) |section| {
+        const name = @intToPtr([*:0]const u8, section_names.saddr + section.sh_name);
+    } else return .NoSymbo;
+    _ = symbol_section;
 }

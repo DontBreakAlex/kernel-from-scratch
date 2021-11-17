@@ -94,7 +94,7 @@ noinline fn handle_scancode(scan_code: u8) void {
     if (key == .LEFT_SHIFT or key == .RIGHT_SHIFT) {
         state.uppercase = !released;
     } else if (released) {
-        push_key(key, state.uppercase) catch |_| vga.putStr("Could not handle key: queue is full\n");
+        push_key(key, state.uppercase) catch vga.putStr("Could not handle key: queue is full\n");
     }
     if (state.special) state.special = false;
 }
