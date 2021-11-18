@@ -15,9 +15,9 @@ pub const ElfSymtabEntry = struct {
     st_name: u32,
     st_value: u32,
     st_size: u32,
-    st_info: u32,
-    st_other: u32,
-    st_shndx: u32,
+    st_info: u8,
+    st_other: u8,
+    st_shndx: u16,
 };
 
 pub const ElfSections = packed struct { num: u32, size: u32, addr: [*]ElfHeader, shndx: u32 };

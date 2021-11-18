@@ -108,15 +108,27 @@ pub const SymbolsError = error{
 const CStr = [*:0]const u8;
 const vga = @import("vga.zig");
 
-pub fn loadSymbols() !void {
+fn findSection(to_find: []const u8) ?*const elf.ElfHeader {
     // TODO: Validate size
+    vga.format("Looking for: {s}\n", .{to_find});
     const section_names = MULTIBOOT.syms.addr[MULTIBOOT.syms.shndx];
-    const symbol_section = for (MULTIBOOT.syms.addr[0..MULTIBOOT.syms.num]) |section| {
-        const name = @intToPtr([*:0]const u8, section_names.sh_addr + section.sh_name);
-        vga.format("{s}\n", .{name});
-        if (name.len == ".symtab".len and std.mem.compare) {
-
+    for (MULTIBOOT.syms.addr[0..MULTIBOOT.syms.num]) |*section| {
+        const name = std.mem.span(@intToPtr([*:0]const u8, section_names.sh_addr + section.sh_name));
+        if (name.len == to_find.len and std.mem.eql(u8, name, to_find)) {
+            vga.format("Found {s}\n", .{name});
+            return section;
         }
-    } else return SymbolsError.NoSymbol;
-    _ = symbol_section;
+    }
+    return null;
+}
+
+var SYMTAB: [*]const elf.ElfSymtabEntry = undefined;
+var STRTAB: u32 = undefined;
+
+pub fn loadSymbols() !void {
+    const symbol_section = findSection(".symtab") orelse return SymbolsError.NoSymbol;
+    const strtab_section = findSection(".strtab") orelse return SymbolsError.NoSymbol;
+    SYMTAB = @intToPtr([*]elf.ElfSymtabEntry, symbol_section.sh_addr);
+    STRTAB = strtab_section.sh_addr;
+    vga.putStr("Symbols loaded");
 }
