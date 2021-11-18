@@ -25,12 +25,12 @@ export fn kernel_main() void {
     idt.init();
     pic.init();
     kbr.init();
-    vga.init();
 
     utl.enable_int();
-    const first_section = mlb.MULTIBOOT.syms.addr[1];
-    const string_table = mlb.MULTIBOOT.syms.addr[mlb.MULTIBOOT.syms.shndx];
-    const sec_name: CStr = @intToPtr([*:0]const u8, string_table.sh_addr + first_section.sh_name);
-    vga.format("{s}\n", .{sec_name});
+    // const first_section = mlb.MULTIBOOT.syms.addr[1];
+    // const string_table = mlb.MULTIBOOT.syms.addr[mlb.MULTIBOOT.syms.shndx];
+    // const sec_name: CStr = @intToPtr([*:0]const u8, string_table.sh_addr + first_section.sh_name);
+    // vga.format("{s}\n", .{sec_name});
+    mlb.loadSymbols() catch {};
     // shl.run();
 }

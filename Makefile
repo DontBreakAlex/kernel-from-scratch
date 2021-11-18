@@ -5,6 +5,7 @@ ASM_OBJ	= $(ASM_SRC:%.s=obj/%.o)
 
 ZIG_SRC	= src/kernel_main.zig src/idt.zig src/vga.zig src/pic.zig src/utils.zig src/keyboard.zig src/keyboard_map.zig src/shell.zig src/cursor.zig src/commands.zig src/multiboot.zig src/elf.zig
 ZIG		= zig
+PWD		= $(shell pwd)
 
 all:	$(NAME)
 
@@ -16,7 +17,7 @@ $(ASM_OBJ): obj/%.o : src/%.s
 
 grub.iso: $(NAME)
 	cp $(NAME) iso/boot/kernel
-	grub-mkrescue -o grub.iso iso
+	grub-mkrescue -o grub.iso iso || docker run --rm -v $(PWD):/mount kfs-build grub-mkrescue -o grub.iso iso
 
 clean:
 	rm -rf src/zig-cache

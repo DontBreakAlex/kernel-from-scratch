@@ -1,4 +1,5 @@
 const elf = @import("elf.zig");
+const std = @import("std");
 // The format of the Multiboot information structure (as defined so far) follows:
 //         +-------------------+
 // 0       | flags             |    (required)
@@ -105,12 +106,17 @@ pub const SymbolsError = error{
 };
 
 const CStr = [*:0]const u8;
+const vga = @import("vga.zig");
 
-pub fn loadSymbols() SymbolsError!void {
+pub fn loadSymbols() !void {
     // TODO: Validate size
     const section_names = MULTIBOOT.syms.addr[MULTIBOOT.syms.shndx];
     const symbol_section = for (MULTIBOOT.syms.addr[0..MULTIBOOT.syms.num]) |section| {
-        const name = @intToPtr([*:0]const u8, section_names.saddr + section.sh_name);
-    } else return .NoSymbo;
+        const name = @intToPtr([*:0]const u8, section_names.sh_addr + section.sh_name);
+        vga.format("{s}\n", .{name});
+        if (name.len == ".symtab".len and std.mem.compare) {
+
+        }
+    } else return SymbolsError.NoSymbol;
     _ = symbol_section;
 }
