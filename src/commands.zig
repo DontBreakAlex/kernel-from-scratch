@@ -8,10 +8,13 @@ pub const CommandFn = fn (args: ArgsIterator) u8;
 pub const Command = struct { name: []const u8, cmd: CommandFn };
 extern const stack_top: u8;
 
-pub const commands: [3]Command = .{
+pub const commands: [6]Command = .{
     .{ .name = "echo", .cmd = echo },
     .{ .name = "pstack", .cmd = printStack },
     .{ .name = "ptrace", .cmd = printTrace },
+    .{ .name = "reboot", .cmd = reboot },
+    .{ .name = "halt", .cmd = halt },
+    .{ .name = "poweroff", .cmd = poweroff },
 };
 
 pub fn find(name: []const u8) ?CommandFn {
@@ -70,5 +73,34 @@ fn printStack(_: ArgsIterator) u8 {
 
 fn printTrace(_: ArgsIterator) u8 {
     utils.printTrace();
+    return 0;
+}
+
+fn reboot(_: ArgsIterator) u8 {
+    // asm volatile ("")
+    utils.out(0xCF9, @as(u8, 6));
+    return 0;
+}
+
+fn halt(_: ArgsIterator) u8 {
+    vga.clear();
+    vga.putStr("System halted.");
+    asm volatile(
+        \\cli
+        \\hlt
+    );
+    return 0;
+}
+
+// Only works on emulators
+fn poweroff(_: ArgsIterator) u8 {
+    utils.out(0xB004, @as(u16, 0x2000));
+    utils.out(0x604, @as(u16, 0x2000));
+    utils.out(0x4004, @as(u16, 0x3400));
+    vga.clear();
+    asm volatile(
+        \\cli
+        \\hlt
+    );
     return 0;
 }
