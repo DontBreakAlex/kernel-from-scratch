@@ -17,7 +17,7 @@ pub fn run() void {
         if (readLine()) |line| {
             defer line.deinit();
 
-            var args = std.mem.tokenize(line.items, " ");
+            var args = std.mem.tokenize(u8, line.items, " ");
             if (commands.find(args.next() orelse continue)) |command| {
                 _ = command(&args);
             } else {

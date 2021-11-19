@@ -101,10 +101,6 @@ export fn read_multiboot(ptr: *MultibootInfo) callconv(.C) void {
     MULTIBOOT = ptr;
 }
 
-pub const SymbolsError = error{
-    NoSymbol,
-};
-
 const CStr = [*:0]const u8;
 const vga = @import("vga.zig");
 
@@ -122,13 +118,35 @@ fn findSection(to_find: []const u8) ?*const elf.ElfHeader {
     return null;
 }
 
-var SYMTAB: [*]const elf.ElfSymtabEntry = undefined;
-var STRTAB: u32 = undefined;
+var SYMTAB: ?[]const elf.ElfSymtabEntry = null;
+var STRTAB: ?u32 = null;
+
+pub const SymbolsError = error{
+    NoSymbol,
+};
 
 pub fn loadSymbols() !void {
     const symbol_section = findSection(".symtab") orelse return SymbolsError.NoSymbol;
     const strtab_section = findSection(".strtab") orelse return SymbolsError.NoSymbol;
-    SYMTAB = @intToPtr([*]elf.ElfSymtabEntry, symbol_section.sh_addr);
+    SYMTAB = @intToPtr([*]elf.ElfSymtabEntry, symbol_section.sh_addr)[0..symbol_section.sh_size];
     STRTAB = strtab_section.sh_addr;
     vga.putStr("Symbols loaded");
+}
+
+const LookupError = error{
+    NoSymbolsLoaded,
+    SymbolNotFound,
+};
+
+pub fn getSymbolName(symbol: u32) ![*:0]const u8 {
+    if (SYMTAB) |symtab| {
+        if (STRTAB) |strtab| {
+            for (symtab) |*sym| {
+                if (sym.st_value == symbol) {
+                    return @intToPtr([*:0]const u8, strtab + sym.st_name);
+                }
+            }
+            return LookupError.SymbolNotFound;
+        } else return LookupError.NoSymbolsLoaded;
+    } else return LookupError.NoSymbolsLoaded;
 }

@@ -2,17 +2,16 @@ const vga = @import("vga.zig");
 const std = @import("std");
 const utils = @import("utils.zig");
 
-const TokenIterator = std.mem.TokenIterator;
+const ArgsIterator = *std.mem.TokenIterator(u8);
 
-/// Args only lives for the duration of the function call
-pub const CommandFn = fn (args: *TokenIterator) u8;
+pub const CommandFn = fn (args: ArgsIterator) u8;
 pub const Command = struct { name: []const u8, cmd: CommandFn };
 extern const stack_top: u8;
 
 pub const commands: [3]Command = .{
     .{ .name = "echo", .cmd = echo },
     .{ .name = "pstack", .cmd = printStack },
-    .{ .name = "panic", .cmd = pan },
+    .{ .name = "ptrace", .cmd = printTrace },
 };
 
 pub fn find(name: []const u8) ?CommandFn {
@@ -24,7 +23,7 @@ pub fn find(name: []const u8) ?CommandFn {
     return null;
 }
 
-fn echo(args: *TokenIterator) u8 {
+fn echo(args: ArgsIterator) u8 {
     while (args.next()) |arg|
         vga.putStr(arg);
     vga.putChar('\n');
@@ -37,7 +36,7 @@ fn escaped(char: u8) u8 {
     return '.';
 }
 
-fn printStack(_: *TokenIterator) u8 {
+fn printStack(_: ArgsIterator) u8 {
     const bottom: usize = utils.get_register(.esp);
     const top: *const u8 = &stack_top;
     const len = (@ptrToInt(top) - bottom);
@@ -69,8 +68,7 @@ fn printStack(_: *TokenIterator) u8 {
     return 0;
 }
 
-fn pan(_: *TokenIterator) u8 {
-    var i: usize = 0;
-    i -= 1;
+fn printTrace(_: ArgsIterator) u8 {
+    utils.printTrace();
     return 0;
 }
