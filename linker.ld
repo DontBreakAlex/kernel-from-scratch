@@ -11,6 +11,7 @@ SECTIONS
 		*.gdt
 	}
 
+    kbegin = .;
 	.text : ALIGN(4K)
 	{
 		*(.text)
@@ -31,4 +32,6 @@ SECTIONS
 		*(COMMON)
 		*(.bss)
 	}
+
+    kend = .;
 }
