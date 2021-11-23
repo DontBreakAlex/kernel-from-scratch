@@ -85,7 +85,7 @@ fn reboot(_: ArgsIterator) u8 {
 fn halt(_: ArgsIterator) u8 {
     vga.clear();
     vga.putStr("System halted.");
-    asm volatile(
+    asm volatile (
         \\cli
         \\hlt
     );
@@ -98,7 +98,7 @@ fn poweroff(_: ArgsIterator) u8 {
     utils.out(0x604, @as(u16, 0x2000));
     utils.out(0x4004, @as(u16, 0x3400));
     vga.clear();
-    asm volatile(
+    asm volatile (
         \\cli
         \\hlt
     );
@@ -109,7 +109,7 @@ extern const kend: u8;
 extern const kbegin: u8;
 const multiboot = @import("multiboot.zig");
 fn pmultiboot(_: ArgsIterator) u8 {
-    vga.format("{x}\n", .{multiboot.MULTIBOOT.mem_upper});
+    vga.format("{d}\n", .{multiboot.MULTIBOOT.mem_upper / 0x1000});
     vga.format("kbegin: {x}, kend: {x}\n", .{ @ptrToInt(&kbegin), @ptrToInt(&kend) });
     return 0;
 }

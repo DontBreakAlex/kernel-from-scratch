@@ -15,3 +15,34 @@ const PageEntry = packed struct {
     available: u4,
     phy_addr: u20,
 };
+
+pub const PageAllocator = struct {
+    base: usize,
+    size: usize,
+
+    pub fn init(base: usize, size: usize) PageAllocator {
+        if (base % 0x1000 != 0 or size % 0x1000 != 0)
+            @panic("Unaligned memory in PageAllocator");
+        if (size / 0x1000 >= 0x1000)
+            @panic("Memory too big for PageAllocator");
+        const alloc_table: []bool = @intToPtr([*]bool, base)[0..size];
+        for (alloc_table) |*e| {
+            e.* = false;
+        }
+        return PageAllocator{
+            .base = base,
+            .size = size,
+        };
+    }
+
+    // Returns a single page of physical memory
+    // fn alloc() !usize {
+
+    // }
+};
+
+var ALLOCATOR: PageAllocator = undefined;
+
+pub fn init(size: usize) void {
+    ALLOCATOR = PageAllocator.init(0x100000, size - size % 0x1000);
+}

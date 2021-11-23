@@ -3,7 +3,7 @@ NAME	= kernel.bin
 ASM_SRC	= loader.s idt.s
 ASM_OBJ	= $(ASM_SRC:%.s=obj/%.o)
 
-ZIG_SRC	= src/kernel_main.zig src/idt.zig src/vga.zig src/pic.zig src/utils.zig src/keyboard.zig src/keyboard_map.zig src/shell.zig src/cursor.zig src/commands.zig src/multiboot.zig src/elf.zig
+ZIG_SRC	= src/kernel_main.zig src/idt.zig src/vga.zig src/pic.zig src/utils.zig src/keyboard.zig src/keyboard_map.zig src/shell.zig src/cursor.zig src/commands.zig src/multiboot.zig src/elf.zig src/memory.zig
 ZIG		= zig
 PWD		= $(shell pwd)
 
