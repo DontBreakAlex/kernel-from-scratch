@@ -82,4 +82,10 @@ pub const Cursor = struct {
     pub fn index(self: Cursor) usize {
         return self.y * VGA_WIDTH + self.x;
     }
+    pub fn enable() void {
+        utils.out(CURSOR_CMD, @as(u8, 0x0A));
+        utils.out(CURSOR_DATA, (utils.in(u8, CURSOR_DATA) & 0xC0) | 14);
+        utils.out(CURSOR_CMD, @as(u8, 0x0B));
+        utils.out(CURSOR_DATA, (utils.in(u8, CURSOR_DATA) & 0xE0) | 15);
+    }
 };

@@ -60,6 +60,7 @@ pub fn init() void {
         }
         saved.cursor = Cursor{ .x = 0, .y = 0 };
     }
+    Cursor.enable();
     clear();
 }
 

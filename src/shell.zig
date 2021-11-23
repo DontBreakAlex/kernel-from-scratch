@@ -6,11 +6,13 @@ const utl = @import("utils.zig");
 
 const ArrayList = std.ArrayList;
 
-const motd = "Welcome to kernel-from-scratch !\n";
+extern const kend: u8;
+extern const kbegin: u8;
+const motd = "Welcome to kernel-from-scratch ! (0x{x:0>8}-0x{x:0>8})\n";
 
 pub fn run() void {
     vga.clear();
-    vga.putStr(motd);
+    vga.format(motd, .{ @ptrToInt(&kbegin), @ptrToInt(&kend) });
 
     while (true) {
         vga.putChar('>');
