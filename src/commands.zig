@@ -107,6 +107,6 @@ fn poweroff(_: ArgsIterator) u8 {
 
 const multiboot = @import("multiboot.zig");
 fn pmultiboot(_: ArgsIterator) u8 {
-    vga.format("{x}\n", .{ (multiboot.MULTIBOOT)});
+    vga.format("{x}\n", .{(multiboot.MULTIBOOT)});
     return 0;
 }

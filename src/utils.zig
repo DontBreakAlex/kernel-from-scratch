@@ -94,6 +94,12 @@ pub fn printTrace() void {
     }
 }
 
+pub fn divCeil(numerator: usize, denomiator: usize) usize {
+    const quot = numerator / denomiator;
+    const rem = numerator % denomiator;
+    return quot + @boolToInt(rem != 0);
+}
+
 var buffer: [8000]u8 = undefined;
 var fba = std.heap.FixedBufferAllocator.init(&buffer);
 pub var allocator = &fba.allocator;
