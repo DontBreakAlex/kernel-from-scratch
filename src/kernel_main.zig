@@ -26,15 +26,5 @@ export fn kernel_main() void {
     mem.init(mlb.MULTIBOOT.mem_upper);
 
     utl.enable_int();
-    const a = mem.allocator.allocAdvanced(u8, 2, 4094, .exact) catch @panic("AllocFailed");
-    for (a) |*i| {
-        i.* = 'a';
-    }
-    const b = mem.allocator.alloc(u8, 4096) catch @panic("AllocFailed");
-    for (b) |*i| {
-        i.* = 'b';
-    }
-    std.debug.assert(std.mem.allEqual(u8, a, 'a'));
-    std.debug.assert(std.mem.allEqual(u8, b, 'b'));
     shl.run();
 }

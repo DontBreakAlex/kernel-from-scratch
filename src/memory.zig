@@ -120,17 +120,22 @@ pub const PageAllocator = struct {
 
                 // Check if pointer can be aligned inside the page
                 if (aligned < page_end) {
-                    const remaining = size - (page_end - aligned);
-                    const page_count = utils.divCeil(remaining, PAGE_SIZE);
+                    const allocated = (page_end - aligned);
+                    if (allocated >= size) {
+                        e.* = true;
+                        return @intToPtr([*]u8, aligned)[0..allocated];
+                    }
+                    const remaining = size - allocated;
+                    const missing_pages = utils.divCeil(remaining, PAGE_SIZE);
                     // Check that next pages are free
-                    for (self.alloc_table[i + 1 .. i + page_count + 1]) |f| {
+                    for (self.alloc_table[i + 1 .. i + missing_pages + 1]) |f| {
                         if (f == true)
                             continue :outer;
                     }
-                    for (self.alloc_table[i .. i + page_count + 1]) |*f| {
+                    for (self.alloc_table[i .. i + missing_pages + 1]) |*f| {
                         f.* = true;
                     }
-                    const alloc_end = self.base + (i + page_count) * PAGE_SIZE;
+                    const alloc_end = self.base + (i + missing_pages + 1) * PAGE_SIZE;
                     const alloc_size = alloc_end - aligned;
                     return @intToPtr([*]u8, aligned)[0..alloc_size];
                 }

@@ -10,7 +10,7 @@ PWD		= $(shell pwd)
 all:	$(NAME)
 
 $(NAME): $(ASM_OBJ) $(ZIG_SRC)
-	$(ZIG) build-exe src/kernel_main.zig $(ASM_OBJ) -target i386-freestanding -T linker.ld -mno-red-zone -femit-bin=$(NAME) -O ReleaseSafe
+	$(ZIG) build-exe src/kernel_main.zig $(ASM_OBJ) -target i386-freestanding -T linker.ld -mno-red-zone -femit-bin=$(NAME) -O Debug
 
 $(ASM_OBJ): obj/%.o : src/%.s
 	nasm -felf32 -o $@ $<
