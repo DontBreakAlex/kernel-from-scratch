@@ -1,4 +1,4 @@
-const PageEntry = packed struct {
+const Flags = packed struct {
     present: u1,
     /// 0 = ro, 1 = rw
     write: u1,
@@ -13,6 +13,10 @@ const PageEntry = packed struct {
     /// 0 = 4Kib, 1 = 4Mib. Set to 0
     size: u1,
     available: u4,
+};
+
+const PageEntry = packed struct { 
+    flags: Flags,
     phy_addr: u20,
 };
 
@@ -185,4 +189,37 @@ pub const allocator: *Allocator = &generalPurposeAllocator.allocator;
 pub fn init(size: usize) void {
     pageAllocator = PageAllocator.init(0x100000, size / 4);
     generalPurposeAllocator = GeneralPurposeAllocator(.{}){ .backing_allocator = backingAllocator };
+}
+
+var kernelPageDirectories: *[1024]PageEntry = undefined;
+
+const vga = @import("vga.zig");
+
+pub fn setupPageging() !void {
+    std.debug.assert(@sizeOf(PageEntry) * 1024 == 4096);
+    kernelPageDirectories = @intToPtr(*[1024]PageEntry, try pageAllocator.alloc());
+    for (kernelPageDirectories) |*e| {
+        e.* = PageEntry {
+            .flags = Flags {
+                .present = 0,
+                .write = 0,
+                .user = 0,
+                .pwt = 0,
+                .pcd = 0,
+                .accessed = 0,
+                .dirty = 0,
+                .size = 0,
+                .available = 0,
+            },
+            .phy_addr = 0,
+        };
+    }
+    const first_page = &kernelPageDirectories[0];
+    const pageTables = try pageAllocator.alloc();
+
+    first_page.flags.present = 1;
+    first_page.flags.write = 1;
+    first_page.phy_addr = @truncate(u20, pageTables >> 12);
+    vga.format("0x{x:0>8} | 0x{x:0>8}\n", .{ pageTables, first_page.phy_addr });
+    utils.halt();
 }

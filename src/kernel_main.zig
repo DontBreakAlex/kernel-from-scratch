@@ -23,6 +23,7 @@ export fn kernel_main() void {
     idt.init();
     pic.init();
     mem.init(mlb.MULTIBOOT.mem_upper);
+    mem.setupPageging() catch @panic("Failed to setup paging");
     kbr.init();
 
     utl.enable_int();
