@@ -22,8 +22,8 @@ export fn kernel_main() void {
     mlb.loadSymbols() catch {};
     idt.init();
     pic.init();
-    kbr.init();
     mem.init(mlb.MULTIBOOT.mem_upper);
+    kbr.init();
 
     utl.enable_int();
     shl.run();

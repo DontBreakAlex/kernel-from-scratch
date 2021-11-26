@@ -3,6 +3,7 @@ const kbr = @import("keyboard.zig");
 const std = @import("std");
 const commands = @import("commands.zig");
 const utl = @import("utils.zig");
+const mem = @import("memory.zig");
 
 const ArrayList = std.ArrayList;
 
@@ -32,7 +33,7 @@ pub fn run() void {
 }
 
 pub fn readLine() !ArrayList(u8) {
-    var line: ArrayList(u8) = ArrayList(u8).init(utl.allocator);
+    var line: ArrayList(u8) = ArrayList(u8).init(mem.allocator);
     errdefer line.deinit();
     var n: usize = 0;
 

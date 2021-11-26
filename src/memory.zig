@@ -20,6 +20,7 @@ const PAGE_SIZE = 0x1000;
 const std = @import("std");
 const utils = @import("utils.zig");
 const Allocator = std.mem.Allocator;
+const GeneralPurposeAllocator = std.heap.GeneralPurposeAllocator;
 
 pub const PageAllocator = struct {
     base: usize,
@@ -46,7 +47,7 @@ pub const PageAllocator = struct {
     fn allocFn(parent: *Allocator, len: usize, ptr_align: u29, len_align: u29, ret_addr: usize) ![]u8 {
         _ = ret_addr;
         const self: *PageAllocator = @fieldParentPtr(PageAllocator, "allocator", parent);
-        const buf = if (ptr_align <= 1 or ptr_align == PAGE_SIZE)
+        const buf = if (ptr_align <= PAGE_SIZE)
             try self.allocPageAligned(len)
         else
             try self.allocAligned(len, ptr_align);
@@ -64,7 +65,7 @@ pub const PageAllocator = struct {
         _ = ret_addr;
         const self: *PageAllocator = @fieldParentPtr(PageAllocator, "allocator", parent);
         if (new_len == 0) {
-            const first_page = if (buf_align <= 1 or buf_align == PAGE_SIZE) @ptrToInt(buf.ptr) else std.mem.alignBackward(@ptrToInt(buf.ptr), PAGE_SIZE);
+            const first_page = if (buf_align <= PAGE_SIZE) @ptrToInt(buf.ptr) else std.mem.alignBackward(@ptrToInt(buf.ptr), PAGE_SIZE);
             const last_page = std.mem.alignBackward(@ptrToInt(buf.ptr) + buf.len, PAGE_SIZE);
             const start = (first_page - self.base) / PAGE_SIZE;
             const end = (last_page - self.base) / PAGE_SIZE;
@@ -176,8 +177,12 @@ pub const PageAllocator = struct {
 };
 
 pub var pageAllocator: PageAllocator = undefined;
-pub const allocator: *Allocator = &pageAllocator.allocator;
+const backingAllocator: *Allocator = &pageAllocator.allocator;
+var generalPurposeAllocator: GeneralPurposeAllocator(.{}) = undefined;
+pub const allocator: *Allocator = &generalPurposeAllocator.allocator;
+
 
 pub fn init(size: usize) void {
     pageAllocator = PageAllocator.init(0x100000, size / 4);
+    generalPurposeAllocator = GeneralPurposeAllocator(.{}){ .backing_allocator = backingAllocator };
 }
