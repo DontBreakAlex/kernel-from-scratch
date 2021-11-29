@@ -15,7 +15,7 @@ const Flags = packed struct {
     available: u4,
 };
 
-const PageEntry = packed struct { 
+const PageEntry = packed struct {
     flags: Flags,
     phy_addr: u20,
 };
@@ -25,6 +25,9 @@ const std = @import("std");
 const utils = @import("utils.zig");
 const Allocator = std.mem.Allocator;
 const GeneralPurposeAllocator = std.heap.GeneralPurposeAllocator;
+
+
+// TODO: Make sure we don't overwrite multiboot structures
 
 pub const PageAllocator = struct {
     base: usize,
@@ -185,7 +188,6 @@ const backingAllocator: *Allocator = &pageAllocator.allocator;
 var generalPurposeAllocator: GeneralPurposeAllocator(.{}) = undefined;
 pub const allocator: *Allocator = &generalPurposeAllocator.allocator;
 
-
 pub fn init(size: usize) void {
     pageAllocator = PageAllocator.init(0x100000, size / 4);
     generalPurposeAllocator = GeneralPurposeAllocator(.{}){ .backing_allocator = backingAllocator };
@@ -193,14 +195,10 @@ pub fn init(size: usize) void {
 
 var kernelPageDirectories: *[1024]PageEntry = undefined;
 
-const vga = @import("vga.zig");
-
-pub fn setupPageging() !void {
-    std.debug.assert(@sizeOf(PageEntry) * 1024 == 4096);
-    kernelPageDirectories = @intToPtr(*[1024]PageEntry, try pageAllocator.alloc());
-    for (kernelPageDirectories) |*e| {
-        e.* = PageEntry {
-            .flags = Flags {
+fn initEmpty(entries: []PageEntry) void {
+	for (entries) |*e| {
+        e.* = PageEntry{
+            .flags = Flags{
                 .present = 0,
                 .write = 0,
                 .user = 0,
@@ -214,12 +212,71 @@ pub fn setupPageging() !void {
             .phy_addr = 0,
         };
     }
-    const first_page = &kernelPageDirectories[0];
-    const pageTables = try pageAllocator.alloc();
+}
 
-    first_page.flags.present = 1;
-    first_page.flags.write = 1;
-    first_page.phy_addr = @truncate(u20, pageTables >> 12);
-    vga.format("0x{x:0>8} | 0x{x:0>8}\n", .{ pageTables, first_page.phy_addr });
-    utils.halt();
+const vga = @import("vga.zig");
+
+pub fn setupPageging() !void {
+    std.debug.assert(@sizeOf(PageEntry) * 1024 == 4096);
+
+	const kPDAlloc = try pageAllocator.alloc();
+	defer mapOneToOne(kPDAlloc);
+    kernelPageDirectories = @intToPtr(*[1024]PageEntry, kPDAlloc);
+    initEmpty(kernel_page_tables);
+    const first_dir = &kernelPageDirectories[0];
+
+    const pageTables = try pageAllocator.alloc();
+	defer mapOneToOne(pageTables);
+
+    first_dir.flags.present = 1;
+    first_dir.flags.write = 1;
+    first_dir.phy_addr = @truncate(u20, pageTables >> 12);
+
+    const kernel_page_tables = @intToPtr(*[1024]PageEntry, pageTables);
+    // Map first 1M of phy mem to first 1M of kernel virt mem
+    for (kernel_page_tables[0..256]) |*table, i| {
+        table.* = PageEntry{
+            .flags = Flags{
+                .present = 1,
+                .write = 1,
+                .user = 0,
+                .pwt = 0,
+                .pcd = 0,
+                .accessed = 0,
+                .dirty = 0,
+                .size = 0,
+                .available = 0,
+            },
+            .phy_addr = @truncate(u20, (0x1000 * i) >> 12),
+        };
+    }
+    initEmpty(kernel_page_tables[256..1024]);
+    mapOneToOne(0x100001) catch @panic("Not enough memory for page mapping\n");
+}
+
+pub fn mapOneToOne(addr: usize) !void {
+    const dir_offset = @truncate(u10, (addr & 0b11111111110000000000000000000000) >> 22);
+    const table_offset = @truncate(u10, (addr & 0b00000000000111111111100000000000) >> 12);
+	const page_dir = &kernelPageDirectories[dir_offset];
+	if (!page_dir.flags.present) {
+		const allocated = try pageAllocator.alloc();
+		page_dir.flags.present = 1;
+		page_dir.flags.write = 1;
+		page_dir.phy_addr = @truncate(u20, allocated >> 12);
+		mapOneToOne(allocated);
+		initEmpty(@intToPtr(*[1024]PageEntry, allocated));
+	}
+	const page_table = &@intToPtr(*[1024]PageEntry, page_dir.phy_addr)[table_offset];
+	if (page_table.flags.present) {
+		return error.AlreadyMapped;
+	}
+	page_table.flags.present = 1;
+	page_table.flags.write = 1;
+	page_table.phy_addr = @truncate(u20, addr >> 12);
+}
+
+pub fn allocAndMap() usize !void {
+	const allocated = try pageAllocator.alloc();
+	try mapOneToOne(allocated);
+	return allocated;
 }
