@@ -26,7 +26,6 @@ const utils = @import("utils.zig");
 const Allocator = std.mem.Allocator;
 const GeneralPurposeAllocator = std.heap.GeneralPurposeAllocator;
 
-
 // TODO: Make sure we don't overwrite multiboot structures
 
 pub const PageAllocator = struct {
@@ -196,7 +195,7 @@ pub fn init(size: usize) void {
 var kernelPageDirectories: *[1024]PageEntry = undefined;
 
 fn initEmpty(entries: []PageEntry) void {
-	for (entries) |*e| {
+    for (entries) |*e| {
         e.* = PageEntry{
             .flags = Flags{
                 .present = 0,
@@ -219,14 +218,12 @@ const vga = @import("vga.zig");
 pub fn setupPageging() !void {
     std.debug.assert(@sizeOf(PageEntry) * 1024 == 4096);
 
-	const kPDAlloc = try pageAllocator.alloc();
-	defer mapOneToOne(kPDAlloc);
+    const kPDAlloc = try pageAllocator.alloc();
     kernelPageDirectories = @intToPtr(*[1024]PageEntry, kPDAlloc);
-    initEmpty(kernel_page_tables);
+    initEmpty(kernelPageDirectories);
     const first_dir = &kernelPageDirectories[0];
 
     const pageTables = try pageAllocator.alloc();
-	defer mapOneToOne(pageTables);
 
     first_dir.flags.present = 1;
     first_dir.flags.write = 1;
@@ -251,32 +248,48 @@ pub fn setupPageging() !void {
         };
     }
     initEmpty(kernel_page_tables[256..1024]);
-    mapOneToOne(0x100001) catch @panic("Not enough memory for page mapping\n");
+    try mapOneToOne(kPDAlloc);
+    try mapOneToOne(pageTables);
+    try mapOneToOne(0x100001);
+
+    asm volatile (
+        \\mov %%eax, %%cr3
+        \\mov %%cr0, %%eax
+        \\or 0x80000001, %%eax
+        \\mov %%eax, %%cr0
+        :
+        : [kernelPageDirectories] "{eax}" (kernelPageDirectories)
+    );
 }
 
-pub fn mapOneToOne(addr: usize) !void {
+const MapError = error {
+    AlreadyMapped,
+    OutOfMemory,
+};
+
+pub fn mapOneToOne(addr: usize) MapError!void {
     const dir_offset = @truncate(u10, (addr & 0b11111111110000000000000000000000) >> 22);
     const table_offset = @truncate(u10, (addr & 0b00000000000111111111100000000000) >> 12);
-	const page_dir = &kernelPageDirectories[dir_offset];
-	if (!page_dir.flags.present) {
-		const allocated = try pageAllocator.alloc();
-		page_dir.flags.present = 1;
-		page_dir.flags.write = 1;
-		page_dir.phy_addr = @truncate(u20, allocated >> 12);
-		mapOneToOne(allocated);
-		initEmpty(@intToPtr(*[1024]PageEntry, allocated));
-	}
-	const page_table = &@intToPtr(*[1024]PageEntry, page_dir.phy_addr)[table_offset];
-	if (page_table.flags.present) {
-		return error.AlreadyMapped;
-	}
-	page_table.flags.present = 1;
-	page_table.flags.write = 1;
-	page_table.phy_addr = @truncate(u20, addr >> 12);
+    const page_dir = &kernelPageDirectories[dir_offset];
+    if (page_dir.flags.present == 0) {
+        const allocated = try pageAllocator.alloc();
+        page_dir.flags.present = 1;
+        page_dir.flags.write = 1;
+        page_dir.phy_addr = @truncate(u20, allocated >> 12);
+        try mapOneToOne(allocated);
+        initEmpty(@intToPtr(*[1024]PageEntry, allocated));
+    }
+    const page_table = &@intToPtr(*[1024]PageEntry, page_dir.phy_addr)[table_offset];
+    if (page_table.flags.present == 1) {
+        return MapError.AlreadyMapped;
+    }
+    page_table.flags.present = 1;
+    page_table.flags.write = 1;
+    page_table.phy_addr = @truncate(u20, addr >> 12);
 }
 
-pub fn allocAndMap() usize !void {
-	const allocated = try pageAllocator.alloc();
-	try mapOneToOne(allocated);
-	return allocated;
+pub fn allocAndMap() usize!void {
+    const allocated = try pageAllocator.alloc();
+    try mapOneToOne(allocated);
+    return allocated;
 }
