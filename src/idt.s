@@ -6,6 +6,7 @@ extern exception_nocode
 isr_stub_%+%1:
 	pushad
 	push %1
+	xchg bx, bx
     call exception_code
 	add esp, $4
 	popad
@@ -17,6 +18,7 @@ isr_stub_%+%1:
 isr_stub_%+%1:
 	pushad
 	push %1
+	xchg bx, bx
     call exception_nocode
 	add esp, $4
 	popad

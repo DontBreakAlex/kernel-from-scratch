@@ -19,8 +19,9 @@ pub fn panic(msg: []const u8, _: ?*std.builtin.StackTrace) noreturn {
 
 export fn kernel_main() void {
     vga.init();
-    mlb.loadSymbols() catch {};
     idt.init();
+    mlb.loadSymbols() catch {};
+    vga.format("{x}\n", .{mlb.MULTIBOOT.mem_upper});
     pic.init();
     mem.init(mlb.MULTIBOOT.mem_upper);
     mem.setupPageging() catch @panic("Failed to setup paging");

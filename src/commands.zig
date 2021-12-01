@@ -8,7 +8,7 @@ pub const CommandFn = fn (args: ArgsIterator) u8;
 pub const Command = struct { name: []const u8, cmd: CommandFn };
 extern const stack_top: u8;
 
-pub const commands: [7]Command = .{
+pub const commands: [8]Command = .{
     .{ .name = "echo", .cmd = echo },
     .{ .name = "pstack", .cmd = printStack },
     .{ .name = "ptrace", .cmd = printTrace },
@@ -16,6 +16,7 @@ pub const commands: [7]Command = .{
     .{ .name = "halt", .cmd = halt },
     .{ .name = "poweroff", .cmd = poweroff },
     .{ .name = "pmultiboot", .cmd = pmultiboot },
+    .{ .name = "int", .cmd = interrupt },
 };
 
 pub fn find(name: []const u8) ?CommandFn {
@@ -108,5 +109,10 @@ fn poweroff(_: ArgsIterator) u8 {
 const multiboot = @import("multiboot.zig");
 fn pmultiboot(_: ArgsIterator) u8 {
     vga.format("{x}\n", .{(multiboot.MULTIBOOT)});
+    return 0;
+}
+
+fn interrupt(_: ArgsIterator) u8 {
+    asm volatile("int $1");
     return 0;
 }

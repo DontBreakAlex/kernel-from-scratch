@@ -130,7 +130,7 @@ pub fn loadSymbols() !void {
     const strtab_section = findSection(".strtab") orelse return SymbolsError.NoSymbol;
     SYMTAB = @intToPtr([*]elf.ElfSymtabEntry, symbol_section.sh_addr)[0..symbol_section.sh_size];
     STRTAB = strtab_section.sh_addr;
-    vga.putStr("Symbols loaded");
+    vga.putStr("Symbols loaded\n");
 }
 
 const LookupError = error{
