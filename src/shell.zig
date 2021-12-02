@@ -33,7 +33,7 @@ pub fn run() void {
 }
 
 pub fn readLine() !ArrayList(u8) {
-    var line: ArrayList(u8) = ArrayList(u8).init(mem.phyAllocator);
+    var line: ArrayList(u8) = ArrayList(u8).init(mem.virtAllocator);
     errdefer line.deinit();
     var n: usize = 0;
 

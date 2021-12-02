@@ -34,11 +34,20 @@ const MapError = error{
     OutOfMemory,
 };
 
+const VMapNode = struct {
+    addr: usize,
+    size: usize,
+    allocated: bool,
+};
+
 pub var pageAllocator: PageAllocator = undefined;
 
 const phyBackAlloc: *Allocator = &pageAllocator.allocator;
 var phyGpAlloc: GeneralPurposeAllocator(.{}) = undefined;
 pub const phyAllocator: *Allocator = &phyGpAlloc.allocator;
+const virtBackAlloc: Allocator = Allocator{ .allocFn = allocFn, .resizeFn = resizeFn };
+var virtGpAlloc: GeneralPurposeAllocator(.{}) = GeneralPurposeAllocator(.{}){ .backing_allocator = phyBackAlloc };
+pub const virtAllocator: *Allocator = &virtGpAlloc.allocator;
 
 var kernelPageDirectories: *[1024]PageEntry = undefined;
 
@@ -71,7 +80,6 @@ pub fn setupPageging() !void {
     }
     var tab: u32 = kernelPageDirectories[0].phy_addr;
     tab <<= 12;
-    vga.format("{b:0>32}\n", .{@intToPtr(*u32, tab).*});
     initEmpty(kernel_page_tables[256..1024]);
     try mapOneToOne(kPDAlloc);
     try mapOneToOne(pageTables);
@@ -80,8 +88,6 @@ pub fn setupPageging() !void {
     while (allocator_begin <= allocator_end) : (allocator_begin += PAGE_SIZE)
         try mapOneToOne(allocator_begin);
 
-    vga.format("{b:0>32}\n", .{@intToPtr(*u32, tab).*});
-    // vga.format("0x{x:0>8}\n", .{ talbe });
     asm volatile (
         \\mov %%eax, %%cr3
         \\mov %%cr0, %%eax
@@ -105,9 +111,9 @@ pub fn allocAndMap() !usize {
     return allocated;
 }
 
-pub fn allocVirt(vaddr: usize, user: u1, write: u1) !void {
+pub fn allocVirt(vaddr: usize, flags: u12) !void {
     const allocated = try pageAllocator.alloc();
-    try mapVirtToPhy(vaddr, allocated, user, write);
+    try mapVirtToPhy(vaddr, allocated, flags);
 }
 
 pub fn mapOneToOne(addr: usize) MapError!void {
@@ -138,10 +144,38 @@ pub fn sizeOf(buff: []u8) usize {
     return buff.len;
 }
 
-// fn allocFn(self: *Allocator, len: usize, ptr_align: u29, len_align: u29, ret_addr: usize) ![]u8 {
+var vMemStackPointer: usize = 0x1000000;
 
-// }
+/// Returns an adress in kernel vmem with `count` unmapped pages after it
+pub fn findContinuousVirt(count: usize) usize {
+    defer vMemStackPointer += count * 0x1000;
+    return vMemStackPointer;
+}
 
-// fn resizeFn(self: *Allocator, buf: []u8, buf_align: u29, new_len: usize, len_align: u29, ret_addr: usize) !usize {
+fn allocFn(self: *Allocator, len: usize, ptr_align: u29, len_align: u29, ret_addr: usize) ![]u8 {
+    _ = self;
+    _ = ret_addr;
+    if (ptr_align > PAGE_SIZE)
+        @panic("Unsuported aligned virtual alloc");
+    const page_count = utils.divCeil(len, PAGE_SIZE);
+    const v_addr = findContinuousVirt(page_count);
+    var i = 0;
+    var addr = v_addr;
+    while (i < page_count) {
+        try allocVirt(addr, WRITE);
+        i += 1;
+        addr += PAGE_SIZE;
+    }
+    const requested_len = std.mem.alignAllocLen(page_count * PAGE_SIZE, len, len_align);
+    return @intToPtr([*]u8, v_addr)[0..requested_len];
+}
 
-// }
+fn resizeFn(self: *Allocator, buf: []u8, buf_align: u29, new_len: usize, len_align: u29, ret_addr: usize) !usize {
+    _ = self;
+    _ = buf;
+    _ = buf_align;
+    _ = new_len;
+    _ = len_align;
+    _ = ret_addr;
+    @panic("Attempt to resize virtual alloc");
+}

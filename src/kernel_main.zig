@@ -21,7 +21,6 @@ export fn kernel_main() void {
     vga.init();
     idt.init();
     mlb.loadSymbols() catch {};
-    vga.format("{x}\n", .{mlb.MULTIBOOT.mem_upper});
     pic.init();
     mem.init(mlb.MULTIBOOT.mem_upper);
     mem.setupPageging() catch @panic("Failed to setup paging");
