@@ -20,6 +20,10 @@ const Flags = packed struct {
     available: u4,
 };
 
+const PRESENT: u12 = 0b1;
+const WRITE: u12 = 0b10;
+const USER: u12 = 0b100;
+
 const PageEntry = packed struct {
     flags: u12,
     phy_addr: u20,
@@ -56,13 +60,13 @@ pub fn setupPageging() !void {
 
     const pageTables = try pageAllocator.alloc();
 
-    first_dir.flags = 0b11;
+    first_dir.flags = PRESENT | WRITE;
     first_dir.phy_addr = @truncate(u20, pageTables >> 12);
 
     const kernel_page_tables = @intToPtr(*[1024]PageEntry, pageTables);
     // Map first 1M of phy mem to first 1M of kernel virt mem
     for (kernel_page_tables[0..256]) |*table, i| {
-        table.flags = 0b11;
+        table.flags = PRESENT | WRITE;
         table.phy_addr = @truncate(u20, (0x1000 * i) >> 12);
     }
     var tab: u32 = kernelPageDirectories[0].phy_addr;
@@ -107,31 +111,26 @@ pub fn allocVirt(vaddr: usize, user: u1, write: u1) !void {
 }
 
 pub fn mapOneToOne(addr: usize) MapError!void {
-    return mapVirtToPhy(addr, addr, 0, 1);
+    return mapVirtToPhy(addr, addr, WRITE);
 }
 
-pub fn mapVirtToPhy(v_addr: usize, p_addr: usize, user: u1, write: u1) MapError!void {
-    _ = write;
-    _ = user;
+pub fn mapVirtToPhy(v_addr: usize, p_addr: usize, flags: u12) MapError!void {
+    _ = flags;
     const dir_offset = @truncate(u10, (v_addr & 0b11111111110000000000000000000000) >> 22);
     const table_offset = @truncate(u10, (v_addr & 0b00000000000111111111100000000000) >> 12);
     const page_dir = &kernelPageDirectories[dir_offset];
-    if ((page_dir.flags & 0b1) == 0) {
+    if ((page_dir.flags & PRESENT) == 0) {
         const allocated = try pageAllocator.alloc();
-        page_dir.flags = 0b11;
-        // page_dir.flags.write = write;
-        // page_dir.flags.user = user;
+        page_dir.flags = PRESENT | flags;
         page_dir.phy_addr = @truncate(u20, allocated >> 12);
         try mapOneToOne(allocated);
         initEmpty(@intToPtr(*[1024]PageEntry, allocated));
     }
     const page_table = &@intToPtr(*[1024]PageEntry, page_dir.phy_addr)[table_offset];
-    if ((page_table.flags & 0b1) == 1) {
+    if ((page_table.flags & PRESENT) == 1) {
         return MapError.AlreadyMapped;
     }
-    page_dir.flags = 0b11;
-    // page_table.flags.write = write;
-    // page_table.flags.user = user;
+    page_dir.flags = PRESENT | flags;
     page_table.phy_addr = @truncate(u20, p_addr >> 12);
 }
 
