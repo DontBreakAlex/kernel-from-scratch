@@ -49,7 +49,7 @@ const virtBackAlloc: Allocator = Allocator{ .allocFn = allocFn, .resizeFn = resi
 var virtGpAlloc: GeneralPurposeAllocator(.{}) = GeneralPurposeAllocator(.{}){ .backing_allocator = phyBackAlloc };
 pub const virtAllocator: *Allocator = &virtGpAlloc.allocator;
 
-var kernelPageDirectories: *[1024]PageEntry = undefined;
+var kernelPageDirectory: *[1024]PageEntry = undefined;
 
 pub fn init(size: usize) void {
     pageAllocator = PageAllocator.init(0x100000, size / 4);
@@ -63,26 +63,26 @@ pub fn setupPageging() !void {
     std.debug.assert(@sizeOf(PageEntry) * 1024 == 4096);
 
     const kPDAlloc = try pageAllocator.alloc();
-    kernelPageDirectories = @intToPtr(*[1024]PageEntry, kPDAlloc);
-    initEmpty(kernelPageDirectories);
-    const first_dir = &kernelPageDirectories[0];
+    kernelPageDirectory = @intToPtr(*[1024]PageEntry, kPDAlloc);
+    initEmpty(kernelPageDirectory);
+    const first_dir_entry = &kernelPageDirectory[0];
 
-    const pageTables = try pageAllocator.alloc();
+    const page_table = try pageAllocator.alloc();
 
-    first_dir.flags = PRESENT | WRITE;
-    first_dir.phy_addr = @truncate(u20, pageTables >> 12);
+    first_dir_entry.flags = PRESENT | WRITE;
+    first_dir_entry.phy_addr = @truncate(u20, page_table >> 12);
 
-    const kernel_page_tables = @intToPtr(*[1024]PageEntry, pageTables);
+    const kernel_page_table = @intToPtr(*[1024]PageEntry, page_table);
     // Map first 1M of phy mem to first 1M of kernel virt mem
-    for (kernel_page_tables[0..256]) |*table, i| {
-        table.flags = PRESENT | WRITE;
-        table.phy_addr = @truncate(u20, (0x1000 * i) >> 12);
+    for (kernel_page_table[0..256]) |*table_entry, i| {
+        table_entry.flags = PRESENT | WRITE;
+        table_entry.phy_addr = @truncate(u20, (0x1000 * i) >> 12);
     }
-    var tab: u32 = kernelPageDirectories[0].phy_addr;
-    tab <<= 12;
-    initEmpty(kernel_page_tables[256..1024]);
+    var table: u32 = kernelPageDirectory[0].phy_addr;
+    table <<= 12;
+    initEmpty(kernel_page_table[256..1024]);
     try mapOneToOne(kPDAlloc);
-    try mapOneToOne(pageTables);
+    try mapOneToOne(page_table);
     var allocator_begin = std.mem.alignBackward(@ptrToInt(pageAllocator.alloc_table.ptr), PAGE_SIZE);
     const allocator_end = std.mem.alignBackward(@ptrToInt(pageAllocator.alloc_table.ptr) + pageAllocator.alloc_table.len, PAGE_SIZE);
     while (allocator_begin <= allocator_end) : (allocator_begin += PAGE_SIZE)
@@ -94,7 +94,7 @@ pub fn setupPageging() !void {
         \\or $0x80000001, %%eax
         \\mov %%eax, %%cr0
         :
-        : [kernelPageDirectories] "{eax}" (kernelPageDirectories),
+        : [kernelPageDirectory] "{eax}" (kernelPageDirectory),
     );
 }
 
@@ -111,9 +111,9 @@ pub fn allocAndMap() !usize {
     return allocated;
 }
 
-pub fn allocVirt(vaddr: usize, flags: u12) !void {
+pub fn allocVirt(v_addr: usize, flags: u12) !void {
     const allocated = try pageAllocator.alloc();
-    try mapVirtToPhy(vaddr, allocated, flags);
+    try mapVirtToPhy(v_addr, allocated, flags);
 }
 
 pub fn mapOneToOne(addr: usize) MapError!void {
@@ -124,20 +124,20 @@ pub fn mapVirtToPhy(v_addr: usize, p_addr: usize, flags: u12) MapError!void {
     _ = flags;
     const dir_offset = @truncate(u10, (v_addr & 0b11111111110000000000000000000000) >> 22);
     const table_offset = @truncate(u10, (v_addr & 0b00000000000111111111100000000000) >> 12);
-    const page_dir = &kernelPageDirectories[dir_offset];
-    if ((page_dir.flags & PRESENT) == 0) {
+    const directory_entry = &kernelPageDirectory[dir_offset];
+    if ((directory_entry.flags & PRESENT) == 0) {
         const allocated = try pageAllocator.alloc();
-        page_dir.flags = PRESENT | flags;
-        page_dir.phy_addr = @truncate(u20, allocated >> 12);
+        directory_entry.flags = PRESENT | flags;
+        directory_entry.phy_addr = @truncate(u20, allocated >> 12);
         try mapOneToOne(allocated);
         initEmpty(@intToPtr(*[1024]PageEntry, allocated));
     }
-    const page_table = &@intToPtr(*[1024]PageEntry, page_dir.phy_addr)[table_offset];
-    if ((page_table.flags & PRESENT) == 1) {
+    const page_table_entry = &@intToPtr(*[1024]PageEntry, @intCast(usize, directory_entry.phy_addr) << 12)[table_offset];
+    if ((page_table_entry.flags & PRESENT) == 1) {
         return MapError.AlreadyMapped;
     }
-    page_dir.flags = PRESENT | flags;
-    page_table.phy_addr = @truncate(u20, p_addr >> 12);
+    page_table_entry.flags = PRESENT | flags;
+    page_table_entry.phy_addr = @truncate(u20, p_addr >> 12);
 }
 
 pub fn sizeOf(buff: []u8) usize {

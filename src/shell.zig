@@ -14,6 +14,7 @@ const motd = "Welcome to kernel-from-scratch ! (0x{x:0>8}-0x{x:0>8})\n";
 pub fn run() void {
     vga.clear();
     vga.format(motd, .{ @ptrToInt(&kbegin), @ptrToInt(&kend) });
+    vga.format("0x{x:0>8} - 0x{x:0>8}\n", .{ @ptrToInt(mem.pageAllocator.alloc_table.ptr), @ptrToInt(mem.pageAllocator.alloc_table.ptr + mem.pageAllocator.alloc_table.len) });
 
     while (true) {
         vga.putChar('>');
