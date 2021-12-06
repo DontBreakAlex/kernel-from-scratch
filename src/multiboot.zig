@@ -1,5 +1,6 @@
 const elf = @import("elf.zig");
 const std = @import("std");
+const mem = @import("memory.zig");
 // The format of the Multiboot information structure (as defined so far) follows:
 //         +-------------------+
 // 0       | flags             |    (required)
@@ -108,6 +109,7 @@ fn findSection(to_find: []const u8) ?*const elf.ElfHeader {
     // TODO: Validate size
     vga.format("Looking for: {s}\n", .{to_find});
     const section_names = MULTIBOOT.syms.addr[MULTIBOOT.syms.shndx];
+    mem.reserveAndMap(section_names.sh_addr, @sizeOf(elf.ElfHeader)) catch {};
     for (MULTIBOOT.syms.addr[0..MULTIBOOT.syms.num]) |*section| {
         const name = std.mem.span(@intToPtr([*:0]const u8, section_names.sh_addr + section.sh_name));
         if (name.len == to_find.len and std.mem.eql(u8, name, to_find)) {
@@ -128,6 +130,8 @@ pub const SymbolsError = error{
 pub fn loadSymbols() !void {
     const symbol_section = findSection(".symtab") orelse return SymbolsError.NoSymbol;
     const strtab_section = findSection(".strtab") orelse return SymbolsError.NoSymbol;
+    mem.reserveAndMap(symbol_section.sh_addr, @sizeOf(elf.ElfSymtabEntry) * symbol_section.sh_size) catch {};
+    mem.reserveAndMap(strtab_section.sh_addr, strtab_section.sh_size) catch {};
     SYMTAB = @intToPtr([*]elf.ElfSymtabEntry, symbol_section.sh_addr)[0..symbol_section.sh_size];
     STRTAB = strtab_section.sh_addr;
     vga.putStr("Symbols loaded\n");

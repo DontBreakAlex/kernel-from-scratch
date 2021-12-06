@@ -157,4 +157,23 @@ pub const PageAllocator = struct {
             e.* = false;
         }
     }
+
+    const ReserveError = error{
+        OutOfMemory,
+        AllreadyAllocated,
+    };
+
+    /// Attemps to mark a page allocated
+    pub fn reserve(self: *PageAllocator, addr: usize, count: usize) !void {
+        if (addr < self.base)
+            return ReserveError.OutOfMemory;
+        const index = (addr - self.base) / 0x1000;
+        const pages = self.alloc_table[index .. index + count];
+        if (index >= self.alloc_table.len or index + count > self.alloc_table.len)
+            return ReserveError.OutOfMemory;
+        // This is disabled because it causes issues when trying to reserve structures that share pages
+        // for (pages) |p| if (p == true)
+        //     return ReserveError.AllreadyAllocated;
+        for (pages) |*p| p.* = true;
+    }
 };

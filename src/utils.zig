@@ -72,7 +72,7 @@ pub inline fn halt() void {
     );
 }
 
-const Register = enum { esp, ebx };
+const Register = enum { esp, ebx, cr2 };
 
 pub fn get_register(comptime reg: Register) usize {
     return switch (reg) {
@@ -81,6 +81,9 @@ pub fn get_register(comptime reg: Register) usize {
         ),
         .ebx => asm volatile (""
             : [ret] "={ebx}" (-> usize),
+        ),
+        .cr2 => asm volatile ("mov %%cr2, %%eax"
+            : [ret] "={eax}" (-> usize),
         ),
     };
 }

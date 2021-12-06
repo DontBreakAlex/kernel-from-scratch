@@ -113,6 +113,6 @@ fn pmultiboot(_: ArgsIterator) u8 {
 }
 
 fn interrupt(_: ArgsIterator) u8 {
-    asm volatile("int $1");
+    asm volatile ("int $1");
     return 0;
 }

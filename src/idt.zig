@@ -77,6 +77,10 @@ pub fn init() void {
 
 export fn exception_code(index: u32, code: u32) callconv(.C) void {
     vga.format("Exception {s} with code {d}\n", .{ EXCEPTIONS[index], code });
+    if (index == 14) {
+        vga.format("Fauld addr: 0x{x:0>8}\n", .{utils.get_register(.cr2)});
+        utils.halt();
+    }
 }
 
 export fn exception_nocode(index: u32) callconv(.C) void {
