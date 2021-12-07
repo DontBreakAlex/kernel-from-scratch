@@ -13,9 +13,9 @@ const Block = packed struct {
 const List = std.SinglyLinkedList(Block);
 const Node = List.Node;
 
-var nodes: [NODE_COUNT]Node = [_]Node {
+var nodes: [NODE_COUNT]Node = [_]Node{
     .next = null,
-    .data = Block {
+    .data = Block{
         .addr = 0,
         .size = 0,
     },
@@ -47,8 +47,8 @@ fn freeNode(node: *Node) void {
     node.data.size = 0;
 }
 
-var available = List {};
-var allocated = List {};
+var available = List{};
+var allocated = List{};
 
 pub fn init() void {
     available.prepend(&nodes[0]);
@@ -103,4 +103,18 @@ pub fn alloc(count: usize) !usize {
 }
 
 pub fn free(addr: usize) void {
+    // TODO: Defragment
+    var previous: ?*Node = null;
+    var current: ?*Node = allocated.first;
+    while (current) |c| : (current = current.?.next) {
+        if (c.data.addr == addr) {
+            if (previous) |p| {
+                p.removeNext();
+            } else {
+                allocated.first = current.next;
+            }
+            insertAvailable(c);
+        }
+        previous = current;
+    }
 }

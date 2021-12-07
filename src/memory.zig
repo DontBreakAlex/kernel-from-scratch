@@ -3,6 +3,7 @@ const std = @import("std");
 const Allocator = std.mem.Allocator;
 const GeneralPurposeAllocator = std.heap.GeneralPurposeAllocator;
 const PageAllocator = @import("memory/page_allocator.zig").PageAllocator;
+const VirtPageAllocator = @import("memory/virt_allocator.zig");
 const Flags = packed struct {
     present: u1,
     /// 0 = ro, 1 = rw
@@ -32,12 +33,6 @@ const PageEntry = packed struct {
 const MapError = error{
     AlreadyMapped,
     OutOfMemory,
-};
-
-const VMapNode = struct {
-    addr: usize,
-    size: usize,
-    allocated: bool,
 };
 
 pub var pageAllocator: PageAllocator = undefined;
