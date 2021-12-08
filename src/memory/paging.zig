@@ -1,66 +1,27 @@
-pub const PAGE_SIZE = 0x1000;
 const std = @import("std");
-const Allocator = std.mem.Allocator;
-const GeneralPurposeAllocator = std.heap.GeneralPurposeAllocator;
-const PageAllocator = @import("memory/page_allocator.zig").PageAllocator;
-const VirtPageAllocator = @import("memory/virt_allocator.zig");
-const Flags = packed struct {
-    present: u1,
-    /// 0 = ro, 1 = rw
-    write: u1,
-    /// 0 = supervisor only, 1 = public
-    user: u1,
-    /// 1 = disable write cache
-    pwt: u1,
-    /// 1 = disable cache
-    pcd: u1,
-    accessed: u1,
-    dirty: u1,
-    /// 0 = 4Kib, 1 = 4Mib. Set to 0
-    size: u1,
-    available: u4,
-};
+const utils = @import("../utils.zig");
+const PageAllocator = @import("page_allocator.zig").PageAllocator;
 
-const PRESENT: u12 = 0b1;
-const WRITE: u12 = 0b10;
-const USER: u12 = 0b100;
+pub const PRESENT: u12 = 0b1;
+pub const WRITE: u12 = 0b10;
+pub const USER: u12 = 0b100;
 
 const PageEntry = packed struct {
     flags: u12,
     phy_addr: u20,
 };
 
-const MapError = error{
-    AlreadyMapped,
-    OutOfMemory,
-};
-
-const MemorySpace = struct {
-    /// PID of owner process (0 for kernel)
-    owner: usize,
-    cr3: usize,
-};
-
+pub const PAGE_SIZE = 0x1000;
 pub var pageAllocator: PageAllocator = undefined;
 
-const phyBackAlloc: *Allocator = &pageAllocator.allocator;
-var phyGpAlloc: GeneralPurposeAllocator(.{}) = GeneralPurposeAllocator(.{}){ .backing_allocator = phyBackAlloc };
-pub const phyAllocator: *Allocator = &phyGpAlloc.allocator;
-var virtBackAlloc: Allocator = Allocator{ .allocFn = allocFn, .resizeFn = resizeFn };
-var virtGpAlloc: GeneralPurposeAllocator(.{}) = GeneralPurposeAllocator(.{}){ .backing_allocator = &virtBackAlloc };
-pub const virtAllocator: *Allocator = &virtGpAlloc.allocator;
+pub fn init(size: usize) void {
+    pageAllocator = PageAllocator.init(0x100000, size);
+    setupPaging() catch @panic("Failed to setup paging");
+}
 
 var kernelPageDirectory: *[1024]PageEntry = undefined;
 
-pub fn init(size: usize) void {
-    pageAllocator = PageAllocator.init(0x100000, size / 4);
-    VirtPageAllocator.init();
-}
-
-const utils = @import("utils.zig");
-const vga = @import("vga.zig");
-
-pub fn setupPageging() !void {
+pub fn setupPaging() !void {
     std.debug.assert(@sizeOf(PageEntry) * 1024 == 4096);
 
     const kPDAlloc = try pageAllocator.alloc();
@@ -106,6 +67,19 @@ fn initEmpty(entries: []PageEntry) void {
     }
 }
 
+/// Reserves and map a physical structure
+pub fn reserveAndMap(addr: usize, size: usize) !void {
+    const page_count = utils.divCeil((addr % PAGE_SIZE) + size, PAGE_SIZE);
+    try pageAllocator.reserve(addr, page_count);
+    var i: usize = 0;
+    while (i < page_count) : (i += 1) {
+        mapOneToOne(addr + i * 0x1000) catch |err| {
+            if (err == MapError.AlreadyMapped)
+                continue;
+            return err;
+        };
+    }
+}
 pub fn allocAndMap() !usize {
     const allocated = try pageAllocator.alloc();
     try mapOneToOne(allocated);
@@ -116,6 +90,11 @@ pub fn allocVirt(v_addr: usize, flags: u12) !void {
     const allocated = try pageAllocator.alloc();
     try mapVirtToPhy(v_addr, allocated, flags);
 }
+
+const MapError = error{
+    AlreadyMapped,
+    OutOfMemory,
+};
 
 pub fn mapOneToOne(addr: usize) MapError!void {
     return mapVirtToPhy(addr, addr, WRITE);
@@ -162,62 +141,4 @@ pub fn unMap(v_addr: usize) void {
         : [addr] "r" (v_addr),
         : "memory"
     );
-}
-
-/// Reserves and map a physical structure
-pub fn reserveAndMap(addr: usize, size: usize) !void {
-    const page_count = utils.divCeil((addr % PAGE_SIZE) + size, PAGE_SIZE);
-    try pageAllocator.reserve(addr, page_count);
-    var i: usize = 0;
-    while (i < page_count) : (i += 1) {
-        mapOneToOne(addr + i * 0x1000) catch |err| {
-            if (err == MapError.AlreadyMapped)
-                continue;
-            return err;
-        };
-    }
-    vga.format("Reserved {x:0>8}-{x:0>8}\n", .{ std.mem.alignBackward(addr, PAGE_SIZE), std.mem.alignBackward(addr, PAGE_SIZE) + page_count * PAGE_SIZE });
-}
-
-pub fn sizeOf(buff: []u8) usize {
-    return buff.len;
-}
-
-fn allocFn(self: *Allocator, len: usize, ptr_align: u29, len_align: u29, ret_addr: usize) Allocator.Error![]u8 {
-    _ = self;
-    _ = ret_addr;
-    if (ptr_align > PAGE_SIZE)
-        @panic("Unsuported aligned virtual alloc");
-    const page_count = utils.divCeil(len, PAGE_SIZE);
-    const v_addr = try VirtPageAllocator.alloc(page_count);
-    var i: usize = 0;
-    var addr = v_addr;
-    while (i < page_count) {
-        allocVirt(addr, WRITE) catch return Allocator.Error.OutOfMemory;
-        i += 1;
-        addr += PAGE_SIZE;
-    }
-    const requested_len = std.mem.alignAllocLen(page_count * PAGE_SIZE, len, len_align);
-    // vga.format("Allocated: 0x{x:0>8}-0x{x:0>8}\n", .{ v_addr, v_addr + page_count * PAGE_SIZE });
-    return @intToPtr([*]u8, v_addr)[0..requested_len];
-}
-
-fn resizeFn(self: *Allocator, buf: []u8, buf_align: u29, new_len: usize, len_align: u29, ret_addr: usize) !usize {
-    _ = self;
-    _ = buf;
-    _ = buf_align;
-    _ = new_len;
-    _ = len_align;
-    _ = ret_addr;
-    if (new_len != 0)
-        @panic("Attempt to resize virtual alloc");
-    VirtPageAllocator.free(@ptrToInt(buf.ptr));
-    var i = utils.divCeil(buf.len, PAGE_SIZE);
-    var addr = @ptrToInt(buf.ptr);
-    while (i != 0) {
-        unMap(addr);
-        i -= 1;
-        addr += PAGE_SIZE;
-    }
-    return 0;
 }

@@ -1,7 +1,7 @@
-const Allocator = std.mem.Allocator;
-const PAGE_SIZE = @import("../memory.zig").PAGE_SIZE;
-const utils = @import("../utils.zig");
 const std = @import("std");
+const Allocator = std.mem.Allocator;
+const PAGE_SIZE = @import("paging.zig").PAGE_SIZE;
+const utils = @import("../utils.zig");
 
 // TODO: Make sure we don't overwrite multiboot structures
 pub const PageAllocator = struct {

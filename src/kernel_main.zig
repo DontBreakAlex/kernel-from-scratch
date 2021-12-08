@@ -6,7 +6,7 @@ const kbr = @import("keyboard.zig");
 const shl = @import("shell.zig");
 const utl = @import("utils.zig");
 const mlb = @import("multiboot.zig");
-const mem = @import("memory.zig");
+const mem = @import("memory/mem.zig");
 
 pub fn panic(msg: []const u8, _: ?*std.builtin.StackTrace) noreturn {
     @setCold(true);
@@ -22,7 +22,6 @@ export fn kernel_main() void {
     idt.init();
     pic.init();
     mem.init(mlb.MULTIBOOT.mem_upper);
-    mem.setupPageging() catch @panic("Failed to setup paging");
     mlb.loadSymbols() catch {};
     kbr.init();
 
