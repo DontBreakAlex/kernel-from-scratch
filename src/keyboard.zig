@@ -102,6 +102,7 @@ noinline fn handle_scancode(scan_code: u8) void {
 export fn handle_keyboard() callconv(.Naked) void {
     // TODO: Save save xmm registers
     asm volatile (
+        \\cli
         \\pusha
     );
 
@@ -113,6 +114,7 @@ export fn handle_keyboard() callconv(.Naked) void {
     utils.out(pic.MASTER_CMD, pic.EOI);
     asm volatile (
         \\popa
+        \\sti
         \\iret
     );
 }

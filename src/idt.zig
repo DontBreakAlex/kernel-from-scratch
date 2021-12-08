@@ -75,16 +75,24 @@ pub fn init() void {
     vga.putStr("IDT Initialized\n");
 }
 
-export fn exception_code(index: u32, code: u32) callconv(.C) void {
-    vga.format("Exception {s} with code {d}\n", .{ EXCEPTIONS[index], code });
-    if (index == 14) {
+const InterruptFrame = packed struct {
+    index: usize,
+    code: usize,
+    eip: usize,
+    cs: usize,
+    eflags: usize,
+};
+
+export fn exception(frame: *InterruptFrame) callconv(.C) void {
+    vga.format("Exception: {s} with code {d} at 0x{x:0>8}\n", .{
+        EXCEPTIONS[frame.index],
+        frame.code,
+        frame.eip,
+    });
+    if (frame.index == 14) {
         vga.format("Fauld addr: 0x{x:0>8}\n", .{utils.get_register(.cr2)});
         utils.halt();
     }
-}
-
-export fn exception_nocode(index: u32) callconv(.C) void {
-    vga.format("Exception: {s}\n", .{EXCEPTIONS[index]});
 }
 
 const EXCEPTIONS: [32][]const u8 = .{

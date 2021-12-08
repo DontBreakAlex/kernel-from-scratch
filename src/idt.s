@@ -1,27 +1,35 @@
-extern exception_code
-extern exception_nocode
+extern exception
 
 ; These macros are used to setup the cpu expection handlers
 %macro isr_err_stub 1
 isr_stub_%+%1:
-	pushad
-	push %1
 	xchg bx, bx
-    call exception_code
+	push %1
+	pushad
+    mov eax, esp
+    add eax, 0x20
+    push eax
+    call exception
 	add esp, $4
 	popad
-	add esp, $4
+	add esp, $8
     iretd
 %endmacro
 
 %macro isr_no_err_stub 1
 isr_stub_%+%1:
-	pushad
-	push %1
 	xchg bx, bx
-    call exception_nocode
+	push $0
+	push %1
+	pushad
+    mov eax, esp
+    add eax, 0x20
+    push eax
+    call exception
 	add esp, $4
 	popad
+	add esp, $8
+	xchg bx, bx
     iretd
 %endmacro
 
