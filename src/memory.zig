@@ -35,6 +35,12 @@ const MapError = error{
     OutOfMemory,
 };
 
+const MemorySpace = struct {
+    /// PID of owner process (0 for kernel)
+    owner: usize,
+    cr3: usize,
+};
+
 pub var pageAllocator: PageAllocator = undefined;
 
 const phyBackAlloc: *Allocator = &pageAllocator.allocator;
@@ -48,6 +54,7 @@ var kernelPageDirectory: *[1024]PageEntry = undefined;
 
 pub fn init(size: usize) void {
     pageAllocator = PageAllocator.init(0x100000, size / 4);
+    VirtPageAllocator.init();
 }
 
 const utils = @import("utils.zig");
@@ -132,6 +139,29 @@ pub fn mapVirtToPhy(v_addr: usize, p_addr: usize, flags: u12) MapError!void {
     }
     page_table_entry.flags = PRESENT | flags;
     page_table_entry.phy_addr = @truncate(u20, p_addr >> 12);
+    asm volatile ("invlpg (%[addr])"
+        :
+        : [addr] "r" (v_addr),
+        : "memory"
+    );
+}
+
+pub fn unMap(v_addr: usize) void {
+    const dir_offset = @truncate(u10, (v_addr & 0b11111111110000000000000000000000) >> 22);
+    const table_offset = @truncate(u10, (v_addr & 0b00000000000111111111100000000000) >> 12);
+    const directory_entry = &kernelPageDirectory[dir_offset];
+    if ((directory_entry.flags & PRESENT) == 0)
+        return;
+    const page_table_entry = &@intToPtr(*[1024]PageEntry, @intCast(usize, directory_entry.phy_addr) << 12)[table_offset];
+    if ((page_table_entry.flags & PRESENT) == 0)
+        return;
+    page_table_entry.flags = 0;
+    page_table_entry.phy_addr = 0;
+    asm volatile ("invlpg (%[addr])"
+        :
+        : [addr] "r" (v_addr),
+        : "memory"
+    );
 }
 
 /// Reserves and map a physical structure
@@ -153,21 +183,13 @@ pub fn sizeOf(buff: []u8) usize {
     return buff.len;
 }
 
-var vMemStackPointer: usize = 0x1000000;
-
-/// Returns an adress in kernel vmem with `count` unmapped pages after it
-pub fn findContinuousVirt(count: usize) usize {
-    defer vMemStackPointer += count * 0x1000;
-    return vMemStackPointer;
-}
-
 fn allocFn(self: *Allocator, len: usize, ptr_align: u29, len_align: u29, ret_addr: usize) Allocator.Error![]u8 {
     _ = self;
     _ = ret_addr;
     if (ptr_align > PAGE_SIZE)
         @panic("Unsuported aligned virtual alloc");
     const page_count = utils.divCeil(len, PAGE_SIZE);
-    const v_addr = findContinuousVirt(page_count);
+    const v_addr = try VirtPageAllocator.alloc(page_count);
     var i: usize = 0;
     var addr = v_addr;
     while (i < page_count) {
@@ -189,5 +211,13 @@ fn resizeFn(self: *Allocator, buf: []u8, buf_align: u29, new_len: usize, len_ali
     _ = ret_addr;
     if (new_len != 0)
         @panic("Attempt to resize virtual alloc");
+    VirtPageAllocator.free(@ptrToInt(buf.ptr));
+    var i = utils.divCeil(buf.len, PAGE_SIZE);
+    var addr = @ptrToInt(buf.ptr);
+    while (i != 0) {
+        unMap(addr);
+        i -= 1;
+        addr += PAGE_SIZE;
+    }
     return 0;
 }

@@ -13,16 +13,16 @@ const Block = packed struct {
 const List = std.SinglyLinkedList(Block);
 const Node = List.Node;
 
-var nodes: [NODE_COUNT]Node = [_]Node{
+var nodes: [NODE_COUNT]Node = [_]Node{Node{
     .next = null,
     .data = Block{
         .addr = 0,
         .size = 0,
     },
-} ** NODE_COUNT;
+}} ** NODE_COUNT;
 
 var availableNodes = NODE_COUNT;
-var lastFreedNode = &nodes[1];
+var lastFreedNode: ?*Node = &nodes[1];
 
 fn allocNode() !*Node {
     if (availableNodes == 0) return error.OutOfMemory;
@@ -86,7 +86,7 @@ pub fn alloc(count: usize) !usize {
     }
     if (current.data.size < count) return error.OutOfMemory;
     if (previous) |p| {
-        p.removeNext();
+        _ = p.removeNext();
     } else {
         available.first = current.next;
         current.next = null;
@@ -109,11 +109,12 @@ pub fn free(addr: usize) void {
     while (current) |c| : (current = current.?.next) {
         if (c.data.addr == addr) {
             if (previous) |p| {
-                p.removeNext();
+                _ = p.removeNext();
             } else {
-                allocated.first = current.next;
+                allocated.first = c.next;
             }
             insertAvailable(c);
+            break;
         }
         previous = current;
     }
