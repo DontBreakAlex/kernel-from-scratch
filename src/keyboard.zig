@@ -74,8 +74,7 @@ pub fn wait_key() KeyPress {
     }
 }
 
-// https://github.com/ziglang/zig/issues/7286
-noinline fn handle_scancode(scan_code: u8) void {
+fn handle_scancode(scan_code: u8) void {
     const state = struct {
         var uppercase: bool = false;
         var special: bool = false;
@@ -99,6 +98,16 @@ noinline fn handle_scancode(scan_code: u8) void {
     if (state.special) state.special = false;
 }
 
+// https://github.com/ziglang/zig/issues/7286
+noinline fn read_scancode() void {
+    const status = utils.in(u8, KEYBOARD_STATUS);
+    if (status & 0x1 == 1) {
+        handle_scancode(utils.in(u8, KEYBOARD_DATA));
+    }
+
+    utils.out(pic.MASTER_CMD, pic.EOI);
+}
+
 export fn handle_keyboard() callconv(.Naked) void {
     // TODO: Save save xmm registers
     asm volatile (
@@ -106,12 +115,8 @@ export fn handle_keyboard() callconv(.Naked) void {
         \\pusha
     );
 
-    const status = utils.in(u8, KEYBOARD_STATUS);
-    if (status & 0x1 == 1) {
-        handle_scancode(utils.in(u8, KEYBOARD_DATA));
-    }
+    read_scancode();
 
-    utils.out(pic.MASTER_CMD, pic.EOI);
     asm volatile (
         \\popa
         \\sti
