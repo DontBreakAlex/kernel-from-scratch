@@ -17,12 +17,11 @@ pub const IdtPtr = packed struct {
     base: u32,
 };
 
-const InterruptHandler = fn () callconv(.Naked) void;
-
 const NUMBER_OF_ENTRIES: u16 = 256;
 // The total size of all the IDT entries (-1 for the same reason as the GDT).
 const TABLE_SIZE: u16 = @sizeOf(IdtEntry) * NUMBER_OF_ENTRIES - 1;
 const ISR_GATE_TYPE = 0xE; // 80386 32-bit interrupt gate
+const KERN_CODE = 0x08;
 
 var idt_ptr: IdtPtr = IdtPtr{
     .limit = TABLE_SIZE,
@@ -41,7 +40,7 @@ var idt_entries: [NUMBER_OF_ENTRIES]IdtEntry = [_]IdtEntry{IdtEntry{
     .base_high = 0,
 }} ** NUMBER_OF_ENTRIES;
 
-fn buildEntry(base: u32, selector: u16, gate_type: u4, privilege: u2) IdtEntry {
+fn buildEntry(base: usize, selector: u16, gate_type: u4, privilege: u2) IdtEntry {
     return IdtEntry{
         .base_low = @truncate(u16, base),
         .selector = selector,
@@ -54,8 +53,35 @@ fn buildEntry(base: u32, selector: u16, gate_type: u4, privilege: u2) IdtEntry {
     };
 }
 
-pub fn setIdtEntry(index: u8, handler: u32) void {
-    idt_entries[index] = buildEntry(handler, 0x08, ISR_GATE_TYPE, 0x0);
+pub fn setIdtEntry(index: u8, handler: usize) void {
+    idt_entries[index] = buildEntry(handler, KERN_CODE, ISR_GATE_TYPE, 0x0);
+}
+
+const InterruptHandler = fn () void;
+
+pub fn setInterruptHandler(index: u8, comptime handler: InterruptHandler) void {
+    const isr = @ptrToInt(buildIsr(handler));
+    idt_entries[index] = buildEntry(isr, KERN_CODE, ISR_GATE_TYPE, 0x0);
+}
+
+fn buildIsr(comptime handler: InterruptHandler) fn () callconv(.Naked) void {
+    return struct {
+        fn func() callconv(.Naked) void {
+            // TODO: Save save xmm registers
+            asm volatile (
+                \\cli
+                \\pusha
+            );
+
+            handler();
+
+            asm volatile (
+                \\popa
+                \\sti
+                \\iret
+            );
+        }
+    }.func;
 }
 
 extern fn boch_break() void;

@@ -38,7 +38,7 @@ pub fn readLine() !ArrayList(u8) {
     var n: usize = 0;
 
     while (true) {
-        const key: kbr.KeyPress = kbr.wait_key();
+        const key: kbr.KeyPress = kbr.waitKey();
         switch (key.key) {
             .BACKSPACE => if (n != 0 and n == line.items.len) {
                 vga.erase();

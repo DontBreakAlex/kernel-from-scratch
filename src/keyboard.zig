@@ -23,21 +23,16 @@ var QUEUE: [32]KeyPress = undefined;
 var QUEUE_PTR: usize = 0;
 
 pub fn init() void {
-    idt.setIdtEntry(pic.PIC1_OFFSET, @ptrToInt(handle_irq0));
-    idt.setIdtEntry(pic.PIC1_OFFSET + 1, @ptrToInt(handle_keyboard));
+    idt.setInterruptHandler(pic.PIC1_OFFSET + 1, readScancode);
+    idt.setInterruptHandler(pic.PIC1_OFFSET, handle_irq0);
 
     pic.unMask(0x01);
     vga.putStr("Keyboard initialized\n");
 }
 
-export fn handle_irq0() callconv(.Naked) void {
-    asm volatile ("pusha");
+fn handle_irq0() void {
     utils.out(pic.MASTER_CMD, pic.EOI);
     vga.putStr("Got irq0\n");
-    asm volatile (
-        \\popa
-        \\iret
-    );
 }
 
 const QueueError = error{
@@ -45,7 +40,7 @@ const QueueError = error{
     Empty,
 };
 
-pub fn push_key(key: Key, uppercase: bool) QueueError!void {
+pub fn pushKey(key: Key, uppercase: bool) QueueError!void {
     if (QUEUE_PTR == 32)
         return QueueError.Full;
 
@@ -56,7 +51,7 @@ pub fn push_key(key: Key, uppercase: bool) QueueError!void {
     };
 }
 
-pub fn pop_key() QueueError!KeyPress {
+pub fn popKey() QueueError!KeyPress {
     if (QUEUE_PTR == 0)
         return QueueError.Empty;
 
@@ -64,9 +59,9 @@ pub fn pop_key() QueueError!KeyPress {
     return QUEUE[QUEUE_PTR];
 }
 
-pub fn wait_key() KeyPress {
+pub fn waitKey() KeyPress {
     while (true) {
-        if (pop_key()) |key| {
+        if (popKey()) |key| {
             return key;
         } else |_| {
             asm volatile ("hlt");
@@ -74,7 +69,7 @@ pub fn wait_key() KeyPress {
     }
 }
 
-fn handle_scancode(scan_code: u8) void {
+fn handleScancode(scan_code: u8) void {
     const state = struct {
         var uppercase: bool = false;
         var special: bool = false;
@@ -93,33 +88,17 @@ fn handle_scancode(scan_code: u8) void {
     if (key == .LEFT_SHIFT or key == .RIGHT_SHIFT) {
         state.uppercase = !released;
     } else if (released) {
-        push_key(key, state.uppercase) catch vga.putStr("Could not handle key: queue is full\n");
+        pushKey(key, state.uppercase) catch vga.putStr("Could not handle key: queue is full\n");
     }
     if (state.special) state.special = false;
 }
 
 // https://github.com/ziglang/zig/issues/7286
-noinline fn read_scancode() void {
+noinline fn readScancode() void {
     const status = utils.in(u8, KEYBOARD_STATUS);
     if (status & 0x1 == 1) {
-        handle_scancode(utils.in(u8, KEYBOARD_DATA));
+        handleScancode(utils.in(u8, KEYBOARD_DATA));
     }
 
     utils.out(pic.MASTER_CMD, pic.EOI);
-}
-
-export fn handle_keyboard() callconv(.Naked) void {
-    // TODO: Save save xmm registers
-    asm volatile (
-        \\cli
-        \\pusha
-    );
-
-    read_scancode();
-
-    asm volatile (
-        \\popa
-        \\sti
-        \\iret
-    );
 }
