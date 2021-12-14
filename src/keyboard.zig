@@ -24,15 +24,9 @@ var QUEUE_PTR: usize = 0;
 
 pub fn init() void {
     idt.setInterruptHandler(pic.PIC1_OFFSET + 1, readScancode);
-    idt.setInterruptHandler(pic.PIC1_OFFSET, handle_irq0);
 
     pic.unMask(0x01);
     vga.putStr("Keyboard initialized\n");
-}
-
-fn handle_irq0() void {
-    utils.out(pic.MASTER_CMD, pic.EOI);
-    vga.putStr("Got irq0\n");
 }
 
 const QueueError = error{

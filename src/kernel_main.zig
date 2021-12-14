@@ -2,6 +2,7 @@ const std = @import("std");
 const idt = @import("idt.zig");
 const vga = @import("vga.zig");
 const pic = @import("pic.zig");
+const pit = @import("pit.zig");
 const kbr = @import("keyboard.zig");
 const shl = @import("shell.zig");
 const utl = @import("utils.zig");
@@ -21,6 +22,7 @@ export fn kernel_main() void {
     vga.init();
     idt.init();
     pic.init();
+    pit.init();
     mem.init(mlb.MULTIBOOT.mem_upper);
     mlb.loadSymbols() catch {};
     kbr.init();

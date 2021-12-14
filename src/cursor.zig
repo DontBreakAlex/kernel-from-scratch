@@ -40,7 +40,7 @@ pub const Cursor = struct {
         self.y -= 1;
         return true;
     }
-    fn goto(self: *Cursor, x: u8, y: u8) void {
+    pub fn goto(self: *Cursor, x: u8, y: u8) void {
         self.x = x;
         self.y = y;
     }
@@ -87,5 +87,12 @@ pub const Cursor = struct {
         utils.out(CURSOR_DATA, (utils.in(u8, CURSOR_DATA) & 0xC0) | 14);
         utils.out(CURSOR_CMD, @as(u8, 0x0B));
         utils.out(CURSOR_DATA, (utils.in(u8, CURSOR_DATA) & 0xE0) | 15);
+    }
+    pub fn save(self: Cursor) Cursor {
+        return self;
+    }
+    pub fn restore(self: *Cursor, saved: Cursor) void {
+        self.* = saved;
+        self.update();
     }
 };
