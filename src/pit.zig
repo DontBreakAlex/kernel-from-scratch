@@ -12,7 +12,7 @@ var DIVISOR: u16 = 0xFFFF;
 
 pub fn init() void {
     utils.disable_int();
-    idt.setInterruptHandler(pic.PIC1_OFFSET, handleIrq0);
+    idt.setInterruptHandler(pic.PIC1_OFFSET, handleIrq0, true);
 
     // 00  Channel 0
     // 11  Access mode: lobyte/hibyte

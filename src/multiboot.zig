@@ -109,7 +109,7 @@ fn findSection(to_find: []const u8) ?*const elf.ElfHeader {
     // TODO: Validate size
     vga.format("Looking for: {s}\n", .{to_find});
     const section_names = MULTIBOOT.syms.addr[MULTIBOOT.syms.shndx];
-    reserve(section_names.sh_addr, @sizeOf(elf.ElfHeader)) catch {};
+    reserve(section_names.sh_addr, @sizeOf(elf.ElfHeader) * section_names.sh_size) catch {};
     for (MULTIBOOT.syms.addr[0..MULTIBOOT.syms.num]) |*section| {
         const name = std.mem.span(@intToPtr([*:0]const u8, section_names.sh_addr + section.sh_name));
         if (name.len == to_find.len and std.mem.eql(u8, name, to_find)) {

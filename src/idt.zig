@@ -59,21 +59,35 @@ pub fn setIdtEntry(index: u8, handler: usize) void {
 
 const InterruptHandler = fn () void;
 
-pub fn setInterruptHandler(index: u8, comptime handler: InterruptHandler) void {
-    const isr = @ptrToInt(buildIsr(handler));
+pub fn setInterruptHandler(index: u8, comptime handler: InterruptHandler, comptime save_fpu: bool) void {
+    const isr = @ptrToInt(buildIsr(handler, save_fpu));
     idt_entries[index] = buildEntry(isr, KERN_CODE, ISR_GATE_TYPE, 0x0);
 }
 
-fn buildIsr(comptime handler: InterruptHandler) fn () callconv(.Naked) void {
+fn buildIsr(comptime handler: InterruptHandler, comptime save_fpu: bool) fn () callconv(.Naked) void {
     return struct {
         fn func() callconv(.Naked) void {
-            // TODO: Save save xmm registers
             asm volatile (
                 \\cli
                 \\pusha
             );
+            if (save_fpu) {
+                asm volatile (
+                    \\mov %%esp, %%ebp
+                    \\sub $512, %%esp
+                    \\andl $0xFFFFFFF0, %%esp
+                    \\fxsave (%%esp)
+                );
 
-            handler();
+                handler();
+
+                asm volatile (
+                    \\fxrstor (%%esp)
+                    \\mov %%ebp, %%esp
+                );
+            } else {
+                handler();
+            }
 
             asm volatile (
                 \\popa

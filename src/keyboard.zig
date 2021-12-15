@@ -23,7 +23,7 @@ var QUEUE: [32]KeyPress = undefined;
 var QUEUE_PTR: usize = 0;
 
 pub fn init() void {
-    idt.setInterruptHandler(pic.PIC1_OFFSET + 1, readScancode);
+    idt.setInterruptHandler(pic.PIC1_OFFSET + 1, readScancode, false);
 
     pic.unMask(0x01);
     vga.putStr("Keyboard initialized\n");

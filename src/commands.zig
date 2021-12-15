@@ -8,7 +8,7 @@ pub const CommandFn = fn (args: ArgsIterator) u8;
 pub const Command = struct { name: []const u8, cmd: CommandFn };
 extern const stack_top: u8;
 
-pub const commands: [8]Command = .{
+pub const commands: [9]Command = .{
     .{ .name = "echo", .cmd = echo },
     .{ .name = "pstack", .cmd = printStack },
     .{ .name = "ptrace", .cmd = printTrace },
@@ -17,6 +17,7 @@ pub const commands: [8]Command = .{
     .{ .name = "poweroff", .cmd = poweroff },
     .{ .name = "pmultiboot", .cmd = pmultiboot },
     .{ .name = "int", .cmd = interrupt },
+    .{ .name = "panic", .cmd = panic },
 };
 
 pub fn find(name: []const u8) ?CommandFn {
@@ -45,7 +46,7 @@ fn printStack(_: ArgsIterator) u8 {
     const bottom: usize = utils.get_register(.esp);
     const top: *const u8 = &stack_top;
     const len = (@ptrToInt(top) - bottom);
-    const s = @intToPtr([*]u8, bottom)[0..bottom];
+    const s = @intToPtr([*]u8, bottom)[0..len];
     var i = len - 1;
     var line: [16]u8 = undefined;
     while (i >= 16) : (i -= 16) {
@@ -115,4 +116,8 @@ fn pmultiboot(_: ArgsIterator) u8 {
 fn interrupt(_: ArgsIterator) u8 {
     asm volatile ("int $1");
     return 0;
+}
+
+fn panic(_: ArgsIterator) u8 {
+    @panic("User requested panic !");
 }

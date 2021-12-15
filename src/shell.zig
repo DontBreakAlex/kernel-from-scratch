@@ -9,7 +9,7 @@ const ArrayList = std.ArrayList;
 
 extern const kend: u8;
 extern const kbegin: u8;
-const motd = "Welcome to kernel-from-scratch   ! (0x{x:0>8}-0x{x:0>8})\n";
+const motd = "Welcome to kernel-o-tron ! (0x{x:0>8}-0x{x:0>8})\n";
 
 pub fn run() void {
     vga.clear();
