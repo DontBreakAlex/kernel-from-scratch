@@ -4,6 +4,7 @@ const utils = @import("utils.zig");
 const vga = @import("vga.zig");
 const kbm = @import("keyboard_map.zig");
 const std = @import("std");
+const mem = @import("memory/mem.zig");
 
 pub const Key = kbm.Key;
 
@@ -19,8 +20,8 @@ pub const KeyPress = struct {
 const KEYBOARD_STATUS: u8 = 0x64;
 const KEYBOARD_DATA: u8 = 0x60;
 
-var QUEUE: [32]KeyPress = undefined;
-var QUEUE_PTR: usize = 0;
+const Queue = std.fifo.LinearFifo(KeyPress, .Dynamic);
+var queue = Queue.init(mem.allocator);
 
 pub fn init() void {
     idt.setInterruptHandler(pic.PIC1_OFFSET + 1, readScancode, false);
@@ -29,35 +30,11 @@ pub fn init() void {
     vga.putStr("Keyboard initialized\n");
 }
 
-const QueueError = error{
-    Full,
-    Empty,
-};
-
-pub fn pushKey(key: Key, uppercase: bool) QueueError!void {
-    if (QUEUE_PTR == 32)
-        return QueueError.Full;
-
-    QUEUE_PTR += 1;
-    QUEUE[QUEUE_PTR - 1] = KeyPress{
-        .key = key,
-        .uppercase = uppercase,
-    };
-}
-
-pub fn popKey() QueueError!KeyPress {
-    if (QUEUE_PTR == 0)
-        return QueueError.Empty;
-
-    QUEUE_PTR -= 1;
-    return QUEUE[QUEUE_PTR];
-}
-
 pub fn waitKey() KeyPress {
     while (true) {
-        if (popKey()) |key| {
+        if (queue.readItem()) |key| {
             return key;
-        } else |_| {
+        } else {
             asm volatile ("hlt");
         }
     }
@@ -82,7 +59,10 @@ fn handleScancode(scan_code: u8) void {
     if (key == .LEFT_SHIFT or key == .RIGHT_SHIFT) {
         state.uppercase = !released;
     } else if (released) {
-        pushKey(key, state.uppercase) catch vga.putStr("Could not handle key: queue is full\n");
+        queue.writeItem(KeyPress{
+            .key = key,
+            .uppercase = state.uppercase,
+        }) catch vga.putStr("Could not handle keypress\n");
     }
     if (state.special) state.special = false;
 }
