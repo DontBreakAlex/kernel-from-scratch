@@ -6,6 +6,7 @@ const PAGE_SIZE = paging.PAGE_SIZE;
 const PRESENT = paging.PRESENT;
 const WRITE = paging.WRITE;
 const Allocator = std.mem.Allocator;
+const PageDirectory = paging.PageDirectory;
 
 pub const VMemManager = struct {
     /// Represent a block of virtual memory
@@ -131,6 +132,7 @@ pub const VirtualAllocator = struct {
         .allocFn = allocFn,
     },
     vmem: *VMemManager,
+    paging: *PageDirectory,
 
     fn allocFn(field: *Allocator, len: usize, ptr_align: u29, len_align: u29, ret_addr: usize) Allocator.Error![]u8 {
         _ = ret_addr;
@@ -142,7 +144,7 @@ pub const VirtualAllocator = struct {
         var i: usize = 0;
         var addr = v_addr;
         while (i < page_count) {
-            paging.allocVirt(addr, WRITE) catch return Allocator.Error.OutOfMemory;
+            self.paging.allocVirt(addr, WRITE) catch return Allocator.Error.OutOfMemory;
             i += 1;
             addr += PAGE_SIZE;
         }
@@ -161,7 +163,7 @@ pub const VirtualAllocator = struct {
         var i = utils.divCeil(buf.len, PAGE_SIZE);
         var addr = @ptrToInt(buf.ptr);
         while (i != 0) {
-            paging.unMap(addr);
+            self.paging.unMap(addr);
             i -= 1;
             addr += PAGE_SIZE;
         }

@@ -10,5 +10,7 @@ const Process = struct {
     parent: ?*Process,
     childrens: []*Process,
     signals: SignalQueue,
+    stack_base: usize,
+    cr3: usize,
     owner_id: u16,
 };

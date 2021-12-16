@@ -8,7 +8,7 @@ const VMemManager = vmem.VMemManager;
 const VirtualAllocator = vmem.VirtualAllocator;
 
 var vmemManager = VMemManager{};
-var virtualAllocator = VirtualAllocator{ .vmem = &vmemManager };
+var virtualAllocator = VirtualAllocator{ .vmem = &vmemManager, .paging = &paging.kernelPageDirectory };
 var generalPurposeAllocator: GeneralPurposeAllocator(.{}) = GeneralPurposeAllocator(.{}){ .backing_allocator = &virtualAllocator.allocator };
 pub const allocator: *Allocator = &generalPurposeAllocator.allocator;
 
