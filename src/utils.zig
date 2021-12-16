@@ -102,34 +102,3 @@ pub fn divCeil(numerator: usize, denomiator: usize) usize {
     const rem = numerator % denomiator;
     return quot + @boolToInt(rem != 0);
 }
-
-pub fn cleanRegs() void {
-    asm volatile (
-        \\xor %%eax, %%eax
-        \\xor %%ebx, %%ebx
-        \\xor %%ecx, %%ecx
-        \\xor %%edx, %%edx
-        \\xor %%edi, %%edi
-        \\xorps %%xmm0, %%xmm0
-        \\xorps %%xmm1, %%xmm1
-        \\xorps %%xmm2, %%xmm2
-        \\xorps %%xmm3, %%xmm3
-        \\xorps %%xmm4, %%xmm4
-        \\xorps %%xmm5, %%xmm5
-        \\xorps %%xmm6, %%xmm6
-        \\xorps %%xmm7, %%xmm7
-    );
-}
-
-extern const stack_top: u8;
-
-/// Saves the stack (including its own stack frame) to the provided buffer.
-pub fn saveStack(buf: []u8) !void {
-    const bottom: usize = get_register(.esp);
-    const top: *const u8 = &stack_top;
-    const len = (@ptrToInt(top) - bottom);
-    if (len > buf.len)
-        return error.BufferToSmall;
-    const s = @intToPtr([*]u8, bottom)[0..bottom];
-    std.mem.copy(u8, buf, s);
-}

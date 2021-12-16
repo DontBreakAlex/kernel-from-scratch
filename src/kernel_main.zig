@@ -11,7 +11,6 @@ const mem = @import("memory/mem.zig");
 
 pub fn panic(msg: []const u8, _: ?*std.builtin.StackTrace) noreturn {
     @setCold(true);
-    utl.cleanRegs();
     vga.format("KERNEL PANIC: {s}\n", .{msg});
     utl.printTrace();
     utl.boch_break();
