@@ -67,7 +67,7 @@ pub const PageAllocator = struct {
         for (self.alloc_table) |*e, i| {
             if (e.* == false) {
                 e.* = true;
-                vga.format("Allocated: 0x{x:0>8}\n", .{self.base + i * PAGE_SIZE});
+                // vga.format("Allocated: 0x{x:0>8}\n", .{self.base + i * PAGE_SIZE});
                 return self.base + i * PAGE_SIZE;
             }
         }

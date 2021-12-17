@@ -67,9 +67,9 @@ pub const PageDirectory = struct {
 
     pub fn init() PageDirectory!void {
         const allocated = try pageAllocator.alloc();
+        try kernelPageDirectory.mapOneToOne(allocated);
         const cr3 = @intToPtr(*[1024]PageEntry, allocated);
         initEmpty(cr3);
-        try kernelPageDirectory.mapOneToOne(allocated);
 
         return PageDirectory{ .cr3 = cr3 };
     }
@@ -96,7 +96,7 @@ pub const PageDirectory = struct {
         }
         page_table_entry.flags = PRESENT | flags;
         page_table_entry.phy_addr = @truncate(u20, p_addr >> 12);
-        vga.format("Mapped: 0x{x:0>8}\n", .{v_addr});
+        // vga.format("Mapped: 0x{x:0>8}\n", .{v_addr});
         asm volatile ("invlpg (%[addr])"
             :
             : [addr] "r" (v_addr),
@@ -143,7 +143,7 @@ pub const PageDirectory = struct {
 };
 
 fn initEmpty(entries: []PageEntry) void {
-    vga.format("Zeroed: 0x{x:0>8}-0x{x:0>8}\n", .{ @ptrToInt(entries.ptr), @ptrToInt(entries.ptr) + entries.len * @sizeOf(PageEntry) });
+    // vga.format("Zeroed: 0x{x:0>8}-0x{x:0>8}\n", .{ @ptrToInt(entries.ptr), @ptrToInt(entries.ptr) + entries.len * @sizeOf(PageEntry) });
     for (entries) |*e| {
         e.flags = 0;
         e.phy_addr = 0;

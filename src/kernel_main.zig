@@ -22,7 +22,7 @@ export fn kernel_main() void {
     vga.init();
     idt.init();
     pic.init();
-    // pit.init();
+    pit.init();
     mem.init(mlb.MULTIBOOT.mem_upper);
     mlb.loadSymbols() catch {};
     kbr.init();
