@@ -2,8 +2,8 @@ const std = @import("std");
 const Allocator = std.mem.Allocator;
 const PAGE_SIZE = @import("paging.zig").PAGE_SIZE;
 const utils = @import("../utils.zig");
+const vga = @import("../vga.zig");
 
-// TODO: Make sure we don't overwrite multiboot structures
 pub const PageAllocator = struct {
     base: usize,
     alloc_table: []bool,
@@ -67,6 +67,7 @@ pub const PageAllocator = struct {
         for (self.alloc_table) |*e, i| {
             if (e.* == false) {
                 e.* = true;
+                vga.format("Allocated: 0x{x:0>8}\n", .{self.base + i * PAGE_SIZE});
                 return self.base + i * PAGE_SIZE;
             }
         }

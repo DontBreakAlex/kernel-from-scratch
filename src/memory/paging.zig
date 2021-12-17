@@ -1,10 +1,12 @@
 const std = @import("std");
 const utils = @import("../utils.zig");
 const PageAllocator = @import("page_allocator.zig").PageAllocator;
+const vga = @import("../vga.zig");
 
 pub const PRESENT: u12 = 0b1;
 pub const WRITE: u12 = 0b10;
 pub const USER: u12 = 0b100;
+pub const ALLOCATING: u12 = 0b100000000000;
 
 const PageEntry = packed struct {
     flags: u12,
@@ -16,13 +18,28 @@ pub var pageAllocator: PageAllocator = undefined;
 
 pub fn init(size: usize) void {
     pageAllocator = PageAllocator.init(0x100000, size);
-    setup() catch @panic("Failed to setup paging");
+    setup() catch |err| {
+        vga.format("Paging error: {s}\n", .{err});
+        @panic("Failed to setup paging");
+    };
 }
 
 fn setup() !void {
-    kernelPageDirectory = PageDirectory{ .cr3 = @intToPtr(*[1024]PageEntry, try pageAllocator.alloc()) };
-    try kernelPageDirectory.mapOneToOne(@ptrToInt(kernelPageDirectory.cr3));
+    const dir_alloc = try pageAllocator.alloc();
+    const tab_alloc = try pageAllocator.alloc();
+    const dir = @intToPtr(*[1024]PageEntry, dir_alloc);
+    const tab = @intToPtr(*[1024]PageEntry, tab_alloc);
+    initEmpty(dir);
+    initEmpty(tab);
+    dir[0].flags = PRESENT | WRITE;
+    dir[0].phy_addr = @truncate(u20, tab_alloc >> 12);
+    kernelPageDirectory = PageDirectory{ .cr3 = dir };
 
+    try kernelPageDirectory.mapOneToOne(dir_alloc);
+    try kernelPageDirectory.mapOneToOne(tab_alloc);
+    printDirectory(kernelPageDirectory.cr3);
+
+    utils.boch_break();
     // Map first 1M of memory (where the kernel is)
     var i: usize = 0;
     while (i < 256) : (i += 1) {
@@ -34,12 +51,11 @@ fn setup() !void {
     while (allocator_begin <= allocator_end) : (allocator_begin += PAGE_SIZE)
         try kernelPageDirectory.mapOneToOne(allocator_begin);
     kernelPageDirectory.load();
-    asm volatile(
+    asm volatile (
         \\mov %%cr0, %%eax
         \\or $0x80000001, %%eax
         \\mov %%eax, %%cr0
-        : : : "eax"
-    );
+        ::: "eax");
 }
 
 pub var kernelPageDirectory: PageDirectory = undefined;
@@ -51,9 +67,9 @@ pub const PageDirectory = struct {
 
     pub fn init() PageDirectory!void {
         const allocated = try pageAllocator.alloc();
-        try kernelPageDirectory.mapOneToOne(allocated);
         const cr3 = @intToPtr(*[1024]PageEntry, allocated);
         initEmpty(cr3);
+        try kernelPageDirectory.mapOneToOne(allocated);
 
         return PageDirectory{ .cr3 = cr3 };
     }
@@ -68,17 +84,19 @@ pub const PageDirectory = struct {
         const page_table = &self.cr3[dir_offset];
         if ((page_table.flags & PRESENT) == 0) {
             const allocated = try pageAllocator.alloc();
-            page_table.flags = PRESENT | flags;
+            page_table.flags = PRESENT | WRITE;
             page_table.phy_addr = @truncate(u20, allocated >> 12);
             try kernelPageDirectory.mapOneToOne(allocated);
             initEmpty(@intToPtr(*[1024]PageEntry, allocated));
         }
         const page_table_entry = &@intToPtr(*[1024]PageEntry, @intCast(usize, page_table.phy_addr) << 12)[table_offset];
         if ((page_table_entry.flags & PRESENT) == 1) {
+            // vga.format("AlreadyMapped: {*}, {x}\n", .{ page_table_entry, page_table_entry });
             return MapError.AlreadyMapped;
         }
         page_table_entry.flags = PRESENT | flags;
         page_table_entry.phy_addr = @truncate(u20, p_addr >> 12);
+        vga.format("Mapped: 0x{x:0>8}\n", .{v_addr});
         asm volatile ("invlpg (%[addr])"
             :
             : [addr] "r" (v_addr),
@@ -116,7 +134,6 @@ pub const PageDirectory = struct {
     }
 
     pub fn load(self: PageDirectory) void {
-        // TODO: Enable paging outside
         asm volatile (
             \\mov %[pd], %%cr3
             :
@@ -126,9 +143,30 @@ pub const PageDirectory = struct {
 };
 
 fn initEmpty(entries: []PageEntry) void {
+    vga.format("Zeroed: 0x{x:0>8}-0x{x:0>8}\n", .{ @ptrToInt(entries.ptr), @ptrToInt(entries.ptr) + entries.len * @sizeOf(PageEntry) });
     for (entries) |*e| {
         e.flags = 0;
         e.phy_addr = 0;
+    }
+}
+
+fn printDirectory(entries: []PageEntry) void {
+    vga.format("Page Directory: 0x{x:0>8}-0x{x:0>8}\n", .{ @ptrToInt(entries.ptr), @ptrToInt(entries.ptr) + entries.len * @sizeOf(PageEntry) });
+    for (entries) |*e| {
+        if (e.flags & PRESENT == 1) {
+            const addr = @intCast(usize, e.phy_addr) << 12;
+            vga.format("  Page Table: 0x{x:0>8}-0x{x:0>8}\n", .{ addr, addr + @sizeOf(PageEntry) * 1024 });
+            printTable(@intToPtr(*[1024]PageEntry, addr));
+        }
+    }
+}
+
+fn printTable(entries: []PageEntry) void {
+    for (entries) |*e| {
+        if (e.flags & PRESENT == 1) {
+            const addr = @intCast(usize, e.phy_addr) << 12;
+            vga.format("    0x{x:0>8}\n", .{addr});
+        }
     }
 }
 
