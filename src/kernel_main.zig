@@ -8,6 +8,7 @@ const shl = @import("shell.zig");
 const utl = @import("utils.zig");
 const mlb = @import("multiboot.zig");
 const mem = @import("memory/mem.zig");
+const sch = @import("scheduler.zig");
 
 pub fn panic(msg: []const u8, _: ?*std.builtin.StackTrace) noreturn {
     @setCold(true);
@@ -28,5 +29,12 @@ export fn kernel_main() void {
     kbr.init();
 
     utl.enable_int();
-    shl.run();
+    sch.startProcess(useless) catch {};
+    // shl.run();
+}
+
+pub fn useless() void {
+    while (true) {
+        asm volatile ("hlt");
+    }
 }

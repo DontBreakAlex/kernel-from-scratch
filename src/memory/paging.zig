@@ -39,7 +39,6 @@ fn setup() !void {
     try kernelPageDirectory.mapOneToOne(tab_alloc);
     printDirectory(kernelPageDirectory.cr3);
 
-    utils.boch_break();
     // Map first 1M of memory (where the kernel is)
     var i: usize = 0;
     while (i < 256) : (i += 1) {
@@ -65,7 +64,7 @@ pub var kernelPageDirectory: PageDirectory = undefined;
 pub const PageDirectory = struct {
     cr3: *[1024]PageEntry,
 
-    pub fn init() PageDirectory!void {
+    pub fn init() !PageDirectory {
         const allocated = try pageAllocator.alloc();
         try kernelPageDirectory.mapOneToOne(allocated);
         const cr3 = @intToPtr(*[1024]PageEntry, allocated);
@@ -80,7 +79,7 @@ pub const PageDirectory = struct {
 
     pub fn mapVirtToPhy(self: *PageDirectory, v_addr: usize, p_addr: usize, flags: u12) MapError!void {
         const dir_offset = @truncate(u10, (v_addr & 0b11111111110000000000000000000000) >> 22);
-        const table_offset = @truncate(u10, (v_addr & 0b00000000000111111111100000000000) >> 12);
+        const table_offset = @truncate(u10, (v_addr & 0b00000000001111111111100000000000) >> 12);
         const page_table = &self.cr3[dir_offset];
         if ((page_table.flags & PRESENT) == 0) {
             const allocated = try pageAllocator.alloc();
