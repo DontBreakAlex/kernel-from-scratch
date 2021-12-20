@@ -69,6 +69,7 @@ fn buildIsr(comptime handler: InterruptHandler, comptime save_fpu: bool, comptim
     return struct {
         fn func() callconv(.Naked) void {
             asm volatile (
+                \\xchg %%bx, %%bx
                 \\cli
                 \\pusha
             );
@@ -84,9 +85,11 @@ fn buildIsr(comptime handler: InterruptHandler, comptime save_fpu: bool, comptim
                 asm volatile (
                     \\mov %%cr3, %%eax
                     \\push %%eax
-                    ::: "eax", "memory");
-                paging.kernelPageDirectory.load();
-                // @call(.{ .modifier = .never_inline }, paging.kernelPageDirectory.load(), .{});
+                    \\mov %[pd], %%cr3
+                    :
+                    : [pd] "r" (paging.kernelPageDirectory.cr3),
+                    : "eax", "memory"
+                );
             }
 
             handler();

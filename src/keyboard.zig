@@ -20,11 +20,11 @@ pub const KeyPress = struct {
 const KEYBOARD_STATUS: u8 = 0x64;
 const KEYBOARD_DATA: u8 = 0x60;
 
-const Queue = std.fifo.LinearFifo(KeyPress, .Dynamic);
-var queue = Queue.init(mem.allocator);
+const Queue = std.fifo.LinearFifo(KeyPress, std.fifo.LinearFifoBufferType{ .Static = 32 });
+var queue = Queue.init();
 
 pub fn init() void {
-    idt.setInterruptHandler(pic.PIC1_OFFSET + 1, readScancode, false, true);
+    idt.setInterruptHandler(pic.PIC1_OFFSET + 1, readScancode, false, false);
 
     pic.unMask(0x01);
     vga.putStr("Keyboard initialized\n");

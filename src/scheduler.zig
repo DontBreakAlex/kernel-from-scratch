@@ -18,13 +18,22 @@ const Process = struct {
     owner_id: u16,
     vmem: vmem.VMemManager,
 
-    pub fn queueSignal(self: *Process, sig: Signal) !void {
+    fn queueSignal(self: *Process, sig: Signal) !void {
         return self.signals.writeItem(sig);
     }
 
-    // pub fn pipe(self: *Process) !void {
-    //     unreachable;
-    // }
+    fn restore(self: Process) void {
+        asm volatile (
+            \\mov %[pd], %%cr3
+            \\mov %[new_esp], %%esp
+            \\popa
+            \\iret
+            :
+            : [new_esp] "r" (self.esp),
+              [pd] "r" (self.cr3.cr3),
+            : "memory"
+        );
+    }
 };
 
 const ProcessList = std.SinglyLinkedList(Process);
@@ -64,22 +73,13 @@ pub fn startProcess(func: Fn) !void {
     var esp = try paging.pageAllocator.alloc();
     try paging.kernelPageDirectory.mapOneToOne(esp);
     try process.cr3.mapVirtToPhy(process.esp - 0x1000, esp, paging.WRITE);
-    process.esp -= 12;
+    process.esp -= 44;
     esp += 4092;
     @intToPtr(*usize, esp).* = 0x202; // eflags
     esp -= 4;
     @intToPtr(*usize, esp).* = 0x8; // cs
     esp -= 4;
     @intToPtr(*usize, esp).* = @ptrToInt(func); // eip
-    runningProcess = process;
-    asm volatile (
-        \\xchg %%bx, %%bx
-        \\mov %[pd], %%cr3
-        \\mov %[new_esp], %%esp
-        \\iret
-        :
-        : [new_esp] "r" (process.esp),
-          [pd] "r" (process.cr3.cr3),
-        : "memory"
-    );
+    utils.boch_break();
+    process.restore();
 }

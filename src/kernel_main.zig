@@ -9,6 +9,7 @@ const utl = @import("utils.zig");
 const mlb = @import("multiboot.zig");
 const mem = @import("memory/mem.zig");
 const sch = @import("scheduler.zig");
+const sys = @import("syscalls.zig");
 
 pub fn panic(msg: []const u8, _: ?*std.builtin.StackTrace) noreturn {
     @setCold(true);
@@ -35,6 +36,7 @@ export fn kernel_main() void {
 
 pub fn useless() void {
     while (true) {
+        vga.format("{}\n", .{sys.kernCall(utl.divCeil, .{ 4, 1 })});
         asm volatile ("hlt");
     }
 }
