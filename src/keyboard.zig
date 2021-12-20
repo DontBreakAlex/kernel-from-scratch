@@ -24,7 +24,7 @@ const Queue = std.fifo.LinearFifo(KeyPress, .Dynamic);
 var queue = Queue.init(mem.allocator);
 
 pub fn init() void {
-    idt.setInterruptHandler(pic.PIC1_OFFSET + 1, readScancode, false);
+    idt.setInterruptHandler(pic.PIC1_OFFSET + 1, readScancode, false, true);
 
     pic.unMask(0x01);
     vga.putStr("Keyboard initialized\n");

@@ -33,6 +33,7 @@ const Fn = fn () void;
 
 var processes = ProcessList{};
 var currentPid: u16 = 1;
+var runningProcess: *Process = undefined;
 
 fn getNewPid() u16 {
     defer currentPid += 1;
@@ -70,6 +71,7 @@ pub fn startProcess(func: Fn) !void {
     @intToPtr(*usize, esp).* = 0x8; // cs
     esp -= 4;
     @intToPtr(*usize, esp).* = @ptrToInt(func); // eip
+    runningProcess = process;
     asm volatile (
         \\xchg %%bx, %%bx
         \\mov %[pd], %%cr3

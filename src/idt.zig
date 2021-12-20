@@ -1,5 +1,6 @@
 const vga = @import("vga.zig");
 const utils = @import("utils.zig");
+const paging = @import("memory/paging.zig");
 
 pub const IdtEntry = packed struct {
     base_low: u16,
@@ -59,12 +60,12 @@ pub fn setIdtEntry(index: u8, handler: usize) void {
 
 const InterruptHandler = fn () void;
 
-pub fn setInterruptHandler(index: u8, comptime handler: InterruptHandler, comptime save_fpu: bool) void {
-    const isr = @ptrToInt(buildIsr(handler, save_fpu));
+pub fn setInterruptHandler(index: u8, comptime handler: InterruptHandler, comptime save_fpu: bool, comptime need_cr3: bool) void {
+    const isr = @ptrToInt(buildIsr(handler, save_fpu, need_cr3));
     idt_entries[index] = buildEntry(isr, KERN_CODE, ISR_GATE_TYPE, 0x0);
 }
 
-fn buildIsr(comptime handler: InterruptHandler, comptime save_fpu: bool) fn () callconv(.Naked) void {
+fn buildIsr(comptime handler: InterruptHandler, comptime save_fpu: bool, comptime need_cr3: bool) fn () callconv(.Naked) void {
     return struct {
         fn func() callconv(.Naked) void {
             asm volatile (
@@ -78,17 +79,30 @@ fn buildIsr(comptime handler: InterruptHandler, comptime save_fpu: bool) fn () c
                     \\andl $0xFFFFFFF0, %%esp
                     \\fxsave (%%esp)
                 );
+            }
+            if (need_cr3) {
+                asm volatile (
+                    \\mov %%cr3, %%eax
+                    \\push %%eax
+                    ::: "eax", "memory");
+                paging.kernelPageDirectory.load();
+                // @call(.{ .modifier = .never_inline }, paging.kernelPageDirectory.load(), .{});
+            }
 
-                handler();
+            handler();
 
+            if (need_cr3) {
+                asm volatile (
+                    \\pop %%eax
+                    \\mov %%eax, %%cr3
+                    ::: "eax", "memory");
+            }
+            if (save_fpu) {
                 asm volatile (
                     \\fxrstor (%%esp)
                     \\mov %%ebp, %%esp
                 );
-            } else {
-                handler();
             }
-
             asm volatile (
                 \\popa
                 \\sti
