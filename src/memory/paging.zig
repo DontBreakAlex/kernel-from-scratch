@@ -49,6 +49,7 @@ fn setup() !void {
     const allocator_end = std.mem.alignBackward(@ptrToInt(pageAllocator.alloc_table.ptr) + pageAllocator.alloc_table.len, PAGE_SIZE);
     while (allocator_begin <= allocator_end) : (allocator_begin += PAGE_SIZE)
         try kernelPageDirectory.mapOneToOne(allocator_begin);
+    try kernelPageDirectory.allocVirt(0x1000000 - 0x1000, WRITE);
     kernelPageDirectory.load();
     asm volatile (
         \\mov %%cr0, %%eax
@@ -138,6 +139,18 @@ pub const PageDirectory = struct {
             :
             : [pd] "r" (self.cr3),
         );
+    }
+
+    pub fn virtToPhy(self: PageDirectory, v_addr: usize) ?usize {
+        const dir_offset = @truncate(u10, (v_addr & 0b11111111110000000000000000000000) >> 22);
+        const table_offset = @truncate(u10, (v_addr & 0b00000000001111111111000000000000) >> 12);
+        const page_table = &self.cr3[dir_offset];
+        if ((page_table.flags & PRESENT) == 0)
+            return null;
+        const page_table_entry = &@intToPtr(*[1024]PageEntry, @intCast(usize, page_table.phy_addr) << 12)[table_offset];
+        if ((page_table_entry.flags & PRESENT) == 0)
+            return null;
+        return @intCast(usize, page_table_entry.phy_addr) << 12 | (v_addr & 0b111111111111);
     }
 };
 

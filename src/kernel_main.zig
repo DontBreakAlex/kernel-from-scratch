@@ -28,6 +28,7 @@ export fn kernel_main() void {
     mem.init(mlb.MULTIBOOT.mem_upper);
     mlb.loadSymbols() catch {};
     kbr.init();
+    sys.init();
 
     utl.enable_int();
     sch.startProcess(useless) catch {};
@@ -36,7 +37,11 @@ export fn kernel_main() void {
 
 pub fn useless() void {
     while (true) {
-        vga.format("{}\n", .{sys.kernCall(utl.divCeil, .{ 4, 1 })});
+        asm volatile (
+            \\mov $9, %%eax
+            \\int $0x80
+            ::: "eax");
+        // vga.format("{}\n", .{sys.kernCall(utl.divCeil, .{ 4, 1 })});
         asm volatile ("hlt");
     }
 }

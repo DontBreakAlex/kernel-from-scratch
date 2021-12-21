@@ -22,7 +22,8 @@ const Process = struct {
         return self.signals.writeItem(sig);
     }
 
-    fn restore(self: Process) void {
+    fn restore(self: *Process) void {
+        runningProcess = self;
         asm volatile (
             \\mov %[pd], %%cr3
             \\mov %[new_esp], %%esp
@@ -42,7 +43,7 @@ const Fn = fn () void;
 
 var processes = ProcessList{};
 var currentPid: u16 = 1;
-var runningProcess: *Process = undefined;
+pub var runningProcess: *Process = undefined;
 
 fn getNewPid() u16 {
     defer currentPid += 1;
@@ -80,6 +81,6 @@ pub fn startProcess(func: Fn) !void {
     @intToPtr(*usize, esp).* = 0x8; // cs
     esp -= 4;
     @intToPtr(*usize, esp).* = @ptrToInt(func); // eip
-    utils.boch_break();
+    // utils.boch_break();
     process.restore();
 }

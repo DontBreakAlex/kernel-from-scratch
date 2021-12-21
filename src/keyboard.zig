@@ -24,7 +24,7 @@ const Queue = std.fifo.LinearFifo(KeyPress, std.fifo.LinearFifoBufferType{ .Stat
 var queue = Queue.init();
 
 pub fn init() void {
-    idt.setInterruptHandler(pic.PIC1_OFFSET + 1, readScancode, false, false);
+    idt.setInterruptHandler(pic.PIC1_OFFSET + 1, readScancode, false);
 
     pic.unMask(0x01);
     vga.putStr("Keyboard initialized\n");
@@ -68,7 +68,7 @@ fn handleScancode(scan_code: u8) void {
 }
 
 // https://github.com/ziglang/zig/issues/7286
-noinline fn readScancode() void {
+noinline fn readScancode(_: *idt.Regs) void {
     const status = utils.in(u8, KEYBOARD_STATUS);
     if (status & 0x1 == 1) {
         handleScancode(utils.in(u8, KEYBOARD_DATA));

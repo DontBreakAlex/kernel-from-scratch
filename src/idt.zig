@@ -58,18 +58,18 @@ pub fn setIdtEntry(index: u8, handler: usize) void {
     idt_entries[index] = buildEntry(handler, KERN_CODE, ISR_GATE_TYPE, 0x0);
 }
 
-const InterruptHandler = fn () void;
+const InterruptHandler = fn (*Regs) void;
 
-pub fn setInterruptHandler(index: u8, comptime handler: InterruptHandler, comptime save_fpu: bool, comptime need_cr3: bool) void {
-    const isr = @ptrToInt(buildIsr(handler, save_fpu, need_cr3));
+pub fn setInterruptHandler(index: u8, comptime handler: InterruptHandler, comptime save_fpu: bool) void {
+    const isr = @ptrToInt(buildIsr(handler, save_fpu));
     idt_entries[index] = buildEntry(isr, KERN_CODE, ISR_GATE_TYPE, 0x0);
 }
 
-fn buildIsr(comptime handler: InterruptHandler, comptime save_fpu: bool, comptime need_cr3: bool) fn () callconv(.Naked) void {
+fn buildIsr(comptime handler: InterruptHandler, comptime save_fpu: bool) fn () callconv(.Naked) void {
     return struct {
         fn func() callconv(.Naked) void {
             asm volatile (
-                \\xchg %%bx, %%bx
+            // \\xchg %%bx, %%bx
                 \\cli
                 \\pusha
             );
@@ -81,25 +81,29 @@ fn buildIsr(comptime handler: InterruptHandler, comptime save_fpu: bool, comptim
                     \\fxsave (%%esp)
                 );
             }
-            if (need_cr3) {
-                asm volatile (
-                    \\mov %%cr3, %%eax
-                    \\push %%eax
-                    \\mov %[pd], %%cr3
-                    :
-                    : [pd] "r" (paging.kernelPageDirectory.cr3),
-                    : "eax", "memory"
-                );
-            }
+            // if (need_cr3) {
+            //     asm volatile (
+            //         \\mov %%cr3, %%eax
+            //         \\push %%eax
+            //         \\mov %[pd], %%cr3
+            //         :
+            //         : [pd] "r" (paging.kernelPageDirectory.cr3),
+            //         : "eax", "memory"
+            //     );
+            // }
 
-            handler();
+            const esp = asm volatile (""
+                : [ret] "={esp}" (-> usize),
+            );
 
-            if (need_cr3) {
-                asm volatile (
-                    \\pop %%eax
-                    \\mov %%eax, %%cr3
-                    ::: "eax", "memory");
-            }
+            handler(@intToPtr(*Regs, if (save_fpu) esp + 512 else esp));
+
+            // if (need_cr3) {
+            //     asm volatile (
+            //         \\pop %%eax
+            //         \\mov %%eax, %%cr3
+            //         ::: "eax", "memory");
+            // }
             if (save_fpu) {
                 asm volatile (
                     \\fxrstor (%%esp)
@@ -185,4 +189,15 @@ const EXCEPTIONS: [32][]const u8 = .{
     "Reserved (0x1d)",
     "Security exception",
     "Reserved (0x1f)",
+};
+
+pub const Regs = struct {
+    edi: usize,
+    esi: usize,
+    ebp: usize,
+    esp: usize,
+    ebx: usize,
+    edx: usize,
+    ecx: usize,
+    eax: usize,
 };
