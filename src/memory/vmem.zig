@@ -78,6 +78,7 @@ pub const VMemManager = struct {
         node.next = next;
     }
 
+    /// Allocs {count} pages of virtual memory
     pub fn alloc(self: *VMemManager, count: usize) !usize {
         var previous: ?*Node = null;
         var current: *Node = self.available.first.?;

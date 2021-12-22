@@ -15,14 +15,14 @@ pub fn syscall_handler(regs: *idt.Regs) void {
         \\mov %%esp, %%edx
         \\mov $0x1000000, %%esp
         \\mov %[new_cr3], %%cr3
-        \\push %%ecx
         \\push %%edx
+        \\push %%ecx
         \\push %[reg_ptr]
         \\call syscallHandlerInKS
         \\add $4, %%esp
         \\xchg %%bx, %%bx
-        \\pop %%edx
         \\pop %%ecx
+        \\pop %%edx
         \\mov %%ecx, %%cr3
         \\mov %%edx, %%esp
         :
@@ -32,8 +32,8 @@ pub fn syscall_handler(regs: *idt.Regs) void {
     );
 }
 
-export fn syscallHandlerInKS(regs_ptr: usize) callconv(.C) void {
-    vga.format("0x{x:0>8}\n", .{regs_ptr});
+export fn syscallHandlerInKS(regs_ptr: usize, cr3: usize) callconv(.C) void {
+    vga.format("0x{x:0>8} 0x{x:0>8}\n", .{ regs_ptr, @ptrCast(*const paging.PageDirectory, &cr3).* });
 }
 
 // pub fn kernCall(comptime func: anytype, args: anytype) usize {

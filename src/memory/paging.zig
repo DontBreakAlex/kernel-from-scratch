@@ -133,7 +133,7 @@ pub const PageDirectory = struct {
         return allocated;
     }
 
-    pub fn load(self: PageDirectory) void {
+    pub fn load(self: *const PageDirectory) void {
         asm volatile (
             \\mov %[pd], %%cr3
             :
@@ -141,7 +141,7 @@ pub const PageDirectory = struct {
         );
     }
 
-    pub fn virtToPhy(self: PageDirectory, v_addr: usize) ?usize {
+    pub fn virtToPhy(self: *const PageDirectory, v_addr: usize) ?usize {
         const dir_offset = @truncate(u10, (v_addr & 0b11111111110000000000000000000000) >> 22);
         const table_offset = @truncate(u10, (v_addr & 0b00000000001111111111000000000000) >> 12);
         const page_table = &self.cr3[dir_offset];

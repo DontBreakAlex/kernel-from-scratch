@@ -96,6 +96,7 @@ fn buildIsr(comptime handler: InterruptHandler, comptime save_fpu: bool) fn () c
                 : [ret] "={esp}" (-> usize),
             );
 
+            @setRuntimeSafety(false);
             handler(@intToPtr(*Regs, if (save_fpu) esp + 512 else esp));
 
             // if (need_cr3) {
