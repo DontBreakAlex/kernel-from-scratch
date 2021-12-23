@@ -20,19 +20,24 @@ pub fn init(size: usize) void {
 
 const PAGE_SIZE = paging.PAGE_SIZE;
 
-pub fn mapStructure(comptime T: type, ptr: *T, cr3: *const PageDirectory) *T {
-    const first_page = std.mem.alignBackward(ptr, PAGE_SIZE);
-    const last_page = std.mem.alignBackward(ptr + @sizeOf(T), PAGE_SIZE);
+pub fn mapStructure(comptime T: type, ptr: *T, cr3: PageDirectory) !*T {
+    const first_page = std.mem.alignBackward(@ptrToInt(ptr), PAGE_SIZE);
+    const last_page = std.mem.alignBackward(@ptrToInt(ptr) + @sizeOf(T), PAGE_SIZE);
     if (first_page == last_page) {
         // Whole structure is one page;
-        const p_addr = if (cr3.virtToPhy(@ptrToInt(ptr))) |a| a else @panic("Attempt to map invalid phy_addr");
-        const v_addr = vmemManager.alloc(1);
-        paging.kernelPageDirectory.mapVirtToPhy(v_addr, p_addr, paging.WRITE);
-        return @intToPtr(*T, v_addr);
+        const p_addr = cr3.virtToPhy(@ptrToInt(ptr)) orelse return error.NotMapped;
+        const v_addr = try vmemManager.alloc(1);
+        try paging.kernelPageDirectory.mapVirtToPhy(v_addr, p_addr, paging.WRITE);
+        return @intToPtr(*T, v_addr | (@ptrToInt(ptr) & 0b111111111111));
     } else {
         // Structure spans around multiple pages
         const page_count = (last_page - first_page) / PAGE_SIZE;
-        var p_addr = if (cr3.virtToPhy(@ptrToInt(ptr))) |a| a else @panic("Attempt to map invalid phy_addr");
-        var v_addr = vmemManager.alloc(page_count);
+        const p_addr = cr3.virtToPhy(@ptrToInt(ptr)) orelse return error.NotMapped;
+        const v_addr = try vmemManager.alloc(page_count);
+        var i: usize = 0;
+        while (i < page_count) : (i += 1) {
+            try paging.kernelPageDirectory.mapVirtToPhy(v_addr + PAGE_SIZE * i, p_addr + PAGE_SIZE * i, paging.WRITE);
+        }
+        return @intToPtr(*T, v_addr | (@ptrToInt(ptr) & 0b111111111111));
     }
 }

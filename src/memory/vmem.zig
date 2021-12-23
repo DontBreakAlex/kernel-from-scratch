@@ -164,10 +164,11 @@ pub const VirtualAllocator = struct {
         var i = utils.divCeil(buf.len, PAGE_SIZE);
         var addr = @ptrToInt(buf.ptr);
         while (i != 0) {
-            self.paging.unMap(addr);
+            // This needs to unmap phy_addr instead
+            // self.paging.unMap(addr);
             i -= 1;
             addr += PAGE_SIZE;
         }
-        return 0;
+        unreachable;
     }
 };

@@ -92,12 +92,10 @@ fn buildIsr(comptime handler: InterruptHandler, comptime save_fpu: bool) fn () c
             //     );
             // }
 
-            const esp = asm volatile (""
-                : [ret] "={esp}" (-> usize),
-            );
-
             @setRuntimeSafety(false);
-            handler(@intToPtr(*Regs, if (save_fpu) esp + 512 else esp));
+            handler(@intToPtr(*Regs, asm volatile (""
+                : [ret] "={ebp}" (-> usize),
+            )));
 
             // if (need_cr3) {
             //     asm volatile (

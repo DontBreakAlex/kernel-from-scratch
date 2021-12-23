@@ -35,6 +35,16 @@ const Process = struct {
             : "memory"
         );
     }
+
+    pub fn allocPages(self: *Process, page_count: usize) !usize {
+        const v_addr = try self.vmem.alloc(page_count);
+        var i: usize = 0;
+        while (i < page_count) {
+            self.cr3.allocVirt(v_addr + paging.PAGE_SIZE * i, paging.WRITE) catch return error.OutOfMemory;
+            i += 1;
+        }
+        return v_addr;
+    }
 };
 
 const ProcessList = std.SinglyLinkedList(Process);

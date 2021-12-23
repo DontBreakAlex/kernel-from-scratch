@@ -37,11 +37,15 @@ export fn kernel_main() void {
 
 pub fn useless() void {
     while (true) {
-        asm volatile (
+        const syscall_ret = asm volatile (
             \\mov $9, %%eax
+            \\mov $1, %%ebx
             \\int $0x80
-            ::: "eax");
-        // vga.format("{}\n", .{sys.kernCall(utl.divCeil, .{ 4, 1 })});
+            : [ret] "={eax}" (-> usize),
+            :
+            : "eax"
+        );
+        vga.format("{}\n", .{syscall_ret});
         asm volatile ("hlt");
     }
 }

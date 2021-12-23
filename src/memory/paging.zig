@@ -8,7 +8,7 @@ pub const WRITE: u12 = 0b10;
 pub const USER: u12 = 0b100;
 pub const ALLOCATING: u12 = 0b100000000000;
 
-const PageEntry = packed struct {
+pub const PageEntry = packed struct {
     flags: u12,
     phy_addr: u20,
 };

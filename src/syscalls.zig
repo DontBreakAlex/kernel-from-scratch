@@ -4,6 +4,10 @@ const scheduler = @import("scheduler.zig");
 const idt = @import("idt.zig");
 const utils = @import("utils.zig");
 const vga = @import("vga.zig");
+const mem = @import("memory/mem.zig");
+
+const PageDirectory = paging.PageDirectory;
+const PageEntry = paging.PageEntry;
 
 pub fn init() void {
     idt.setInterruptHandler(0x80, syscall_handler, true);
@@ -20,7 +24,6 @@ pub fn syscall_handler(regs: *idt.Regs) void {
         \\push %[reg_ptr]
         \\call syscallHandlerInKS
         \\add $4, %%esp
-        \\xchg %%bx, %%bx
         \\pop %%ecx
         \\pop %%edx
         \\mov %%ecx, %%cr3
@@ -32,43 +35,26 @@ pub fn syscall_handler(regs: *idt.Regs) void {
     );
 }
 
-export fn syscallHandlerInKS(regs_ptr: usize, cr3: usize) callconv(.C) void {
-    vga.format("0x{x:0>8} 0x{x:0>8}\n", .{ regs_ptr, @ptrCast(*const paging.PageDirectory, &cr3).* });
+// eax: Syscall number
+// ebx: arg1
+// ecx: arg2
+// edx: arg3
+// esi: arg4
+// edi: arg5
+// ebp: arg6
+
+export fn syscallHandlerInKS(regs_ptr: *idt.Regs, cr3: *[1024]PageEntry) callconv(.C) void {
+    const PD = PageDirectory{ .cr3 = cr3 };
+    const regs = mem.mapStructure(idt.Regs, regs_ptr, PD) catch @panic("Syscall failure");
+    regs.eax = switch (regs.eax) {
+        9 => mmap(regs.ebx),
+        else => {
+            @panic("Unhandled syscall");
+        },
+    };
+    // TODO: Unmap regs or handle reuse and unmap at process exit
 }
 
-// pub fn kernCall(comptime func: anytype, args: anytype) usize {
-//     const old_cr3 = asm volatile("mov %%cr3, %%eax": [ret] "={eax}" (-> usize));
-//     if (old_cr3 == @ptrToInt(paging.kernelPageDirectory.cr3)) {
-//         return @call(.{}, func, args);
-//     } else {
-//         var result: usize = undefined;
-//         const old_esp = asm volatile ("" : [ret] "={esp}" (-> usize));
-//         asm volatile (
-//             \\mov 0x1000000, %%esp
-//             \\mov %[new_cr3], %%cr3
-//             :
-//             : [new_cr3] "r" (paging.kernelPageDirectory.cr3)
-//             : "memory"
-//         );
-//         kernCallHelper(func, @ptrToInt(&args), @TypeOf(args), &result);
-//         asm volatile (
-//             \\mov %[old_esp], %%esp
-//             \\mov %[old_cr3], %%cr3
-//             :
-//             : [old_cr3] "r" (old_cr3),
-//               [old_esp] "r" (old_esp)
-//             : "memory"
-//         );
-//         return result;
-//     }
-// }
-
-// fn kernCallHelper(comptime func: anytype, arg_ptr: usize, comptime arg_type: type, result: *usize) void {
-//     const result_in_us: *usize = if (scheduler.runningProcess.cr3.virtToPhy(@ptrToInt(result))) |res| @intToPtr(*usize, res) else @panic("Virt to phy failed in kernCall");
-//     const args_in_us = if (scheduler.runningProcess.cr3.virtToPhy(arg_ptr)) |arg| @intToPtr(*arg_type, arg) else @panic("Virt to phy failed in kernCall");
-//     result_in_us.* = @call(.{}, func, args_in_us.*);
-// }
-
-// pub fn kernelCallNoRet(comptime func: anytype, args: anytype) void {
-//     @call(.{}, func, args);
-// }
+fn mmap(count: usize) usize {
+    return scheduler.runningProcess.allocPages(count) catch 0;
+}
