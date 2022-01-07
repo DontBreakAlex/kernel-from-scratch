@@ -17,8 +17,8 @@ pub fn syscall_handler(regs: *idt.Regs) void {
     asm volatile (
         \\mov %%cr3, %%ecx
         \\mov %%esp, %%edx
-        \\mov $0x1000000, %%esp
         \\mov %[new_cr3], %%cr3
+        \\mov (%[new_stack]), %%esp
         \\push %%edx
         \\push %%ecx
         \\push %[reg_ptr]
@@ -31,6 +31,7 @@ pub fn syscall_handler(regs: *idt.Regs) void {
         :
         : [reg_ptr] "r" (regs),
           [new_cr3] "r" (paging.kernelPageDirectory.cr3),
+          [new_stack] "r" (&scheduler.runningProcess.kstack),
         : "ecx", "edx", "memory"
     );
 }
@@ -52,7 +53,8 @@ export fn syscallHandlerInKS(regs_ptr: *idt.Regs, cr3: *[1024]PageEntry) callcon
             @panic("Unhandled syscall");
         },
     };
-    // TODO: Unmap regs or handle reuse and unmap at process exit
+    // TODO: Try to reuse maps
+    mem.unMapStructure(idt.Regs, regs);
 }
 
 fn mmap(count: usize) usize {

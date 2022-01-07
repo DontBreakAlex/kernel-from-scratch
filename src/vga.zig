@@ -127,43 +127,6 @@ pub fn format(comptime fmt: []const u8, args: anytype) void {
     _ = std.fmt.format(Writer{ .context = {} }, fmt, args) catch void;
 }
 
-// pub fn readKeys() void {
-//     while (true) {
-//         const key: kbr.KeyPress = kbr.wait_key();
-//         switch (key.key) {
-//             .LEFT_ARROW, .BACKSPACE => if (CURSOR.x != 0) {
-//                 CURSOR.x -= 1;
-//                 updateCursor();
-//             },
-//             .RIGHT_ARROW => if (CURSOR.x != VGA_WIDTH) {
-//                 CURSOR.x += 1;
-//                 updateCursor();
-//             },
-//             .UP_ARROW => if (CURSOR.y != 0) {
-//                 CURSOR.y -= 1;
-//                 updateCursor();
-//             },
-//             .DOWN_ARROW => if (CURSOR.y != VGA_HEIGHT) {
-//                 CURSOR.y += 1;
-//                 updateCursor();
-//             },
-//             .PAGE_UP => {
-//                 if (CURRENT_COLOR != .WHITE) {
-//                     CURRENT_COLOR = @intToEnum(VgaColor, @enumToInt(CURRENT_COLOR) + 1);
-//                     TEXT_COLOR = vgaEntryColor(VgaColor.LIGHT_GREY, CURRENT_COLOR);
-//                 }
-//             },
-//             .PAGE_DOWN => {
-//                 if (CURRENT_COLOR != .BLACK) {
-//                     CURRENT_COLOR = @intToEnum(VgaColor, @enumToInt(CURRENT_COLOR) - 1);
-//                     TEXT_COLOR = vgaEntryColor(VgaColor.LIGHT_GREY, CURRENT_COLOR);
-//                 }
-//             },
-//             .F1 => swapBuffer(0),
-//             .F2 => swapBuffer(1),
-//             .F3 => swapBuffer(2),
-//             .F4 => swapBuffer(3),
-//             else => if (key.toAscii()) |char| putChar(char),
-//         }
-//     }
-// }
+pub fn putPtr(args: usize) void {
+    format("0x{x:0>8}\n", .{args});
+}

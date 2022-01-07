@@ -41,3 +41,19 @@ pub fn mapStructure(comptime T: type, ptr: *T, cr3: PageDirectory) !*T {
         return @intToPtr(*T, v_addr | (@ptrToInt(ptr) & 0b111111111111));
     }
 }
+
+pub fn unMapStructure(comptime T: type, v_addr: *T) void {
+    const first_page = std.mem.alignBackward(@ptrToInt(v_addr), PAGE_SIZE);
+    const last_page = std.mem.alignBackward(@ptrToInt(v_addr) + @sizeOf(T), PAGE_SIZE);
+    if (first_page == last_page) {
+        // Whole structure is one page;
+        paging.kernelPageDirectory.unMap(first_page);
+    } else {
+        // Structure spans around multiple pages
+        const page_count = (last_page - first_page) / PAGE_SIZE;
+        var i: usize = 0;
+        while (i < page_count) : (i += 1) {
+            paging.kernelPageDirectory.unMap(@ptrToInt(v_addr) + PAGE_SIZE * i);
+        }
+    }
+}

@@ -49,7 +49,7 @@ fn setup() !void {
     const allocator_end = std.mem.alignBackward(@ptrToInt(pageAllocator.alloc_table.ptr) + pageAllocator.alloc_table.len, PAGE_SIZE);
     while (allocator_begin <= allocator_end) : (allocator_begin += PAGE_SIZE)
         try kernelPageDirectory.mapOneToOne(allocator_begin);
-    try kernelPageDirectory.allocVirt(0x1000000 - 0x1000, WRITE);
+    // try kernelPageDirectory.allocVirt(0x1000000 - 0x1000, WRITE);
     kernelPageDirectory.load();
     asm volatile (
         \\mov %%cr0, %%eax
@@ -194,6 +194,10 @@ pub fn reserveAndMap(addr: usize, size: usize) !void {
             return err;
         };
     }
+}
+
+pub fn printKernelPD() void {
+    printDirectory(kernelPageDirectory.cr3);
 }
 
 const MapError = error{

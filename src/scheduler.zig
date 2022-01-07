@@ -13,7 +13,10 @@ const Process = struct {
     parent: ?*Process,
     // childrens: []*Process,
     signals: SignalQueue,
+    // Virt addr
     esp: usize,
+    // Phy addr
+    kstack: usize,
     cr3: PageDirectory,
     owner_id: u16,
     vmem: vmem.VMemManager,
@@ -79,11 +82,15 @@ pub fn startProcess(func: Fn) !void {
 
     var i: usize = 0;
     while (i < 256) : (i += 1) {
-        try process.cr3.mapOneToOne(0x1000 * i);
+        try process.cr3.mapOneToOne(paging.PAGE_SIZE * i);
     }
+    process.kstack = try paging.pageAllocator.alloc();
+    try paging.kernelPageDirectory.mapOneToOne(process.kstack);
+    vga.format("0x{x:0>8}\n", .{process.kstack});
+    process.kstack += paging.PAGE_SIZE;
     var esp = try paging.pageAllocator.alloc();
     try paging.kernelPageDirectory.mapOneToOne(esp);
-    try process.cr3.mapVirtToPhy(process.esp - 0x1000, esp, paging.WRITE);
+    try process.cr3.mapVirtToPhy(process.esp - paging.PAGE_SIZE, esp, paging.WRITE);
     process.esp -= 44;
     esp += 4092;
     @intToPtr(*usize, esp).* = 0x202; // eflags

@@ -38,6 +38,7 @@ export fn kernel_main() void {
 pub fn useless() void {
     while (true) {
         const syscall_ret = asm volatile (
+            \\xchg %%bx, %%bx
             \\mov $9, %%eax
             \\mov $1, %%ebx
             \\int $0x80
@@ -45,7 +46,7 @@ pub fn useless() void {
             :
             : "eax"
         );
-        vga.format("{}\n", .{syscall_ret});
+        vga.putPtr(syscall_ret);
         asm volatile ("hlt");
     }
 }
