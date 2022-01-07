@@ -44,19 +44,39 @@ pub fn syscall_handler(regs: *idt.Regs) void {
 // edi: arg5
 // ebp: arg6
 
-export fn syscallHandlerInKS(regs_ptr: *idt.Regs, cr3: *[1024]PageEntry) callconv(.C) void {
+export fn syscallHandlerInKS(regs_ptr: *idt.Regs, cr3: *[1024]PageEntry, us_esp: usize) callconv(.C) void {
     const PD = PageDirectory{ .cr3 = cr3 };
-    const regs = mem.mapStructure(idt.Regs, regs_ptr, PD) catch @panic("Syscall failure");
-    regs.eax = switch (regs.eax) {
+    const regs = mem.mapStructure(idt.Regs, regs_ptr, PD) catch |err| {
+        vga.format("{}\n", .{err});
+        @panic("Syscall failure");
+    };
+    @setRuntimeSafety(false);
+    regs.eax = @intCast(usize, switch (regs.eax) {
         9 => mmap(regs.ebx),
+        39 => getpid(),
+        57 => fork(regs_ptr, us_esp),
         else => {
             @panic("Unhandled syscall");
         },
-    };
+    });
     // TODO: Try to reuse maps
     mem.unMapStructure(idt.Regs, regs);
 }
 
-fn mmap(count: usize) usize {
-    return scheduler.runningProcess.allocPages(count) catch 0;
+fn mmap(count: usize) isize {
+    return @intCast(isize, scheduler.runningProcess.allocPages(count) catch 0);
+}
+
+fn getpid() isize {
+    return scheduler.runningProcess.pid;
+}
+
+fn fork(regs_ptr: *idt.Regs, us_esp: usize) isize {
+    const new_process = scheduler.runningProcess.clone() catch |err| {
+        vga.format("{}\n", .{err});
+        return @as(isize, -1);
+    };
+    new_process.data.esp = us_esp + 20;
+    new_process.data.runFromFork(@ptrToInt(regs_ptr));
+    return new_process.data.pid;
 }

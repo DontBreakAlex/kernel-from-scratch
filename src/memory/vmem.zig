@@ -125,6 +125,22 @@ pub const VMemManager = struct {
             previous = current;
         }
     }
+
+    pub fn copy_from(self: *VMemManager, from: *const VMemManager) void {
+        self.availableNodes = from.availableNodes;
+        var current: ?*Node = from.allocated.first;
+        var new: *?*Node = &self.allocated.first;
+        while (current) |c| : (current = c.next) {
+            new.* = c;
+            new = &c.next;
+        }
+        current = from.available.first;
+        new = &self.available.first;
+        while (current) |c| : (current = c.next) {
+            new.* = c;
+            new = &c.next;
+        }
+    }
 };
 
 pub const VirtualAllocator = struct {

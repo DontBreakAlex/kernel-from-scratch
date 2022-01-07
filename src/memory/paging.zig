@@ -91,7 +91,10 @@ pub const PageDirectory = struct {
         }
         const page_table_entry = &@intToPtr(*[1024]PageEntry, @intCast(usize, page_table.phy_addr) << 12)[table_offset];
         if ((page_table_entry.flags & PRESENT) == 1) {
-            // vga.format("AlreadyMapped: {*}, {x}\n", .{ page_table_entry, page_table_entry });
+            const phy_addr = @intCast(usize, page_table_entry.phy_addr) << 12;
+            if (p_addr == phy_addr)
+                return;
+            vga.format("AlreadyMapped: {*}, {x}\n0x{x:0>8} 0x{x:0>8}\n", .{ page_table_entry, page_table_entry, phy_addr, p_addr });
             return MapError.AlreadyMapped;
         }
         page_table_entry.flags = PRESENT | flags;
@@ -106,7 +109,7 @@ pub const PageDirectory = struct {
 
     pub fn unMap(self: *PageDirectory, v_addr: usize) void {
         const dir_offset = @truncate(u10, (v_addr & 0b11111111110000000000000000000000) >> 22);
-        const table_offset = @truncate(u10, (v_addr & 0b00000000000111111111100000000000) >> 12);
+        const table_offset = @truncate(u10, (v_addr & 0b00000000001111111111000000000000) >> 12);
         const page_table = &self.cr3[dir_offset];
         if ((page_table.flags & PRESENT) == 0)
             return;
@@ -151,6 +154,39 @@ pub const PageDirectory = struct {
         if ((page_table_entry.flags & PRESENT) == 0)
             return null;
         return @intCast(usize, page_table_entry.phy_addr) << 12 | (v_addr & 0b111111111111);
+    }
+
+    pub fn dup(self: *PageDirectory) !PageDirectory {
+        var new: PageDirectory = try PageDirectory.init();
+        vga.format("Duped cr3: {x}\n", .{new});
+        for (self.cr3) |*page_table, dir_offset| {
+            if (page_table.flags & PRESENT == 1) {
+                for (@intToPtr(*[1024]PageEntry, @intCast(usize, page_table.phy_addr) << 12)) |*entry, table_offset| {
+                    if (entry.flags & PRESENT == 1) {
+                        const v_addr: usize = dir_offset << 22 | table_offset << 12;
+                        const p_addr = @intCast(usize, entry.phy_addr) << 12;
+                        if (v_addr != p_addr) {
+                            const phy_mem = @intToPtr(*[PAGE_SIZE]u8, p_addr);
+                            const new_mem = @intToPtr(*[PAGE_SIZE]u8, try pageAllocator.alloc());
+                            kernelPageDirectory.mapOneToOne(@ptrToInt(phy_mem)) catch |err| if (err != MapError.AlreadyMapped) return err;
+                            kernelPageDirectory.mapOneToOne(@ptrToInt(new_mem)) catch |err| if (err != MapError.AlreadyMapped) return err;
+                            std.mem.copy(u8, new_mem, phy_mem);
+                            try new.mapVirtToPhy(v_addr, @ptrToInt(new_mem), WRITE | PRESENT);
+                            kernelPageDirectory.unMap(@ptrToInt(phy_mem));
+                            kernelPageDirectory.unMap(@ptrToInt(new_mem));
+                        } else {
+                            try new.mapOneToOne(v_addr);
+                        }
+                    }
+                }
+            }
+        }
+        return new;
+    }
+
+    pub fn deinit(self: *PageDirectory) void {
+        _ = self;
+        unreachable;
     }
 };
 

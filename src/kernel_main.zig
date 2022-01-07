@@ -26,7 +26,7 @@ export fn kernel_main() void {
     pic.init();
     // pit.init();
     mem.init(mlb.MULTIBOOT.mem_upper);
-    mlb.loadSymbols() catch {};
+    // mlb.loadSymbols() catch {};
     kbr.init();
     sys.init();
 
@@ -37,10 +37,12 @@ export fn kernel_main() void {
 
 pub fn useless() void {
     while (true) {
+        asm volatile (
+            \\mov $57, %%eax
+            \\int $0x80
+            ::: "eax");
         const syscall_ret = asm volatile (
-            \\xchg %%bx, %%bx
-            \\mov $9, %%eax
-            \\mov $1, %%ebx
+            \\mov $39, %%eax
             \\int $0x80
             : [ret] "={eax}" (-> usize),
             :
