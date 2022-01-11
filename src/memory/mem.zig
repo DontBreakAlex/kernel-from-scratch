@@ -24,7 +24,7 @@ pub fn mapStructure(comptime T: type, ptr: *T, cr3: PageDirectory) !*T {
     const first_page = std.mem.alignBackward(@ptrToInt(ptr), PAGE_SIZE);
     const last_page = std.mem.alignBackward(@ptrToInt(ptr) + @sizeOf(T), PAGE_SIZE);
     if (first_page == last_page) {
-        // Whole structure is one page;
+        // Whole structure is one page
         const p_addr = cr3.virtToPhy(@ptrToInt(ptr)) orelse return error.NotMapped;
         const v_addr = try vmemManager.alloc(1);
         try paging.kernelPageDirectory.mapVirtToPhy(v_addr, p_addr, paging.WRITE);

@@ -124,7 +124,7 @@ fn writeCallBack(_: void, str: []const u8) VgaError!usize {
 pub const Writer = std.io.Writer(void, VgaError, writeCallBack);
 
 pub fn format(comptime fmt: []const u8, args: anytype) void {
-    _ = std.fmt.format(Writer{ .context = {} }, fmt, args) catch void;
+    std.fmt.format(Writer{ .context = {} }, fmt, args) catch {};
 }
 
 pub fn putPtr(args: usize) void {

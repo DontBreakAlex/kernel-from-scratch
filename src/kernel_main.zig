@@ -10,6 +10,7 @@ const mlb = @import("multiboot.zig");
 const mem = @import("memory/mem.zig");
 const sch = @import("scheduler.zig");
 const sys = @import("syscalls.zig");
+const srl = @import("serial.zig");
 
 pub fn panic(msg: []const u8, _: ?*std.builtin.StackTrace) noreturn {
     @setCold(true);
@@ -31,6 +32,7 @@ export fn kernel_main() void {
     sys.init();
 
     utl.enable_int();
+    srl.init();
     sch.startProcess(useless) catch {};
     // shl.run();
 }
