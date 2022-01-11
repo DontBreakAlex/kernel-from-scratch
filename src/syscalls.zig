@@ -77,6 +77,7 @@ fn fork(regs_ptr: *idt.Regs, us_esp: usize) isize {
         return @as(isize, -1);
     };
     new_process.data.esp = us_esp + 20;
-    new_process.data.runFromFork(@ptrToInt(regs_ptr));
+    new_process.data.regs = @ptrToInt(regs_ptr);
+    new_process.data.restore();
     return new_process.data.pid;
 }

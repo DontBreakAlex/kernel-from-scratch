@@ -69,8 +69,6 @@ fn buildIsr(comptime handler: InterruptHandler, comptime save_fpu: bool) fn () c
     return struct {
         fn func() callconv(.Naked) void {
             asm volatile (
-            // \\xchg %%bx, %%bx
-                \\cli
                 \\pusha
             );
             if (save_fpu) {
@@ -111,7 +109,6 @@ fn buildIsr(comptime handler: InterruptHandler, comptime save_fpu: bool) fn () c
             }
             asm volatile (
                 \\popa
-                \\sti
                 \\iret
             );
         }

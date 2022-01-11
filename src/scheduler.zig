@@ -19,6 +19,7 @@ const Process = struct {
     cr3: usize,
     // Virt addr
     esp: usize,
+    regs: usize,
     // Phy addr
     kstack: usize,
     pd: PageDirectory,
@@ -30,37 +31,26 @@ const Process = struct {
     }
 
     pub fn restore(self: *Process) void {
+        asm volatile ("cli");
         runningProcess = self;
-        asm volatile (
-            \\mov %[pd], %%cr3
-            \\mov %[new_esp], %%esp
-            \\popa
-            \\iret
-            :
-            : [new_esp] "r" (self.esp),
-              [pd] "r" (self.cr3),
-            : "memory"
-        );
-    }
-
-    pub fn runFromFork(self: *Process, frame: usize) void {
-        runningProcess = self;
+        self.status = .Running;
         asm volatile (
             \\mov %[pd], %%cr3
             \\mov %[new_esp], %%esp
             \\fxrstor (%%esp)
-            \\mov %[frame], %%esp
+            \\mov %[regs], %%esp
             \\popa
+            \\sti
             \\iret
             :
             : [new_esp] "r" (self.esp),
               [pd] "r" (self.cr3),
-              [frame] "r" (frame),
+              [regs] "r" (self.regs),
             : "memory"
         );
     }
 
-    pub fn run(self: *Process) void {
+    pub fn start(self: *Process) void {
         runningProcess = self;
         asm volatile (
             \\mov %[pd], %%cr3
@@ -144,7 +134,7 @@ pub fn startProcess(func: Fn) !void {
     var esp = try paging.pageAllocator.alloc();
     try paging.kernelPageDirectory.mapOneToOne(esp);
     try process.pd.mapVirtToPhy(process.esp - paging.PAGE_SIZE, esp, paging.WRITE);
-    process.esp -= 44;
+    process.esp -= 12;
     esp += 4092;
     @intToPtr(*usize, esp).* = 0x202; // eflags
     esp -= 4;
@@ -152,5 +142,5 @@ pub fn startProcess(func: Fn) !void {
     esp -= 4;
     @intToPtr(*usize, esp).* = @ptrToInt(func); // eip
     // utils.boch_break();
-    process.restore();
+    process.start();
 }
