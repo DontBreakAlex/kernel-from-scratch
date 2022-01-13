@@ -55,6 +55,7 @@ export fn syscallHandlerInKS(regs_ptr: *idt.Regs, cr3: *[1024]PageEntry, us_esp:
         9 => mmap(regs.ebx),
         39 => getpid(),
         57 => fork(regs_ptr, us_esp),
+        162 => sleep(regs_ptr, us_esp),
         else => {
             @panic("Unhandled syscall");
         },
@@ -76,8 +77,14 @@ fn fork(regs_ptr: *idt.Regs, us_esp: usize) isize {
         vga.format("{}\n", .{err});
         return @as(isize, -1);
     };
-    new_process.data.esp = us_esp + 20;
-    new_process.data.regs = @ptrToInt(regs_ptr);
-    new_process.data.restore();
-    return new_process.data.pid;
+    // 20 is the space space used by syscall_handler
+    new_process.esp = us_esp + 20;
+    new_process.regs = @ptrToInt(regs_ptr);
+    scheduler.processes.writeItem(new_process) catch @panic("Queue fail");
+    return new_process.pid;
+}
+
+fn sleep(regs_ptr: *idt.Regs, us_esp: usize) isize {
+    scheduler.schedule(@ptrToInt(regs_ptr), us_esp);
+    return 0;
 }

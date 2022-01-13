@@ -30,8 +30,18 @@ const Process = struct {
         return self.signals.writeItem(sig);
     }
 
+    pub fn save(self: *Process, esp: usize, regs: usize) void {
+        self.cr3 = asm volatile (
+            \\mov %%cr3, %[ret]
+            : [ret] "=r" (-> usize),
+        );
+        self.esp = esp;
+        self.regs = regs;
+        self.status = .Paused;
+    }
+
+    /// Resume the process. Caution: also re-enables interupts.
     pub fn restore(self: *Process) void {
-        asm volatile ("cli");
         runningProcess = self;
         self.status = .Running;
         asm volatile (
@@ -74,9 +84,8 @@ const Process = struct {
     }
 
     /// Clones the process. Esp is not copied and must be set manually.
-    pub fn clone(self: *Process) !*ProcessNode {
-        var new_process_node: *ProcessNode = try allocator.create(ProcessNode);
-        var new_process: *Process = &new_process_node.data;
+    pub fn clone(self: *Process) !*Process {
+        var new_process: *Process = try allocator.create(Process);
         new_process.pid = getNewPid();
         new_process.status = .Paused;
         new_process.childrens = Children{};
@@ -89,15 +98,14 @@ const Process = struct {
         new_process.kstack = try paging.pageAllocator.alloc();
         try paging.kernelPageDirectory.mapOneToOne(new_process.kstack);
         new_process.kstack += paging.PAGE_SIZE;
-        return new_process_node;
+        return new_process;
     }
 };
 
-const ProcessList = std.SinglyLinkedList(Process);
-const ProcessNode = ProcessList.Node;
+const ProcessQueue = std.fifo.LinearFifo(*Process, .Dynamic);
 const Fn = fn () void;
 
-var processes = ProcessList{};
+pub var processes: ProcessQueue = ProcessQueue.init(allocator);
 var currentPid: u16 = 1;
 pub var runningProcess: *Process = undefined;
 
@@ -110,8 +118,7 @@ const vga = @import("vga.zig");
 const utils = @import("utils.zig");
 
 pub fn startProcess(func: Fn) !void {
-    const node: *ProcessNode = try allocator.create(ProcessNode);
-    const process: *Process = &node.data;
+    const process: *Process = try allocator.create(Process);
     process.pid = getNewPid();
     process.status = .Running;
     process.childrens = Children{};
@@ -122,7 +129,6 @@ pub fn startProcess(func: Fn) !void {
     process.owner_id = 0;
     process.vmem = vmem.VMemManager{};
     process.vmem.init();
-    processes.prepend(node);
 
     var i: usize = 0;
     while (i < 256) : (i += 1) {
@@ -143,4 +149,13 @@ pub fn startProcess(func: Fn) !void {
     @intToPtr(*usize, esp).* = @ptrToInt(func); // eip
     // utils.boch_break();
     process.start();
+}
+
+pub fn schedule(esp: usize, regs: usize) void {
+    if (processes.count == 0) return;
+    asm volatile ("cli");
+    runningProcess.save(esp, regs);
+    processes.writeItem(runningProcess) catch @panic("Scheduler failed");
+    var process = processes.readItem() orelse @panic("Scheduler failed");
+    process.restore();
 }

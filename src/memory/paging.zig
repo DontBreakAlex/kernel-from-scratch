@@ -2,6 +2,7 @@ const std = @import("std");
 const utils = @import("../utils.zig");
 const PageAllocator = @import("page_allocator.zig").PageAllocator;
 const vga = @import("../vga.zig");
+const serial = @import("../serial.zig");
 
 pub const PRESENT: u12 = 0b1;
 pub const WRITE: u12 = 0b10;
@@ -34,6 +35,7 @@ fn setup() !void {
     dir[0].flags = PRESENT | WRITE;
     dir[0].phy_addr = @truncate(u20, tab_alloc >> 12);
     kernelPageDirectory = PageDirectory{ .cr3 = dir };
+    vga.format("Kernel cr3: 0x{x:0>8}\n", .{dir_alloc});
 
     try kernelPageDirectory.mapOneToOne(dir_alloc);
     try kernelPageDirectory.mapOneToOne(tab_alloc);
@@ -116,6 +118,7 @@ pub const PageDirectory = struct {
         const page_table_entry = &@intToPtr(*[1024]PageEntry, @intCast(usize, page_table.phy_addr) << 12)[table_offset];
         if ((page_table_entry.flags & PRESENT) == 0)
             return;
+        const ret = @intCast(usize, page_table_entry.phy_addr) << 12 | (v_addr & 0b111111111111);
         page_table_entry.flags = 0;
         page_table_entry.phy_addr = 0;
         asm volatile ("invlpg (%[addr])"
@@ -123,11 +126,17 @@ pub const PageDirectory = struct {
             : [addr] "r" (v_addr),
             : "memory"
         );
+        return ret;
     }
 
     pub fn allocVirt(self: *PageDirectory, v_addr: usize, flags: u12) !void {
         const allocated = try pageAllocator.alloc();
         try self.mapVirtToPhy(v_addr, allocated, flags);
+    }
+
+    pub fn freeVirt(self: *PageDirectory, v_addr: usize) void {
+        const phy = self.unMap(v_addr);
+        pageAllocator.free(phy);
     }
 
     pub fn allocPhy(self: *PageDirectory) !usize {
@@ -186,6 +195,7 @@ pub const PageDirectory = struct {
 
     pub fn deinit(self: *PageDirectory) void {
         _ = self;
+        utils.boch_break();
         unreachable;
     }
 };

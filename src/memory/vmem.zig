@@ -180,11 +180,11 @@ pub const VirtualAllocator = struct {
         var i = utils.divCeil(buf.len, PAGE_SIZE);
         var addr = @ptrToInt(buf.ptr);
         while (i != 0) {
-            // This needs to unmap phy_addr instead
-            // self.paging.unMap(addr);
+            self.paging.freeVirt(addr);
             i -= 1;
             addr += PAGE_SIZE;
         }
+        utils.boch_break();
         unreachable;
     }
 };

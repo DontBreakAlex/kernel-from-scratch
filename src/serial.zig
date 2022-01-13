@@ -2,20 +2,20 @@ const utils = @import("utils.zig");
 const std = @import("std");
 const COM1 = 0x3F8;
 
-pub fn init() void {
-    initPort(COM1) catch @panic("Serial init failed");
-    format("Serial initialized", .{});
+pub fn init() !void {
+    try initPort(COM1);
+    format("Serial initialized\n", .{});
 }
 
 fn initPort(port: u16) !void {
     // Disable serial interrupts
-    utils.out(port + 1, @as(u8, 0));
+    utils.out(port + 1, @as(u8, 0x00));
     // Set DLAB
     utils.out(port + 3, @as(u8, 0x80));
     // Set divisor lo byte
-    utils.out(port + 0, @as(u8, 3));
+    utils.out(port + 0, @as(u8, 0x03));
     // Set divisor hi byte
-    utils.out(port + 1, @as(u8, 0));
+    utils.out(port + 1, @as(u8, 0x00));
     // Set Line Control Register (8N1)
     utils.out(port + 3, @as(u8, 0x03));
     // Enable FIFO

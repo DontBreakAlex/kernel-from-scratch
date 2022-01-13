@@ -23,6 +23,7 @@ pub fn panic(msg: []const u8, _: ?*std.builtin.StackTrace) noreturn {
 
 export fn kernel_main() void {
     vga.init();
+    srl.init() catch vga.putStr("Failed to init serial\n");
     idt.init();
     pic.init();
     // pit.init();
@@ -32,7 +33,6 @@ export fn kernel_main() void {
     sys.init();
 
     utl.enable_int();
-    srl.init();
     sch.startProcess(useless) catch {};
     // shl.run();
 }
@@ -51,6 +51,10 @@ pub fn useless() void {
             : "eax"
         );
         vga.putPtr(syscall_ret);
+        asm volatile (
+            \\mov $162, %%eax
+            \\int $0x80
+            ::: "eax");
         asm volatile ("hlt");
     }
 }
