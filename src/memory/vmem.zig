@@ -169,7 +169,7 @@ pub const VirtualAllocator = struct {
         return @intToPtr([*]u8, v_addr)[0..requested_len];
     }
 
-    fn resizeFn(field: *Allocator, buf: []u8, buf_align: u29, new_len: usize, len_align: u29, ret_addr: usize) !usize {
+    fn resizeFn(field: *Allocator, buf: []u8, buf_align: u29, new_len: usize, len_align: u29, ret_addr: usize) Allocator.Error!usize {
         _ = buf_align;
         _ = len_align;
         _ = ret_addr;
@@ -180,11 +180,10 @@ pub const VirtualAllocator = struct {
         var i = utils.divCeil(buf.len, PAGE_SIZE);
         var addr = @ptrToInt(buf.ptr);
         while (i != 0) {
-            self.paging.freeVirt(addr);
+            self.paging.freeVirt(addr) catch return Allocator.Error.OutOfMemory;
             i -= 1;
             addr += PAGE_SIZE;
         }
-        utils.boch_break();
-        unreachable;
+        return 0;
     }
 };

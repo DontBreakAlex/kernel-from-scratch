@@ -31,10 +31,7 @@ const Process = struct {
     }
 
     pub fn save(self: *Process, esp: usize, regs: usize) void {
-        self.cr3 = asm volatile (
-            \\mov %%cr3, %[ret]
-            : [ret] "=r" (-> usize),
-        );
+        self.cr3 = @ptrToInt(self.pd.cr3);
         self.esp = esp;
         self.regs = regs;
         self.status = .Paused;
@@ -157,5 +154,6 @@ pub fn schedule(esp: usize, regs: usize) void {
     runningProcess.save(esp, regs);
     processes.writeItem(runningProcess) catch @panic("Scheduler failed");
     var process = processes.readItem() orelse @panic("Scheduler failed");
+    utils.boch_break();
     process.restore();
 }

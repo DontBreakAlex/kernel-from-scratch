@@ -109,15 +109,15 @@ pub const PageDirectory = struct {
         );
     }
 
-    pub fn unMap(self: *PageDirectory, v_addr: usize) void {
+    pub fn unMap(self: *PageDirectory, v_addr: usize) MapError!usize {
         const dir_offset = @truncate(u10, (v_addr & 0b11111111110000000000000000000000) >> 22);
         const table_offset = @truncate(u10, (v_addr & 0b00000000001111111111000000000000) >> 12);
         const page_table = &self.cr3[dir_offset];
         if ((page_table.flags & PRESENT) == 0)
-            return;
+            return MapError.NotMapped;
         const page_table_entry = &@intToPtr(*[1024]PageEntry, @intCast(usize, page_table.phy_addr) << 12)[table_offset];
         if ((page_table_entry.flags & PRESENT) == 0)
-            return;
+            return MapError.NotMapped;
         const ret = @intCast(usize, page_table_entry.phy_addr) << 12 | (v_addr & 0b111111111111);
         page_table_entry.flags = 0;
         page_table_entry.phy_addr = 0;
@@ -134,8 +134,8 @@ pub const PageDirectory = struct {
         try self.mapVirtToPhy(v_addr, allocated, flags);
     }
 
-    pub fn freeVirt(self: *PageDirectory, v_addr: usize) void {
-        const phy = self.unMap(v_addr);
+    pub fn freeVirt(self: *PageDirectory, v_addr: usize) !void {
+        const phy = try self.unMap(v_addr);
         pageAllocator.free(phy);
     }
 
@@ -181,8 +181,8 @@ pub const PageDirectory = struct {
                             kernelPageDirectory.mapOneToOne(@ptrToInt(new_mem)) catch |err| if (err != MapError.AlreadyMapped) return err;
                             std.mem.copy(u8, new_mem, phy_mem);
                             try new.mapVirtToPhy(v_addr, @ptrToInt(new_mem), WRITE | PRESENT);
-                            kernelPageDirectory.unMap(@ptrToInt(phy_mem));
-                            kernelPageDirectory.unMap(@ptrToInt(new_mem));
+                            _ = try kernelPageDirectory.unMap(@ptrToInt(phy_mem));
+                            _ = try kernelPageDirectory.unMap(@ptrToInt(new_mem));
                         } else {
                             try new.mapOneToOne(v_addr);
                         }
@@ -249,4 +249,5 @@ pub fn printKernelPD() void {
 const MapError = error{
     AlreadyMapped,
     OutOfMemory,
+    NotMapped,
 };

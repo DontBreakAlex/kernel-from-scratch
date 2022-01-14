@@ -44,6 +44,8 @@ pub fn syscall_handler(regs: *idt.Regs) void {
 // edi: arg5
 // ebp: arg6
 
+var wantsToSwitch: bool = false;
+
 export fn syscallHandlerInKS(regs_ptr: *idt.Regs, cr3: *[1024]PageEntry, us_esp: usize) callconv(.C) void {
     const PD = PageDirectory{ .cr3 = cr3 };
     const regs = mem.mapStructure(idt.Regs, regs_ptr, PD) catch |err| {
@@ -55,13 +57,20 @@ export fn syscallHandlerInKS(regs_ptr: *idt.Regs, cr3: *[1024]PageEntry, us_esp:
         9 => mmap(regs.ebx),
         39 => getpid(),
         57 => fork(regs_ptr, us_esp),
-        162 => sleep(regs_ptr, us_esp),
+        162 => b: {
+            wantsToSwitch = true;
+            break :b 0;
+        },
         else => {
             @panic("Unhandled syscall");
         },
     });
     // TODO: Try to reuse maps
-    mem.unMapStructure(idt.Regs, regs);
+    mem.unMapStructure(idt.Regs, regs) catch unreachable;
+    if (wantsToSwitch) {
+        wantsToSwitch = false;
+        scheduler.schedule(us_esp + 20, @ptrToInt(regs_ptr));
+    }
 }
 
 fn mmap(count: usize) isize {
@@ -82,9 +91,4 @@ fn fork(regs_ptr: *idt.Regs, us_esp: usize) isize {
     new_process.regs = @ptrToInt(regs_ptr);
     scheduler.processes.writeItem(new_process) catch @panic("Queue fail");
     return new_process.pid;
-}
-
-fn sleep(regs_ptr: *idt.Regs, us_esp: usize) isize {
-    scheduler.schedule(@ptrToInt(regs_ptr), us_esp);
-    return 0;
 }

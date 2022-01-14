@@ -38,23 +38,28 @@ export fn kernel_main() void {
 }
 
 pub fn useless() void {
-    while (true) {
-        asm volatile (
-            \\mov $57, %%eax
-            \\int $0x80
-            ::: "eax");
-        const syscall_ret = asm volatile (
-            \\mov $39, %%eax
-            \\int $0x80
-            : [ret] "={eax}" (-> usize),
-            :
-            : "eax"
-        );
-        vga.putPtr(syscall_ret);
+    // fork
+    asm volatile (
+        \\mov $57, %%eax
+        \\int $0x80
+        ::: "eax");
+    // getPid
+    const syscall_ret = asm volatile (
+        \\mov $39, %%eax
+        \\int $0x80
+        : [ret] "={eax}" (-> usize),
+        :
+        : "eax"
+    );
+    var i: usize = 0;
+    while (i < 3) : (i += 1) {
+        vga.format("Hello from process with PID {}\n", .{syscall_ret});
+        // sleep
         asm volatile (
             \\mov $162, %%eax
             \\int $0x80
             ::: "eax");
-        asm volatile ("hlt");
     }
+    while (true)
+        asm volatile ("hlt");
 }
