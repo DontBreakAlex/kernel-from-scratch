@@ -44,10 +44,8 @@ pub fn syscall_handler(regs: *idt.Regs) void {
 // edi: arg5
 // ebp: arg6
 
-var wantsToSwitch: bool = false;
-
-export fn syscallHandlerInKS(regs_ptr: *idt.Regs, cr3: *[1024]PageEntry, us_esp: usize) callconv(.C) void {
-    const PD = PageDirectory{ .cr3 = cr3 };
+export fn syscallHandlerInKS(regs_ptr: *idt.Regs, u_cr3: *[1024]PageEntry, us_esp: usize) callconv(.C) void {
+    const PD = PageDirectory{ .cr3 = u_cr3 };
     const regs = mem.mapStructure(idt.Regs, regs_ptr, PD) catch |err| {
         vga.format("{}\n", .{err});
         @panic("Syscall failure");
@@ -57,19 +55,16 @@ export fn syscallHandlerInKS(regs_ptr: *idt.Regs, cr3: *[1024]PageEntry, us_esp:
         9 => mmap(regs.ebx),
         39 => getpid(),
         57 => fork(regs_ptr, us_esp),
-        162 => b: {
-            wantsToSwitch = true;
-            break :b 0;
-        },
+        162 => sleep(),
         else => {
             @panic("Unhandled syscall");
         },
     });
     // TODO: Try to reuse maps
     mem.unMapStructure(idt.Regs, regs) catch unreachable;
-    if (wantsToSwitch) {
-        wantsToSwitch = false;
-        scheduler.schedule(us_esp + 20, @ptrToInt(regs_ptr));
+    if (scheduler.wantsToSwitch) {
+        scheduler.wantsToSwitch = false;
+        scheduler.schedule(us_esp + 20, @ptrToInt(regs_ptr), @ptrToInt(u_cr3));
     }
 }
 
@@ -87,8 +82,17 @@ fn fork(regs_ptr: *idt.Regs, us_esp: usize) isize {
         return @as(isize, -1);
     };
     // 20 is the space space used by syscall_handler
+    // In case of weird bug, check here (expected issue: FPU data corruption)
     new_process.esp = us_esp + 20;
     new_process.regs = @ptrToInt(regs_ptr);
     scheduler.processes.writeItem(new_process) catch @panic("Queue fail");
     return new_process.pid;
+}
+
+fn sleep() isize {
+    if (!scheduler.canSwitch) {
+        unreachable;
+    }
+    scheduler.wantsToSwitch = true;
+    return 0;
 }

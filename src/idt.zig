@@ -1,6 +1,7 @@
 const vga = @import("vga.zig");
 const utils = @import("utils.zig");
 const paging = @import("memory/paging.zig");
+const scheduler = @import("scheduler.zig");
 
 pub const IdtEntry = packed struct {
     base_low: u16,
@@ -79,28 +80,27 @@ fn buildIsr(comptime handler: InterruptHandler, comptime save_fpu: bool) fn () c
                     \\fxsave (%%esp)
                 );
             }
-            // if (need_cr3) {
-            //     asm volatile (
-            //         \\mov %%cr3, %%eax
-            //         \\push %%eax
-            //         \\mov %[pd], %%cr3
-            //         :
-            //         : [pd] "r" (paging.kernelPageDirectory.cr3),
-            //         : "eax", "memory"
-            //     );
-            // }
 
             @setRuntimeSafety(false);
             handler(@intToPtr(*Regs, asm volatile (""
                 : [ret] "={ebp}" (-> usize),
             )));
 
-            // if (need_cr3) {
-            //     asm volatile (
-            //         \\pop %%eax
-            //         \\mov %%eax, %%cr3
-            //         ::: "eax", "memory");
+            // DOES NOT WORK: process cannot be saved from us (wrong vmem)
+            // if (try_switch) {
+            //     utils.disable_int();
+            //     if (scheduler.canSwitch and scheduler.wantsToSwitch) {
+            //         scheduler.wantsToSwitch = false;
+            //         utils.enable_int();
+            //         scheduler.schedule(asm volatile (""
+            //             : [ret] "={esp}" (-> usize),
+            //         ), asm volatile (""
+            //             : [ret] "={ebp}" (-> usize),
+            //         ));
+            //     }
+            //     utils.enable_int();
             // }
+
             if (save_fpu) {
                 asm volatile (
                     \\fxrstor (%%esp)

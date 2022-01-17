@@ -10,6 +10,9 @@ const Children = std.SinglyLinkedList(*Process);
 const Child = Children.Node;
 const US_STACK_BASE = 0x1000000;
 
+pub var wantsToSwitch: bool = false;
+pub var canSwitch: bool = true;
+
 const Process = struct {
     pid: u16,
     status: Status,
@@ -30,8 +33,8 @@ const Process = struct {
         return self.signals.writeItem(sig);
     }
 
-    pub fn save(self: *Process, esp: usize, regs: usize) void {
-        self.cr3 = @ptrToInt(self.pd.cr3);
+    pub fn save(self: *Process, esp: usize, regs: usize, cr3: usize) void {
+        self.cr3 = cr3;
         self.esp = esp;
         self.regs = regs;
         self.status = .Paused;
@@ -148,12 +151,11 @@ pub fn startProcess(func: Fn) !void {
     process.start();
 }
 
-pub fn schedule(esp: usize, regs: usize) void {
+pub fn schedule(esp: usize, regs: usize, cr3: usize) void {
     if (processes.count == 0) return;
-    asm volatile ("cli");
-    runningProcess.save(esp, regs);
+    runningProcess.save(esp, regs, cr3);
+    utils.disable_int();
     processes.writeItem(runningProcess) catch @panic("Scheduler failed");
     var process = processes.readItem() orelse @panic("Scheduler failed");
-    utils.boch_break();
     process.restore();
 }
