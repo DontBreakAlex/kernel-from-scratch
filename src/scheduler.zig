@@ -86,6 +86,10 @@ const Process = struct {
     /// Clones the process. Esp is not copied and must be set manually.
     pub fn clone(self: *Process) !*Process {
         var new_process: *Process = try allocator.create(Process);
+        errdefer allocator.destroy(new_process);
+        const child: *Child = try allocator.create(Child);
+        errdefer allocator.destroy(child);
+        child.data = new_process;
         new_process.pid = getNewPid();
         new_process.status = .Paused;
         new_process.childrens = Children{};
@@ -98,6 +102,7 @@ const Process = struct {
         new_process.kstack = try paging.pageAllocator.alloc();
         try paging.kernelPageDirectory.mapOneToOne(new_process.kstack);
         new_process.kstack += paging.PAGE_SIZE;
+        self.childrens.prepend(child);
         return new_process;
     }
 };
