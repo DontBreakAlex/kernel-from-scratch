@@ -3,12 +3,13 @@ const paging = @import("memory/paging.zig");
 const PageDirectory = paging.PageDirectory;
 const allocator = @import("memory/mem.zig").allocator;
 const vmem = @import("memory/vmem.zig");
-const Signal = enum { SIGINT };
+pub const Signal = enum(u8) { SIGINT = 0 };
 const SignalQueue = std.fifo.LinearFifo(Signal, .Dynamic); // TODO: Use fixed size
-const Status = enum { Running, Paused, Zombie, Dead };
+const Status = enum { Running, Paused, Zombie, Dead, Sleeping };
 const Children = std.SinglyLinkedList(*Process);
 const Child = Children.Node;
 const US_STACK_BASE = 0x1000000;
+const Buffer = utils.Buffer;
 
 pub var wantsToSwitch: bool = false;
 pub var canSwitch: bool = true;
@@ -19,6 +20,7 @@ const Process = struct {
     parent: ?*Process,
     childrens: Children,
     signals: SignalQueue,
+    handlers: [1]usize,
     cr3: usize,
     // Virt addr
     esp: usize,
@@ -28,9 +30,16 @@ const Process = struct {
     pd: PageDirectory,
     owner_id: u16,
     vmem: vmem.VMemManager,
+    fd: [128]?*Buffer,
 
-    fn queueSignal(self: *Process, sig: Signal) !void {
+    pub fn queueSignal(self: *Process, sig: Signal) !void {
         return self.signals.writeItem(sig);
+    }
+
+    pub fn setSigHanlder(self: *Process, sig: Signal, handler: usize) usize {
+        const old = self.handlers[@enumToInt(sig)];
+        self.handlers[@enumToInt(sig)] = handler;
+        return old;
     }
 
     pub fn save(self: *Process, esp: usize, regs: usize, cr3: usize) void {
@@ -94,6 +103,7 @@ const Process = struct {
         new_process.status = .Paused;
         new_process.childrens = Children{};
         new_process.signals = SignalQueue.init(allocator);
+        std.mem.copy(usize, &new_process.handlers, &self.handlers);
         new_process.pd = try self.pd.dup();
         new_process.cr3 = @ptrToInt(new_process.pd.cr3);
         new_process.owner_id = 0;
@@ -110,7 +120,7 @@ const Process = struct {
 const ProcessQueue = std.fifo.LinearFifo(*Process, .Dynamic);
 const Fn = fn () void;
 
-pub var processes: ProcessQueue = ProcessQueue.init(allocator);
+pub var queue: ProcessQueue = ProcessQueue.init(allocator);
 var currentPid: u16 = 1;
 pub var runningProcess: *Process = undefined;
 
@@ -128,6 +138,7 @@ pub fn startProcess(func: Fn) !void {
     process.status = .Running;
     process.childrens = Children{};
     process.signals = SignalQueue.init(allocator);
+    process.handlers = .{0} ** 1;
     process.pd = try PageDirectory.init();
     process.cr3 = @ptrToInt(process.pd.cr3);
     process.esp = US_STACK_BASE;
@@ -157,10 +168,10 @@ pub fn startProcess(func: Fn) !void {
 }
 
 pub fn schedule(esp: usize, regs: usize, cr3: usize) void {
-    if (processes.count == 0) return;
+    if (queue.count == 0) return;
     runningProcess.save(esp, regs, cr3);
     utils.disable_int();
-    processes.writeItem(runningProcess) catch @panic("Scheduler failed");
-    var process = processes.readItem() orelse @panic("Scheduler failed");
+    queue.writeItem(runningProcess) catch @panic("Scheduler failed");
+    var process = queue.readItem() orelse @panic("Scheduler failed");
     process.restore();
 }

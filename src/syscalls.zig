@@ -13,6 +13,21 @@ pub fn init() void {
     idt.setInterruptHandler(0x80, syscall_handler, true);
 }
 
+fn syscall_block() callconv(.Naked) void {
+    var esp: usize = undefined;
+    var ebp: usize = undefined;
+    asm volatile (
+        \\pusha
+        \\mov %%esp, %%ebp
+        \\sub $512, %%esp
+        \\andl $0xFFFFFFF0, %%esp
+        \\fxsave (%%esp)
+        : [esp] "={esp}" (-> usize),
+          [ebp] "={ebp}" (-> usize),
+    );
+    scheduler.schedule(esp, ebp, paging.kernelPageDirectory.cr3);
+}
+
 pub fn syscall_handler(regs: *idt.Regs) void {
     asm volatile (
         \\mov %%cr3, %%ecx
@@ -52,7 +67,10 @@ export fn syscallHandlerInKS(regs_ptr: *idt.Regs, u_cr3: *[1024]PageEntry, us_es
     };
     @setRuntimeSafety(false);
     regs.eax = @intCast(usize, switch (regs.eax) {
+        0 => read(regs.ebx, regs.ecx, regs.edx),
         9 => mmap(regs.ebx),
+        // Should be sigaction
+        13 => signal(regs.ebx, regs.ecx),
         39 => getpid(),
         57 => fork(regs_ptr, us_esp),
         162 => sleep(),
@@ -85,7 +103,7 @@ fn fork(regs_ptr: *idt.Regs, us_esp: usize) isize {
     // In case of weird bug, check here (expected issue: FPU data corruption)
     new_process.esp = us_esp + 20;
     new_process.regs = @ptrToInt(regs_ptr);
-    scheduler.processes.writeItem(new_process) catch @panic("Queue fail");
+    scheduler.queue.writeItem(new_process) catch @panic("Queue fail");
     return new_process.pid;
 }
 
@@ -95,4 +113,28 @@ fn sleep() isize {
     }
     scheduler.wantsToSwitch = true;
     return 0;
+}
+
+fn signal(sig: usize, handler: usize) isize {
+    return @intCast(isize, scheduler.runningProcess.setSigHanlder(@intToEnum(scheduler.Signal, sig), handler));
+}
+
+fn read(fd: usize, buff: usize, count: usize) isize {
+    var ret: isize = undefined;
+    scheduler.canSwitch = false;
+    defer scheduler.canSwitch = true;
+    if (scheduler.runningProcess.fd[fd]) |descriptor| {
+        while (descriptor.readableLength() == 0) {
+            scheduler.canSwitch = true;
+            // Sleep
+            scheduler.canSwitch = false;
+        }
+        var user_buf = mem.mapBuffer(count, buff, scheduler.runningProcess.pd) catch return -1;
+        ret = @intCast(isize, descriptor.read(user_buf));
+        mem.unMapBuffer(count, @ptrToInt(user_buf.ptr)) catch @panic("Syscall failure");
+    } else {
+        ret = -1;
+    }
+    scheduler.canSwitch = true;
+    return ret;
 }

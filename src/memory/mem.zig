@@ -21,39 +21,46 @@ pub fn init(size: usize) void {
 const PAGE_SIZE = paging.PAGE_SIZE;
 
 pub fn mapStructure(comptime T: type, ptr: *T, cr3: PageDirectory) !*T {
-    const first_page = std.mem.alignBackward(@ptrToInt(ptr), PAGE_SIZE);
-    const last_page = std.mem.alignBackward(@ptrToInt(ptr) + @sizeOf(T), PAGE_SIZE);
+    const buffer = try mapBuffer(@sizeOf(T), @ptrToInt(ptr), cr3);
+    return @intToPtr(*T, @ptrToInt(buffer.ptr));
+}
+
+pub fn unMapStructure(comptime T: type, v_addr: *T) !void {
+    return unMapBuffer(@sizeOf(T), @ptrToInt(v_addr));
+}
+
+pub fn mapBuffer(size: usize, ptr: usize, cr3: PageDirectory) ![]u8 {
+    const first_page = std.mem.alignBackward(ptr, PAGE_SIZE);
+    const last_page = std.mem.alignBackward(ptr + size, PAGE_SIZE);
     if (first_page == last_page) {
-        // Whole structure is one page
-        const p_addr = cr3.virtToPhy(@ptrToInt(ptr)) orelse return error.NotMapped;
+        // Whole buffer is one page
+        const p_addr = cr3.virtToPhy(ptr) orelse return error.NotMapped;
         const v_addr = try vmemManager.alloc(1);
         try paging.kernelPageDirectory.mapVirtToPhy(v_addr, p_addr, paging.WRITE);
-        return @intToPtr(*T, v_addr | (@ptrToInt(ptr) & 0b111111111111));
+        return @intToPtr([*]u8, v_addr | (ptr & 0b111111111111))[0..size];
     } else {
-        // Structure spans around multiple pages
+        // Buffer spans around multiple pages
         const page_count = (last_page - first_page) / PAGE_SIZE;
-        const p_addr = cr3.virtToPhy(@ptrToInt(ptr)) orelse return error.NotMapped;
+        const p_addr = cr3.virtToPhy(ptr) orelse return error.NotMapped;
         const v_addr = try vmemManager.alloc(page_count);
         var i: usize = 0;
         while (i < page_count) : (i += 1) {
             try paging.kernelPageDirectory.mapVirtToPhy(v_addr + PAGE_SIZE * i, p_addr + PAGE_SIZE * i, paging.WRITE);
         }
-        return @intToPtr(*T, v_addr | (@ptrToInt(ptr) & 0b111111111111));
+        return @intToPtr([*]u8, v_addr | (ptr & 0b111111111111))[0..size];
     }
 }
 
-pub fn unMapStructure(comptime T: type, v_addr: *T) !void {
-    const first_page = std.mem.alignBackward(@ptrToInt(v_addr), PAGE_SIZE);
-    const last_page = std.mem.alignBackward(@ptrToInt(v_addr) + @sizeOf(T), PAGE_SIZE);
+pub fn unMapBuffer(size: usize, v_addr: usize) !void {
+    const first_page = std.mem.alignBackward(v_addr, PAGE_SIZE);
+    const last_page = std.mem.alignBackward(v_addr + size, PAGE_SIZE);
     if (first_page == last_page) {
-        // Whole structure is one page;
         _ = try paging.kernelPageDirectory.unMap(first_page);
     } else {
-        // Structure spans around multiple pages
         const page_count = (last_page - first_page) / PAGE_SIZE;
         var i: usize = 0;
         while (i < page_count) : (i += 1) {
-            _ = try paging.kernelPageDirectory.unMap(@ptrToInt(v_addr) + PAGE_SIZE * i);
+            _ = try paging.kernelPageDirectory.unMap(v_addr + PAGE_SIZE * i);
         }
     }
 }

@@ -105,3 +105,5 @@ pub fn divCeil(numerator: usize, denomiator: usize) usize {
     const rem = numerator % denomiator;
     return quot + @boolToInt(rem != 0);
 }
+
+pub const Buffer = std.fifo.LinearFifo(u8, std.fifo.LinearFifoBufferType{ .Static = 32 });
