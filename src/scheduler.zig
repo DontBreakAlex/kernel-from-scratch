@@ -5,7 +5,6 @@ const allocator = @import("memory/mem.zig").allocator;
 const vmem = @import("memory/vmem.zig");
 pub const Signal = enum(u8) { SIGINT = 0 };
 const SignalQueue = std.fifo.LinearFifo(Signal, .Dynamic); // TODO: Use fixed size
-const Status = enum { Running, Paused, Zombie, Dead, Sleeping };
 const Children = std.SinglyLinkedList(*Process);
 const Child = Children.Node;
 const US_STACK_BASE = 0x1000000;
@@ -13,6 +12,8 @@ const Buffer = utils.Buffer;
 
 pub var wantsToSwitch: bool = false;
 pub var canSwitch: bool = true;
+
+pub const Status = enum { Running, Paused, Zombie, Dead, IO };
 
 const Process = struct {
     pid: u16,
@@ -42,24 +43,21 @@ const Process = struct {
         return old;
     }
 
+    /// Saves a process. Does not update current process.
     pub fn save(self: *Process, esp: usize, regs: usize, cr3: usize) void {
         self.cr3 = cr3;
         self.esp = esp;
         self.regs = regs;
-        self.status = .Paused;
     }
 
-    /// Resume the process. Caution: also re-enables interupts.
+    /// Resume the process. Does not update current process.
     pub fn restore(self: *Process) void {
-        runningProcess = self;
-        self.status = .Running;
         asm volatile (
             \\mov %[pd], %%cr3
             \\mov %[new_esp], %%esp
             \\fxrstor (%%esp)
             \\mov %[regs], %%esp
             \\popa
-            \\sti
             \\iret
             :
             : [new_esp] "r" (self.esp),
@@ -118,9 +116,15 @@ const Process = struct {
 };
 
 const ProcessQueue = std.fifo.LinearFifo(*Process, .Dynamic);
+const EventList = std.SinglyLinkedList(struct {
+    process: *Process,
+    buffer: *Buffer,
+});
+pub const Event = EventList.Node;
 const Fn = fn () void;
 
 pub var queue: ProcessQueue = ProcessQueue.init(allocator);
+pub var events: EventList = EventList{};
 var currentPid: u16 = 1;
 pub var runningProcess: *Process = undefined;
 
@@ -168,10 +172,25 @@ pub fn startProcess(func: Fn) !void {
 }
 
 pub fn schedule(esp: usize, regs: usize, cr3: usize) void {
-    if (queue.count == 0) return;
+    canSwitch = false;
+    var process: *Process = undefined;
+    switch (runningProcess.status) {
+        .IO => {
+            while (queue.count == 0)
+                asm volatile ("hlt");
+            process = queue.readItem() orelse @panic("Scheduler failed");
+        },
+        .Running => {
+            if (queue.count == 0) return;
+            runningProcess.status = .Paused;
+            queue.writeItem(runningProcess) catch @panic("Scheduler failed");
+            process = queue.readItem() orelse @panic("Scheduler failed");
+        },
+        else => @panic("Scheduler interupted non-running process (?!)"),
+    }
     runningProcess.save(esp, regs, cr3);
-    utils.disable_int();
-    queue.writeItem(runningProcess) catch @panic("Scheduler failed");
-    var process = queue.readItem() orelse @panic("Scheduler failed");
+    runningProcess = process;
+    process.status = .Running;
+    canSwitch = true;
     process.restore();
 }

@@ -11,21 +11,28 @@ const PageEntry = paging.PageEntry;
 
 pub fn init() void {
     idt.setInterruptHandler(0x80, syscall_handler, true);
+    idt.setIdtEntry(0x81, @ptrToInt(preempt));
 }
 
-fn syscall_block() callconv(.Naked) void {
+// TODO: Check cr3 and stack
+fn preempt() callconv(.Naked) void {
+    // Issue: register clobbering
     var esp: usize = undefined;
     var ebp: usize = undefined;
+    var cr3: usize = undefined;
     asm volatile (
         \\pusha
         \\mov %%esp, %%ebp
         \\sub $512, %%esp
         \\andl $0xFFFFFFF0, %%esp
         \\fxsave (%%esp)
-        : [esp] "={esp}" (-> usize),
-          [ebp] "={ebp}" (-> usize),
+        \\mov %%cr3, %%ebx
+        : [esp] "={esp}" (esp),
+          [ebp] "={ebp}" (ebp),
+          [cr3] "={ebx}" (cr3),
     );
-    scheduler.schedule(esp, ebp, paging.kernelPageDirectory.cr3);
+    scheduler.schedule(esp, ebp, cr3);
+    @panic("Schedule returned in preempt");
 }
 
 pub fn syscall_handler(regs: *idt.Regs) void {
@@ -125,8 +132,13 @@ fn read(fd: usize, buff: usize, count: usize) isize {
     defer scheduler.canSwitch = true;
     if (scheduler.runningProcess.fd[fd]) |descriptor| {
         while (descriptor.readableLength() == 0) {
+            scheduler.runningProcess.status = .IO;
+            const node = mem.allocator.create(scheduler.Event) catch return -1;
+            node.data.process = scheduler.runningProcess;
+            node.data.buffer = scheduler.runningProcess.fd[fd].?;
+            scheduler.events.prepend(node);
             scheduler.canSwitch = true;
-            // Sleep
+            asm volatile ("int $81");
             scheduler.canSwitch = false;
         }
         var user_buf = mem.mapBuffer(count, buff, scheduler.runningProcess.pd) catch return -1;
