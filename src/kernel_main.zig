@@ -33,11 +33,11 @@ export fn kernel_main() void {
     sys.init();
 
     utl.enable_int();
-    sch.startProcess(useless) catch {};
+    sch.startProcess(checkRead) catch {};
     // shl.run();
 }
 
-pub fn useless() void {
+pub fn checkFork() void {
     // fork
     asm volatile (
         \\mov $57, %%eax
@@ -62,4 +62,22 @@ pub fn useless() void {
     }
     while (true)
         asm volatile ("hlt");
+}
+
+pub fn checkRead() void {
+    var val: u8 = undefined;
+    asm volatile (
+        \\mov $0, %%eax
+        \\mov $0, %%ebx
+        \\mov %[val], %%ecx
+        \\mov $1, %%edx
+        \\int $0x80
+        :
+        : [val] "r" (&val),
+    );
+    while (true)
+        asm volatile (
+            \\cli
+            \\hlt
+        );
 }

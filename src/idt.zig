@@ -148,6 +148,7 @@ export fn exception(frame: *InterruptFrame) callconv(.C) void {
     });
     if (frame.index == 14) {
         vga.format("Fauld addr: 0x{x:0>8}\n", .{utils.get_register(.cr2)});
+        vga.format("Current cr3: 0x{x:0>8}\n", .{utils.get_register(.cr3)});
         utils.halt();
     }
 }

@@ -22,6 +22,7 @@ const KEYBOARD_DATA: u8 = 0x60;
 
 const Queue = std.fifo.LinearFifo(KeyPress, std.fifo.LinearFifoBufferType{ .Static = 32 });
 var queue = Queue.init();
+pub var stdin = utils.Buffer.init();
 
 pub fn init() void {
     idt.setInterruptHandler(pic.PIC1_OFFSET + 1, readScancode, false);

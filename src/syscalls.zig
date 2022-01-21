@@ -16,22 +16,19 @@ pub fn init() void {
 
 // TODO: Check cr3 and stack
 fn preempt() callconv(.Naked) void {
-    // Issue: register clobbering
-    var esp: usize = undefined;
-    var ebp: usize = undefined;
-    var cr3: usize = undefined;
     asm volatile (
         \\pusha
         \\mov %%esp, %%ebp
         \\sub $512, %%esp
         \\andl $0xFFFFFFF0, %%esp
         \\fxsave (%%esp)
+        \\mov %%esp, %%ecx
         \\mov %%cr3, %%ebx
-        : [esp] "={esp}" (esp),
-          [ebp] "={ebp}" (ebp),
-          [cr3] "={ebx}" (cr3),
+        \\push %%ebx
+        \\push %%ebp
+        \\push %%ecx
+        \\call schedule
     );
-    scheduler.schedule(esp, ebp, cr3);
     @panic("Schedule returned in preempt");
 }
 
@@ -138,7 +135,7 @@ fn read(fd: usize, buff: usize, count: usize) isize {
             node.data.buffer = scheduler.runningProcess.fd[fd].?;
             scheduler.events.prepend(node);
             scheduler.canSwitch = true;
-            asm volatile ("int $81");
+            asm volatile ("int $0x81");
             scheduler.canSwitch = false;
         }
         var user_buf = mem.mapBuffer(count, buff, scheduler.runningProcess.pd) catch return -1;

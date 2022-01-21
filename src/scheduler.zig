@@ -9,6 +9,7 @@ const Children = std.SinglyLinkedList(*Process);
 const Child = Children.Node;
 const US_STACK_BASE = 0x1000000;
 const Buffer = utils.Buffer;
+const keyboard = @import("keyboard.zig");
 
 pub var wantsToSwitch: bool = false;
 pub var canSwitch: bool = true;
@@ -92,6 +93,7 @@ const Process = struct {
 
     /// Clones the process. Esp is not copied and must be set manually.
     pub fn clone(self: *Process) !*Process {
+        // TODO: Copy fds
         var new_process: *Process = try allocator.create(Process);
         errdefer allocator.destroy(new_process);
         const child: *Child = try allocator.create(Child);
@@ -149,6 +151,8 @@ pub fn startProcess(func: Fn) !void {
     process.owner_id = 0;
     process.vmem = vmem.VMemManager{};
     process.vmem.init();
+    process.fd = .{null} ** 128;
+    process.fd[0] = &keyboard.stdin;
 
     var i: usize = 0;
     while (i < 256) : (i += 1) {
@@ -171,13 +175,16 @@ pub fn startProcess(func: Fn) !void {
     process.start();
 }
 
-pub fn schedule(esp: usize, regs: usize, cr3: usize) void {
+pub export fn schedule(esp: usize, regs: usize, cr3: usize) callconv(.C) void {
     canSwitch = false;
     var process: *Process = undefined;
     switch (runningProcess.status) {
         .IO => {
             while (queue.count == 0)
-                asm volatile ("hlt");
+                asm volatile (
+                    \\sti
+                    \\hlt
+                );
             process = queue.readItem() orelse @panic("Scheduler failed");
         },
         .Running => {

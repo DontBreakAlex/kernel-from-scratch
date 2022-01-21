@@ -10,7 +10,7 @@ const PageDirectory = paging.PageDirectory;
 
 var vmemManager = VMemManager{};
 var virtualAllocator = VirtualAllocator{ .vmem = &vmemManager, .paging = &paging.kernelPageDirectory };
-var generalPurposeAllocator: GeneralPurposeAllocator(.{}) = GeneralPurposeAllocator(.{}){ .backing_allocator = &virtualAllocator.allocator };
+var generalPurposeAllocator = GeneralPurposeAllocator(.{ .safety = false, .stack_trace_frames = 0 }){ .backing_allocator = &virtualAllocator.allocator };
 pub const allocator: *Allocator = &generalPurposeAllocator.allocator;
 
 pub fn init(size: usize) void {
