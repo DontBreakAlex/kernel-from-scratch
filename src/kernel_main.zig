@@ -64,21 +64,12 @@ pub fn checkFork() void {
         asm volatile ("hlt");
 }
 
+const lib = @import("syslib.zig");
+
 pub fn checkRead() void {
-    var key: u8 = 0;
-    asm volatile (
-        \\mov $0, %%eax
-        \\mov $0, %%ebx
-        \\mov %[val], %%ecx
-        \\mov $1, %%edx
-        \\int $0x80
-        :
-        : [val] "r" (&key),
-    );
-    vga.format("Got keypress: {}\n", .{key});
-    while (true)
-        asm volatile (
-            \\cli
-            \\hlt
-        );
+    var key: kbr.KeyPress = undefined;
+    while (true) {
+        _ = lib.read(0, std.mem.asBytes(&key), 1);
+        vga.format("Got keypress: {}\n", .{key});
+    }
 }

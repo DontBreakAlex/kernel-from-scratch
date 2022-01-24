@@ -46,7 +46,6 @@ fn handleScancode(scan_code: u8) void {
 
     const key_code = @truncate(u7, scan_code); // Remove released bit;
     const key: Key = if (state.special) kbm.parseSpecial(key_code) else kbm.map[key_code];
-    // vga.format("Scancode: {x}, Keycode: {x}\n", .{ scan_code, key_code });
     if (key == .LEFT_SHIFT or key == .RIGHT_SHIFT) {
         state.uppercase = !released;
     } else if (released) {
@@ -54,7 +53,6 @@ fn handleScancode(scan_code: u8) void {
             .key = key,
             .uppercase = state.uppercase,
         };
-        vga.format("Got keypress: {}\n", .{key_press});
         scheduler.writeWithEvent(&queue, std.mem.asBytes(&key_press)) catch vga.putStr("Could not handle keypress\n");
     }
     if (state.special) state.special = false;
