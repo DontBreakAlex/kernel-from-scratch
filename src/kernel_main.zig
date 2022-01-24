@@ -65,7 +65,7 @@ pub fn checkFork() void {
 }
 
 pub fn checkRead() void {
-    var val: u8 = undefined;
+    var key: u8 = 0;
     asm volatile (
         \\mov $0, %%eax
         \\mov $0, %%ebx
@@ -73,8 +73,9 @@ pub fn checkRead() void {
         \\mov $1, %%edx
         \\int $0x80
         :
-        : [val] "r" (&val),
+        : [val] "r" (&key),
     );
+    vga.format("Got keypress: {}\n", .{key});
     while (true)
         asm volatile (
             \\cli

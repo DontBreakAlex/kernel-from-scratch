@@ -5,10 +5,12 @@ const vga = @import("vga.zig");
 const kbm = @import("keyboard_map.zig");
 const std = @import("std");
 const mem = @import("memory/mem.zig");
+const serial = @import("serial.zig");
+const scheduler = @import("scheduler.zig");
 
 pub const Key = kbm.Key;
 
-pub const KeyPress = struct {
+pub const KeyPress = packed struct {
     key: Key,
     uppercase: bool,
 
@@ -20,25 +22,13 @@ pub const KeyPress = struct {
 const KEYBOARD_STATUS: u8 = 0x64;
 const KEYBOARD_DATA: u8 = 0x60;
 
-const Queue = std.fifo.LinearFifo(KeyPress, std.fifo.LinearFifoBufferType{ .Static = 32 });
-var queue = Queue.init();
-pub var stdin = utils.Buffer.init();
+pub var queue: utils.Buffer = utils.Buffer.init();
 
 pub fn init() void {
     idt.setInterruptHandler(pic.PIC1_OFFSET + 1, readScancode, false);
 
     pic.unMask(0x01);
     vga.putStr("Keyboard initialized\n");
-}
-
-pub fn waitKey() KeyPress {
-    while (true) {
-        if (queue.readItem()) |key| {
-            return key;
-        } else {
-            asm volatile ("hlt");
-        }
-    }
 }
 
 fn handleScancode(scan_code: u8) void {
@@ -60,10 +50,12 @@ fn handleScancode(scan_code: u8) void {
     if (key == .LEFT_SHIFT or key == .RIGHT_SHIFT) {
         state.uppercase = !released;
     } else if (released) {
-        queue.writeItem(KeyPress{
+        const key_press = KeyPress{
             .key = key,
             .uppercase = state.uppercase,
-        }) catch vga.putStr("Could not handle keypress\n");
+        };
+        vga.format("Got keypress: {}\n", .{key_press});
+        scheduler.writeWithEvent(&queue, std.mem.asBytes(&key_press)) catch vga.putStr("Could not handle keypress\n");
     }
     if (state.special) state.special = false;
 }

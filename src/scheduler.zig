@@ -118,15 +118,12 @@ const Process = struct {
 };
 
 const ProcessQueue = std.fifo.LinearFifo(*Process, .Dynamic);
-const EventList = std.SinglyLinkedList(struct {
-    process: *Process,
-    buffer: *Buffer,
-});
-pub const Event = EventList.Node;
+const EventList = std.ArrayListUnmanaged(*Process);
+const Events = std.AutoHashMap(*Buffer, EventList);
 const Fn = fn () void;
 
 pub var queue: ProcessQueue = ProcessQueue.init(allocator);
-pub var events: EventList = EventList{};
+pub var events: Events = Events.init(allocator);
 var currentPid: u16 = 1;
 pub var runningProcess: *Process = undefined;
 
@@ -152,7 +149,7 @@ pub fn startProcess(func: Fn) !void {
     process.vmem = vmem.VMemManager{};
     process.vmem.init();
     process.fd = .{null} ** 128;
-    process.fd[0] = &keyboard.stdin;
+    process.fd[0] = &keyboard.queue;
 
     var i: usize = 0;
     while (i < 256) : (i += 1) {
@@ -200,4 +197,23 @@ pub export fn schedule(esp: usize, regs: usize, cr3: usize) callconv(.C) void {
     process.status = .Running;
     canSwitch = true;
     process.restore();
+}
+
+pub fn queueEvent(key: *Buffer, val: *Process) !void {
+    var res = try events.getOrPut(key);
+    var array: *EventList = res.value_ptr;
+    if (!res.found_existing)
+        array.* = EventList{};
+    try array.append(allocator, val);
+}
+
+pub fn writeWithEvent(buffer: *Buffer, data: []const u8) !void {
+    if (events.getPtr(buffer)) |array| {
+        try queue.ensureUnusedCapacity(array.items.len);
+        try buffer.write(data);
+        queue.writeAssumeCapacity(array.items);
+        array.clearRetainingCapacity();
+    } else {
+        try buffer.write(data);
+    }
 }

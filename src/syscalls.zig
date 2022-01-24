@@ -130,10 +130,7 @@ fn read(fd: usize, buff: usize, count: usize) isize {
     if (scheduler.runningProcess.fd[fd]) |descriptor| {
         while (descriptor.readableLength() == 0) {
             scheduler.runningProcess.status = .IO;
-            const node = mem.allocator.create(scheduler.Event) catch return -1;
-            node.data.process = scheduler.runningProcess;
-            node.data.buffer = scheduler.runningProcess.fd[fd].?;
-            scheduler.events.prepend(node);
+            scheduler.queueEvent(descriptor, scheduler.runningProcess) catch return -1;
             scheduler.canSwitch = true;
             asm volatile ("int $0x81");
             scheduler.canSwitch = false;
