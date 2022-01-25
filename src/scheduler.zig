@@ -85,6 +85,7 @@ const Process = struct {
         const v_addr = try self.vmem.alloc(page_count);
         var i: usize = 0;
         while (i < page_count) {
+            // TODO: De-alloc already allocated pages on failure (or do lazy alloc)
             self.pd.allocVirt(v_addr + paging.PAGE_SIZE * i, paging.WRITE) catch return error.OutOfMemory;
             i += 1;
         }

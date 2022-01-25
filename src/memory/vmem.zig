@@ -144,16 +144,15 @@ pub const VMemManager = struct {
 };
 
 pub const VirtualAllocator = struct {
-    allocator: Allocator = Allocator{
-        .resizeFn = resizeFn,
-        .allocFn = allocFn,
-    },
     vmem: *VMemManager,
     paging: *PageDirectory,
 
-    fn allocFn(field: *Allocator, len: usize, ptr_align: u29, len_align: u29, ret_addr: usize) Allocator.Error![]u8 {
+    pub fn allocator(self: *VirtualAllocator) Allocator {
+        return Allocator.init(self, alloc, resize, free);
+    }
+
+    fn alloc(self: *VirtualAllocator, len: usize, ptr_align: u29, len_align: u29, ret_addr: usize) Allocator.Error![]u8 {
         _ = ret_addr;
-        const self = @fieldParentPtr(VirtualAllocator, "allocator", field);
         if (ptr_align > PAGE_SIZE)
             @panic("Unsuported aligned virtual alloc");
         const page_count = utils.divCeil(len, PAGE_SIZE);
@@ -169,21 +168,26 @@ pub const VirtualAllocator = struct {
         return @intToPtr([*]u8, v_addr)[0..requested_len];
     }
 
-    fn resizeFn(field: *Allocator, buf: []u8, buf_align: u29, new_len: usize, len_align: u29, ret_addr: usize) Allocator.Error!usize {
+    fn free(self: *VirtualAllocator, buf: []u8, buf_align: u29, ret_addr: usize) void {
         _ = buf_align;
-        _ = len_align;
         _ = ret_addr;
-        if (new_len != 0)
-            @panic("Attempt to resize virtual alloc");
-        const self = @fieldParentPtr(VirtualAllocator, "allocator", field);
         self.vmem.free(@ptrToInt(buf.ptr));
         var i = utils.divCeil(buf.len, PAGE_SIZE);
         var addr = @ptrToInt(buf.ptr);
         while (i != 0) {
-            self.paging.freeVirt(addr) catch return Allocator.Error.OutOfMemory;
+            self.paging.freeVirt(addr) catch {}; //TODO: Log failure
             i -= 1;
             addr += PAGE_SIZE;
         }
-        return 0;
+    }
+
+    fn resize(self: *VirtualAllocator, buf: []u8, buf_align: u29, new_len: usize, len_align: u29, ret_addr: usize) ?usize {
+        _ = self;
+        _ = buf;
+        _ = buf_align;
+        _ = new_len;
+        _ = len_align;
+        _ = ret_addr;
+        unreachable;
     }
 };

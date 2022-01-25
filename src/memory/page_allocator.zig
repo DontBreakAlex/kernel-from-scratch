@@ -7,7 +7,6 @@ const vga = @import("../vga.zig");
 pub const PageAllocator = struct {
     base: usize,
     alloc_table: []bool,
-    allocator: Allocator,
 
     /// Base: where available memory starts
     /// Size: how mage pages (4Kib) are available
@@ -20,15 +19,15 @@ pub const PageAllocator = struct {
         for (alloc_table) |*e| {
             e.* = false;
         }
-        return PageAllocator{ .base = base + PAGE_SIZE * table_footprint, .alloc_table = alloc_table, .allocator = Allocator{
-            .allocFn = allocFn,
-            .resizeFn = resizeFn,
-        } };
+        return PageAllocator{ .base = base + PAGE_SIZE * table_footprint, .alloc_table = alloc_table };
+    }
+    
+    pub fn allocator(self: *PageAllocator) Allocator {
+        return Allocator.init(self, allocFn, resizeFn, freeFn);
     }
 
-    fn allocFn(parent: *Allocator, len: usize, ptr_align: u29, len_align: u29, ret_addr: usize) ![]u8 {
+    fn allocFn(self: *PageAllocator, len: usize, ptr_align: u29, len_align: u29, ret_addr: usize) ![]u8 {
         _ = ret_addr;
-        const self: *PageAllocator = @fieldParentPtr(PageAllocator, "allocator", parent);
         const buf = if (ptr_align <= PAGE_SIZE)
             try self.allocPageAligned(len)
         else
@@ -43,23 +42,24 @@ pub const PageAllocator = struct {
         }
     }
 
-    fn resizeFn(parent: *Allocator, buf: []u8, buf_align: u29, new_len: usize, len_align: u29, ret_addr: usize) !usize {
+    fn freeFn(self: *PageAllocator, buf: []u8, buf_align: u29, ret_addr: usize) void {
         _ = ret_addr;
-        const self: *PageAllocator = @fieldParentPtr(PageAllocator, "allocator", parent);
-        if (new_len == 0) {
-            const first_page = if (buf_align <= PAGE_SIZE) @ptrToInt(buf.ptr) else std.mem.alignBackward(@ptrToInt(buf.ptr), PAGE_SIZE);
-            const last_page = std.mem.alignBackward(@ptrToInt(buf.ptr) + buf.len, PAGE_SIZE);
-            const start = (first_page - self.base) / PAGE_SIZE;
-            const end = (last_page - self.base) / PAGE_SIZE;
+        const first_page = if (buf_align <= PAGE_SIZE) @ptrToInt(buf.ptr) else std.mem.alignBackward(@ptrToInt(buf.ptr), PAGE_SIZE);
+        const last_page = std.mem.alignBackward(@ptrToInt(buf.ptr) + buf.len, PAGE_SIZE);
+        const start = (first_page - self.base) / PAGE_SIZE;
+        const end = (last_page - self.base) / PAGE_SIZE;
 
-            self.multipleFree(start, end);
-            return 0;
-        } else if (new_len <= buf.len) {
-            return new_len;
-        } else {
-            const size = try self.resize(buf, new_len);
-            return if (len_align == 0) new_len else if (len_align == 1) size else std.mem.alignAllocLen(size, new_len, len_align);
-        }
+        self.multipleFree(start, end);
+    }
+
+    fn resizeFn(self: *PageAllocator, buf: []u8, buf_align: u29, new_len: usize, len_align: u29, ret_addr: usize) ?usize {
+        _ = self;
+        _ = buf;
+        _ = buf_align;
+        _ = new_len;
+        _ = len_align;
+        _ = ret_addr;
+        unreachable;
     }
 
     /// Returns a single page of physical memory

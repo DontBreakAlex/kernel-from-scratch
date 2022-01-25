@@ -3,15 +3,14 @@ const paging = @import("paging.zig");
 const vmem = @import("vmem.zig");
 const Allocator = std.mem.Allocator;
 const GeneralPurposeAllocator = std.heap.GeneralPurposeAllocator;
-const PageAllocator = @import("page_allocator.zig").PageAllocator;
 const VMemManager = vmem.VMemManager;
 const VirtualAllocator = vmem.VirtualAllocator;
 const PageDirectory = paging.PageDirectory;
 
 var vmemManager = VMemManager{};
 var virtualAllocator = VirtualAllocator{ .vmem = &vmemManager, .paging = &paging.kernelPageDirectory };
-var generalPurposeAllocator = GeneralPurposeAllocator(.{ .safety = false, .stack_trace_frames = 0 }){ .backing_allocator = &virtualAllocator.allocator };
-pub const allocator: *Allocator = &generalPurposeAllocator.allocator;
+var generalPurposeAllocator = GeneralPurposeAllocator(.{ .safety = false, .stack_trace_frames = 0 }){ .backing_allocator = virtualAllocator.allocator() };
+pub const allocator: Allocator = generalPurposeAllocator.allocator();
 
 pub fn init(size: usize) void {
     paging.init(size / 4);
