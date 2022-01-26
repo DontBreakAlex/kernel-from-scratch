@@ -21,7 +21,7 @@ pub const PageAllocator = struct {
         }
         return PageAllocator{ .base = base + PAGE_SIZE * table_footprint, .alloc_table = alloc_table };
     }
-    
+
     pub fn allocator(self: *PageAllocator) Allocator {
         return Allocator.init(self, allocFn, resizeFn, freeFn);
     }

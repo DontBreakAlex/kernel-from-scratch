@@ -73,6 +73,7 @@ export fn syscallHandlerInKS(regs_ptr: *idt.Regs, u_cr3: *[1024]PageEntry, us_es
     regs.eax = @intCast(usize, switch (regs.eax) {
         0 => read(regs.ebx, regs.ecx, regs.edx),
         9 => mmap(regs.ebx),
+        11 => munmap(regs.ebx, regs.ecx),
         // Should be sigaction
         13 => signal(regs.ebx, regs.ecx),
         39 => getpid(),
@@ -91,7 +92,16 @@ export fn syscallHandlerInKS(regs_ptr: *idt.Regs, u_cr3: *[1024]PageEntry, us_es
 }
 
 fn mmap(count: usize) isize {
-    return @intCast(isize, scheduler.runningProcess.allocPages(count) catch 0);
+    scheduler.canSwitch = false;
+    defer scheduler.canSwitch = true;
+    return @intCast(isize, scheduler.runningProcess.allocPages(count) catch std.math.maxInt(usize));
+}
+
+fn munmap(addr: usize, count: usize) isize {
+    scheduler.canSwitch = false;
+    defer scheduler.canSwitch = true;
+    scheduler.runningProcess.deallocPages(addr, count);
+    return 0;
 }
 
 fn getpid() isize {

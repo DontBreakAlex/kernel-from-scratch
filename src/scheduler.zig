@@ -92,6 +92,14 @@ const Process = struct {
         return v_addr;
     }
 
+    pub fn deallocPages(self: *Process, v_addr: usize, page_count: usize) void {
+        self.vmem.free(v_addr);
+        var i: usize = 0;
+        while (i < page_count) : (i += 1) {
+            _ = self.pd.unMap(v_addr + paging.PAGE_SIZE * i) catch unreachable;
+        }
+    }
+
     /// Clones the process. Esp is not copied and must be set manually.
     pub fn clone(self: *Process) !*Process {
         // TODO: Copy fds
