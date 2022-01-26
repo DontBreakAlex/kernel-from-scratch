@@ -4,8 +4,8 @@ const Allocator = std.mem.Allocator;
 const GeneralPurposeAllocator = std.heap.GeneralPurposeAllocator;
 const PAGE_SIZE = @import("memory/paging.zig").PAGE_SIZE;
 const pageAllocator = Allocator{ .ptr = undefined, .vtable = &PageAllocator.vtable };
-const generalPurposeAllocator = GeneralPurposeAllocator(.{}){ .backing_allocator = pageAllocator };
-pub const userAllocator = generalPurposeAllocator.allocator();
+var generalPurposeAllocator = GeneralPurposeAllocator(.{}){ .backing_allocator = pageAllocator };
+pub var userAllocator = generalPurposeAllocator.allocator();
 
 pub fn read(fd: usize, buffer: []u8, count: usize) isize {
     return asm volatile (
@@ -28,7 +28,7 @@ pub fn mmap(cnt: usize) ![]u8 {
     );
     if (buf == -1)
         return error.OutOfMemory;
-    return @ptrCast([*]u8, buf)[0 .. cnt * PAGE_SIZE];
+    return @intToPtr([*]u8, @bitCast(usize, buf))[0 .. cnt * PAGE_SIZE];
 }
 
 pub fn munmap(buf: []u8) void {
@@ -37,7 +37,7 @@ pub fn munmap(buf: []u8) void {
         \\int $0x80
         :
         : [addr] "={ebx}" (buf.ptr),
-          [len] "={ecx}" (buf.len),
+          [len] "={ecx}" (utils.divCeil(buf.len, PAGE_SIZE)),
         : "eax", "memory"
     );
 }
@@ -70,7 +70,6 @@ const PageAllocator = struct {
     }
 
     fn free(_: *anyopaque, buf: []u8, _: u29, _: usize) void {
-        const page_cnt = utils.divCeil(buf.len);
-        munmap(buf.ptr, page_cnt);
+        munmap(buf);
     }
 };

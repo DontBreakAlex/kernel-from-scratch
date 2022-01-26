@@ -68,6 +68,8 @@ const lib = @import("syslib.zig");
 
 pub fn checkRead() void {
     var key: kbr.KeyPress = undefined;
+    const t = lib.userAllocator.create(*kbr.Key) catch @panic("Alloc failed");
+    lib.userAllocator.destroy(t);
     while (true) {
         _ = lib.read(0, std.mem.asBytes(&key), 1);
         vga.format("Got keypress: {}\n", .{key});
