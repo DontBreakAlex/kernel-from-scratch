@@ -36,8 +36,8 @@ pub fn munmap(buf: []u8) void {
         \\mov $11, %%eax
         \\int $0x80
         :
-        : [addr] "={ebx}" (buf.ptr),
-          [len] "={ecx}" (utils.divCeil(buf.len, PAGE_SIZE)),
+        : [addr] "{ebx}" (buf.ptr),
+          [len] "{ecx}" (utils.divCeil(buf.len, PAGE_SIZE)),
         : "eax", "memory"
     );
 }

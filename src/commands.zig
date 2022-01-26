@@ -1,6 +1,7 @@
 const vga = @import("vga.zig");
 const std = @import("std");
 const utils = @import("utils.zig");
+const lib = @import("syslib.zig");
 
 const ArgsIterator = *std.mem.TokenIterator(u8);
 

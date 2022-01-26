@@ -4,6 +4,7 @@ const std = @import("std");
 const commands = @import("commands.zig");
 const utl = @import("utils.zig");
 const mem = @import("memory/mem.zig");
+const lib = @import("syslib.zig");
 
 const ArrayList = std.ArrayList;
 
@@ -33,12 +34,13 @@ pub fn run() void {
 }
 
 pub fn readLine() !ArrayList(u8) {
-    var line: ArrayList(u8) = ArrayList(u8).init(mem.allocator);
+    var line: ArrayList(u8) = ArrayList(u8).init(lib.userAllocator);
     errdefer line.deinit();
     var n: usize = 0;
 
     while (true) {
-        const key: kbr.KeyPress = kbr.waitKey();
+        var key: kbr.KeyPress = undefined;
+        _ = lib.read(0, std.mem.asBytes(&key), 1);
         switch (key.key) {
             .BACKSPACE => if (n != 0 and n == line.items.len) {
                 vga.erase();
