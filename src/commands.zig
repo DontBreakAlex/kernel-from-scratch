@@ -9,7 +9,7 @@ pub const CommandFn = fn (args: ArgsIterator) u8;
 pub const Command = struct { name: []const u8, cmd: CommandFn };
 extern const stack_top: u8;
 
-pub const commands: [9]Command = .{
+pub const commands: [11]Command = .{
     .{ .name = "echo", .cmd = echo },
     .{ .name = "pstack", .cmd = printStack },
     .{ .name = "ptrace", .cmd = printTrace },
@@ -19,6 +19,8 @@ pub const commands: [9]Command = .{
     .{ .name = "pmultiboot", .cmd = pmultiboot },
     .{ .name = "int", .cmd = interrupt },
     .{ .name = "panic", .cmd = panic },
+    .{ .name = "getpid", .cmd = getPid },
+    .{ .name = "test", .cmd = runTest },
 };
 
 pub fn find(name: []const u8) ?CommandFn {
@@ -121,4 +123,27 @@ fn interrupt(_: ArgsIterator) u8 {
 
 fn panic(_: ArgsIterator) u8 {
     @panic("User requested panic !");
+}
+
+fn getPid(_: ArgsIterator) u8 {
+    vga.format("Current PID: {}\n", .{ lib.getPid() });
+    return 0;
+}
+
+fn runTest(args: ArgsIterator) u8 {
+    if (args.next()) |arg| {
+        if (std.mem.eql(u8, "signal", arg)) {
+            testSignal();
+            return 0;
+        }
+        vga.format("No test for: {s}\n", .{ arg });
+        return 1;
+    } else {
+        vga.putStr("Error: no tests specified\n");
+        return 1;
+    }
+}
+
+fn testSignal() void {
+
 }

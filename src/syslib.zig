@@ -42,6 +42,22 @@ pub fn munmap(buf: []u8) void {
     );
 }
 
+pub fn getPid() usize {
+    return asm volatile(
+        \\mov $39, %%eax
+        \\int $0x80
+        : [ret] "={eax}" (-> usize)
+    );
+}
+
+pub fn fork() usize {
+    return asm volatile(
+        \\mov $57, %%eax
+        \\int $0x80
+        : [ret] "={eax}" (-> usize)
+    );
+}
+
 const PageAllocator = struct {
     const vtable = Allocator.VTable{
         .alloc = alloc,

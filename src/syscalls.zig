@@ -70,7 +70,7 @@ export fn syscallHandlerInKS(regs_ptr: *idt.Regs, u_cr3: *[1024]PageEntry, us_es
         @panic("Syscall failure");
     };
     @setRuntimeSafety(false);
-    regs.eax = @intCast(usize, switch (regs.eax) {
+    regs.eax = @bitCast(usize, switch (regs.eax) {
         0 => read(regs.ebx, regs.ecx, regs.edx),
         9 => mmap(regs.ebx),
         11 => munmap(regs.ebx, regs.ecx),
@@ -117,7 +117,9 @@ fn fork(regs_ptr: *idt.Regs, us_esp: usize) isize {
     // In case of weird bug, check here (expected issue: FPU data corruption)
     new_process.esp = us_esp + 20;
     new_process.regs = @ptrToInt(regs_ptr);
+    scheduler.canSwitch = false;
     scheduler.queue.writeItem(new_process) catch @panic("Queue fail");
+    scheduler.canSwitch = true;
     return new_process.pid;
 }
 
