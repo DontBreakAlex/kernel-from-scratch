@@ -126,7 +126,7 @@ fn panic(_: ArgsIterator) u8 {
 }
 
 fn getPid(_: ArgsIterator) u8 {
-    vga.format("Current PID: {}\n", .{ lib.getPid() });
+    vga.format("Current PID: {}\n", .{lib.getPid()});
     return 0;
 }
 
@@ -136,7 +136,7 @@ fn runTest(args: ArgsIterator) u8 {
             testSignal();
             return 0;
         }
-        vga.format("No test for: {s}\n", .{ arg });
+        vga.format("No test for: {s}\n", .{arg});
         return 1;
     } else {
         vga.putStr("Error: no tests specified\n");
@@ -144,6 +144,17 @@ fn runTest(args: ArgsIterator) u8 {
     }
 }
 
-fn testSignal() void {
+fn handleSignal() void {
+    vga.putStr("Recieved signal\n");
+}
 
+fn testSignal() void {
+    const pid = lib.fork();
+    if (pid == 0) {
+        // Child
+        _ = lib.signal(.SIGINT, handleSignal);
+        lib.exit();
+    }
+    // Parent
+    vga.format("Child has PID {}\n", .{pid});
 }

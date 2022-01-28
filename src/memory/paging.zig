@@ -195,8 +195,17 @@ pub const PageDirectory = struct {
 
     pub fn deinit(self: *PageDirectory) void {
         _ = self;
-        utils.boch_break();
-        unreachable;
+        // Iter over all pages
+        // If present
+        //  If phy_addr > 0x100000
+        //   Dealloc phy_addr
+        //  Unmap One-To-One
+        //  Dealloc page
+        for (self.cr3) |*tables| {
+            for (tables) |table_entry| {
+                unreachable;
+            }
+        }
     }
 };
 

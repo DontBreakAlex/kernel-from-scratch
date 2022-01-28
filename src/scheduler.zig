@@ -124,6 +124,13 @@ const Process = struct {
         self.childrens.prepend(child);
         return new_process;
     }
+
+    pub fn deinit(self: *Process) void {
+        // TODO: Dealloc stacks
+        self.signals.deinit();
+        self.pd.deinit();
+        allocator.destroy(self);
+    }
 };
 
 const ProcessQueue = std.fifo.LinearFifo(*Process, .Dynamic);
@@ -183,7 +190,6 @@ pub fn startProcess(func: Fn) !void {
 
 pub export fn schedule(esp: usize, regs: usize, cr3: usize) callconv(.C) void {
     canSwitch = false;
-    var process: *Process = undefined;
     switch (runningProcess.status) {
         .IO => {
             while (queue.count == 0)
@@ -191,19 +197,31 @@ pub export fn schedule(esp: usize, regs: usize, cr3: usize) callconv(.C) void {
                     \\sti
                     \\hlt
                 );
-            process = queue.readItem() orelse @panic("Scheduler failed");
+            runningProcess.save(esp, regs, cr3);
+            runningProcess = queue.readItem() orelse @panic("Scheduler failed");
         },
         .Running => {
             if (queue.count == 0) return;
             runningProcess.status = .Paused;
+            runningProcess.save(esp, regs, cr3);
             queue.writeItem(runningProcess) catch @panic("Scheduler failed");
-            process = queue.readItem() orelse @panic("Scheduler failed");
+            runningProcess = queue.readItem() orelse @panic("Scheduler failed");
+        },
+        .Dead => {
+            runningProcess.deinit();
+            while (queue.count == 0) {
+                if (events.count() == 0)
+                    @panic("Attempt to kill last process !");
+                asm volatile (
+                    \\sti
+                    \\hlt
+                );
+            }
+            runningProcess = queue.readItem() orelse @panic("Scheduler failed");
         },
         else => @panic("Scheduler interupted non-running process (?!)"),
     }
-    runningProcess.save(esp, regs, cr3);
-    runningProcess = process;
-    process.status = .Running;
+    runningProcess.status = .Running;
     canSwitch = true;
     process.restore();
 }

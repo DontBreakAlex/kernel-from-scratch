@@ -65,10 +65,12 @@ pub fn syscall_handler(regs: *idt.Regs) void {
 
 export fn syscallHandlerInKS(regs_ptr: *idt.Regs, u_cr3: *[1024]PageEntry, us_esp: usize) callconv(.C) void {
     const PD = PageDirectory{ .cr3 = u_cr3 };
+    scheduler.canSwitch = false;
     const regs = mem.mapStructure(idt.Regs, regs_ptr, PD) catch |err| {
         vga.format("{}\n", .{err});
         @panic("Syscall failure");
     };
+    scheduler.canSwitch = true;
     @setRuntimeSafety(false);
     regs.eax = @bitCast(usize, switch (regs.eax) {
         0 => read(regs.ebx, regs.ecx, regs.edx),
@@ -78,6 +80,7 @@ export fn syscallHandlerInKS(regs_ptr: *idt.Regs, u_cr3: *[1024]PageEntry, us_es
         13 => signal(regs.ebx, regs.ecx),
         39 => getpid(),
         57 => fork(regs_ptr, us_esp),
+        60 => exit(),
         162 => sleep(),
         else => {
             @panic("Unhandled syscall");
@@ -108,17 +111,20 @@ fn getpid() isize {
     return scheduler.runningProcess.pid;
 }
 
-fn fork(regs_ptr: *idt.Regs, us_esp: usize) isize {
-    const new_process = scheduler.runningProcess.clone() catch |err| {
-        vga.format("{}\n", .{err});
-        return @as(isize, -1);
-    };
+fn fork(regs_ptr: *idt.Regs, us_esp: usize) !u16 {
+    const new_process = try scheduler.runningProcess.clone();
+    errdefer new_process.deinit();
     // 20 is the space space used by syscall_handler
     // In case of weird bug, check here (expected issue: FPU data corruption)
     new_process.esp = us_esp + 20;
     new_process.regs = @ptrToInt(regs_ptr);
     scheduler.canSwitch = false;
-    scheduler.queue.writeItem(new_process) catch @panic("Queue fail");
+    {
+        const regs = try mem.mapStructure(idt.Regs, regs_ptr, new_process.pd);
+        regs.eax = 0;
+        try mem.unMapStructure(idt.Regs, regs);
+    }
+    try scheduler.queue.writeItem(new_process);
     scheduler.canSwitch = true;
     return new_process.pid;
 }
@@ -155,4 +161,10 @@ fn read(fd: usize, buff: usize, count: usize) isize {
     }
     scheduler.canSwitch = true;
     return ret;
+}
+
+fn exit() isize {
+    scheduler.runningProcess.status = .Dead;
+    scheduler.schedule(undefined, undefined, undefined);
+    return 0;
 }

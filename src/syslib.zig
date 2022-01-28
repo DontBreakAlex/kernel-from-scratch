@@ -1,5 +1,6 @@
 const std = @import("std");
 const utils = @import("utils.zig");
+pub const Signal = @import("scheduler.zig").Signal;
 const Allocator = std.mem.Allocator;
 const GeneralPurposeAllocator = std.heap.GeneralPurposeAllocator;
 const PAGE_SIZE = @import("memory/paging.zig").PAGE_SIZE;
@@ -43,19 +44,36 @@ pub fn munmap(buf: []u8) void {
 }
 
 pub fn getPid() usize {
-    return asm volatile(
+    return asm volatile (
         \\mov $39, %%eax
         \\int $0x80
-        : [ret] "={eax}" (-> usize)
+        : [ret] "={eax}" (-> usize),
     );
 }
 
-pub fn fork() usize {
-    return asm volatile(
+pub fn fork() isize {
+    return asm volatile (
         \\mov $57, %%eax
         \\int $0x80
-        : [ret] "={eax}" (-> usize)
+        : [ret] "={eax}" (-> isize),
     );
+}
+
+pub fn signal(sig: Signal, handler: fn () void) isize {
+    return asm volatile (
+        \\mov $57, %%eax
+        : [ret] "=&{eax}" (-> isize),
+        : [sig] "{ebx}" (@enumToInt(sig)),
+          [hdl] "{ecx}" (@ptrToInt(handler)),
+    );
+}
+
+pub fn exit() noreturn {
+    asm volatile (
+        \\mov $60, %%eax
+        \\int $0x80
+    );
+    unreachable;
 }
 
 const PageAllocator = struct {
