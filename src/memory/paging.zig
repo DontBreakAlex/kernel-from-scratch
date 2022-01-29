@@ -202,10 +202,25 @@ pub const PageDirectory = struct {
         //  Unmap One-To-One
         //  Dealloc page
         for (self.cr3) |*tables| {
-            for (tables) |table_entry| {
-                unreachable;
+            if (tables.flags & PRESENT == 1) {
+                const table_addr: usize = tables.phy_addr << 12;
+                serial.format("Table addr: 0x{x:0>8}\n", .{ table_addr });
+                for (@intToPtr(*[1024]PageEntry, table_addr)) |table_entry| {
+                    if (table_entry.flags & PRESENT == 1) {
+                        const phy_addr: usize = table_entry.phy_addr << 12;
+                        if (phy_addr >= 0x100000) {
+                            pageAllocator.free(phy_addr);
+                        }
+                        _ = kernelPageDirectory.unMap(phy_addr) catch unreachable;
+                    }
+                }
+                pageAllocator.free(table_addr);
+                _ = kernelPageDirectory.unMap(table_addr) catch unreachable;
             }
         }
+        const dir_addr = @ptrToInt(self.cr3);
+        pageAllocator.free(dir_addr);
+        _ = kernelPageDirectory.unMap(dir_addr) catch unreachable;
     }
 };
 

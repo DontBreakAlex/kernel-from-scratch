@@ -223,7 +223,7 @@ pub export fn schedule(esp: usize, regs: usize, cr3: usize) callconv(.C) void {
     }
     runningProcess.status = .Running;
     canSwitch = true;
-    process.restore();
+    runningProcess.restore();
 }
 
 pub fn queueEvent(key: *Buffer, val: *Process) !void {

@@ -79,7 +79,7 @@ export fn syscallHandlerInKS(regs_ptr: *idt.Regs, u_cr3: *[1024]PageEntry, us_es
         // Should be sigaction
         13 => signal(regs.ebx, regs.ecx),
         39 => getpid(),
-        57 => fork(regs_ptr, us_esp),
+        57 => fork(regs_ptr, us_esp) catch -1,
         60 => exit(),
         162 => sleep(),
         else => {
@@ -111,7 +111,7 @@ fn getpid() isize {
     return scheduler.runningProcess.pid;
 }
 
-fn fork(regs_ptr: *idt.Regs, us_esp: usize) !u16 {
+fn fork(regs_ptr: *idt.Regs, us_esp: usize) !isize {
     const new_process = try scheduler.runningProcess.clone();
     errdefer new_process.deinit();
     // 20 is the space space used by syscall_handler

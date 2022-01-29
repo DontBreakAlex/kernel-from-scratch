@@ -133,7 +133,7 @@ fn getPid(_: ArgsIterator) u8 {
 fn runTest(args: ArgsIterator) u8 {
     if (args.next()) |arg| {
         if (std.mem.eql(u8, "signal", arg)) {
-            testSignal();
+            @import("demo/signal.zig").testSignal();
             return 0;
         }
         vga.format("No test for: {s}\n", .{arg});
@@ -142,19 +142,4 @@ fn runTest(args: ArgsIterator) u8 {
         vga.putStr("Error: no tests specified\n");
         return 1;
     }
-}
-
-fn handleSignal() void {
-    vga.putStr("Recieved signal\n");
-}
-
-fn testSignal() void {
-    const pid = lib.fork();
-    if (pid == 0) {
-        // Child
-        _ = lib.signal(.SIGINT, handleSignal);
-        lib.exit();
-    }
-    // Parent
-    vga.format("Child has PID {}\n", .{pid});
 }
