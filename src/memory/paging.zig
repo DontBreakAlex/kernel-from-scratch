@@ -203,15 +203,14 @@ pub const PageDirectory = struct {
         //  Dealloc page
         for (self.cr3) |*tables| {
             if (tables.flags & PRESENT == 1) {
-                const table_addr: usize = tables.phy_addr << 12;
+                const table_addr: usize = @intCast(usize, tables.phy_addr) << 12;
                 serial.format("Table addr: 0x{x:0>8}\n", .{ table_addr });
-                for (@intToPtr(*[1024]PageEntry, table_addr)) |table_entry| {
+                for (@intToPtr(*[1024]PageEntry, table_addr)) |*table_entry| {
                     if (table_entry.flags & PRESENT == 1) {
-                        const phy_addr: usize = table_entry.phy_addr << 12;
+                        const phy_addr: usize = @intCast(usize, table_entry.phy_addr) << 12;
                         if (phy_addr >= 0x100000) {
                             pageAllocator.free(phy_addr);
                         }
-                        _ = kernelPageDirectory.unMap(phy_addr) catch unreachable;
                     }
                 }
                 pageAllocator.free(table_addr);
