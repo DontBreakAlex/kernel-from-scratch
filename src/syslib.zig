@@ -76,6 +76,16 @@ pub fn exit() noreturn {
     unreachable;
 }
 
+pub fn usage(ptr: *@import("memory/page_allocator.zig").PageAllocator.AllocatorUsage) isize {
+    return asm volatile (
+        \\mov $184, %%eax
+        \\int $0x80
+        : [ret] "=&{eax}" (-> isize),
+        : [addr] "{ebx}" (ptr),
+        : "memory"
+    );
+}
+
 const PageAllocator = struct {
     const vtable = Allocator.VTable{
         .alloc = alloc,

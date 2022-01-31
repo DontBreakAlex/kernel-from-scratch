@@ -41,6 +41,7 @@ fn setup() !void {
     try kernelPageDirectory.mapOneToOne(tab_alloc);
     printDirectory(kernelPageDirectory.cr3);
 
+    utils.boch_break();
     // Map first 1M of memory (where the kernel is)
     var i: usize = 0;
     while (i < 256) : (i += 1) {

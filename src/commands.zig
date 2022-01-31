@@ -9,7 +9,7 @@ pub const CommandFn = fn (args: ArgsIterator) u8;
 pub const Command = struct { name: []const u8, cmd: CommandFn };
 extern const stack_top: u8;
 
-pub const commands: [11]Command = .{
+pub const commands: [12]Command = .{
     .{ .name = "echo", .cmd = echo },
     .{ .name = "pstack", .cmd = printStack },
     .{ .name = "ptrace", .cmd = printTrace },
@@ -21,6 +21,7 @@ pub const commands: [11]Command = .{
     .{ .name = "panic", .cmd = panic },
     .{ .name = "getpid", .cmd = getPid },
     .{ .name = "test", .cmd = runTest },
+    .{ .name = "free", .cmd = free },
 };
 
 pub fn find(name: []const u8) ?CommandFn {
@@ -142,4 +143,12 @@ fn runTest(args: ArgsIterator) u8 {
         vga.putStr("Error: no tests specified\n");
         return 1;
     }
+}
+
+fn free(_: ArgsIterator) u8 {
+    var usage: @import("memory/page_allocator.zig").PageAllocator.AllocatorUsage = undefined;
+    if (lib.usage(&usage) == -1)
+        return 1;
+    vga.format("Allocated pages: {}/{}\n", .{ usage.allocated, usage.capacity });
+    return 0;
 }

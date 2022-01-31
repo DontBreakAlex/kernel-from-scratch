@@ -10,6 +10,7 @@ const Child = Children.Node;
 const US_STACK_BASE = 0x1000000;
 const Buffer = utils.Buffer;
 const keyboard = @import("keyboard.zig");
+const serial = @import("serial.zig");
 
 pub var wantsToSwitch: bool = false;
 pub var canSwitch: bool = true;
@@ -172,8 +173,10 @@ pub fn startProcess(func: Fn) !void {
         try process.pd.mapOneToOne(paging.PAGE_SIZE * i);
     }
     process.kstack = try paging.pageAllocator.alloc();
+    serial.format("Kernel stack bottom: 0x{x:0>8}\n", .{process.kstack});
     try paging.kernelPageDirectory.mapOneToOne(process.kstack);
     process.kstack += paging.PAGE_SIZE;
+    serial.format("Kernel stack top: 0x{x:0>8}\n", .{process.kstack});
     var esp = try paging.pageAllocator.alloc();
     try paging.kernelPageDirectory.mapOneToOne(esp);
     try process.pd.mapVirtToPhy(process.esp - paging.PAGE_SIZE, esp, paging.WRITE);

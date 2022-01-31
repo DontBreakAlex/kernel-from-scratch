@@ -8,6 +8,7 @@ const mem = @import("memory/mem.zig");
 
 const PageDirectory = paging.PageDirectory;
 const PageEntry = paging.PageEntry;
+const PageAllocator = @import("memory/page_allocator.zig").PageAllocator;
 
 pub fn init() void {
     idt.setInterruptHandler(0x80, syscall_handler, true);
@@ -82,6 +83,7 @@ export fn syscallHandlerInKS(regs_ptr: *idt.Regs, u_cr3: *[1024]PageEntry, us_es
         57 => fork(regs_ptr, us_esp) catch -1,
         60 => exit(),
         162 => sleep(),
+        184 => usage(regs.ebx) catch -1,
         else => {
             @panic("Unhandled syscall");
         },
@@ -166,5 +168,14 @@ fn read(fd: usize, buff: usize, count: usize) isize {
 fn exit() isize {
     scheduler.runningProcess.status = .Dead;
     scheduler.schedule(undefined, undefined, undefined);
+    return 0;
+}
+
+fn usage(u_ptr: usize) !isize {
+    scheduler.canSwitch = false;
+    defer scheduler.canSwitch = true;
+    var u_struct = try mem.mapStructure(PageAllocator.AllocatorUsage, @intToPtr(*PageAllocator.AllocatorUsage, u_ptr), scheduler.runningProcess.pd);
+    u_struct.* = paging.pageAllocator.usage();
+    try mem.unMapStructure(PageAllocator.AllocatorUsage, u_struct);
     return 0;
 }

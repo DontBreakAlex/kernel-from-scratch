@@ -3,6 +3,7 @@ const Allocator = std.mem.Allocator;
 const PAGE_SIZE = @import("paging.zig").PAGE_SIZE;
 const utils = @import("../utils.zig");
 const vga = @import("../vga.zig");
+const serial = @import("../serial.zig");
 
 pub const PageAllocator = struct {
     base: usize,
@@ -66,7 +67,7 @@ pub const PageAllocator = struct {
     pub fn alloc(self: *PageAllocator) !usize {
         for (self.alloc_table) |*e, i| {
             if (e.* == false) {
-                e.* = true;
+                markAllocated(e);
                 // vga.format("Allocated: 0x{x:0>8}\n", .{self.base + i * PAGE_SIZE});
                 return self.base + i * PAGE_SIZE;
             }
@@ -84,7 +85,7 @@ pub const PageAllocator = struct {
                     const first_page = i + 1 - count;
                     const last_page = i + 1;
                     for (self.alloc_table[first_page..last_page]) |*p| {
-                        p.* = true;
+                        markAllocated(p);
                     }
                     return @intToPtr([*]u8, self.base + first_page * PAGE_SIZE)[0..(count * PAGE_SIZE)];
                 }
@@ -106,7 +107,7 @@ pub const PageAllocator = struct {
                 if (aligned < page_end) {
                     const allocated = (page_end - aligned);
                     if (allocated >= size) {
-                        e.* = true;
+                        markAllocated(e);
                         return @intToPtr([*]u8, aligned)[0..allocated];
                     }
                     const remaining = size - allocated;
@@ -117,7 +118,7 @@ pub const PageAllocator = struct {
                             continue :outer;
                     }
                     for (self.alloc_table[i .. i + missing_pages + 1]) |*f| {
-                        f.* = true;
+                        markAllocated(f);
                     }
                     const alloc_end = self.base + (i + missing_pages + 1) * PAGE_SIZE;
                     const alloc_size = alloc_end - aligned;
@@ -136,7 +137,7 @@ pub const PageAllocator = struct {
             if (e == true)
                 return Allocator.Error.OutOfMemory;
         for (self.alloc_table[last_allocated_page + 1 .. new_last_page + 1]) |*e|
-            e.* = true;
+            markAllocated(e);
         return (new_last_page + 1) * PAGE_SIZE - @ptrToInt(buf.ptr);
     }
 
@@ -149,13 +150,13 @@ pub const PageAllocator = struct {
             @panic("Attempt to free non-existant page");
         if (self.alloc_table[index] == false)
             @panic("Page double free");
-        self.alloc_table[index] = false;
+        markFree(&self.alloc_table[index]);
     }
 
     /// Frees pages from start to end
     pub fn multipleFree(self: *PageAllocator, start: usize, end: usize) void {
         for (self.alloc_table[start .. end + 1]) |*e| {
-            e.* = false;
+            markFree(e);
         }
     }
 
@@ -175,6 +176,35 @@ pub const PageAllocator = struct {
         // This is disabled because it causes issues when trying to reserve structures that share pages
         // for (pages) |p| if (p == true)
         //     return ReserveError.AllreadyAllocated;
-        for (pages) |*p| p.* = true;
+        for (pages) |*p| markAllocated(p);
+    }
+
+    fn markAllocated(ptr: *bool) void {
+        serial.format("Allocated 0x{x:0>8}\n", .{ @ptrToInt(ptr) });
+        ptr.* = true;
+    }
+
+    fn markFree(ptr: *bool) void {
+        serial.format("Freed 0x{x:0>8}\n", .{ @ptrToInt(ptr) });
+        ptr.* = false;
+    }
+
+    /// Holds memory usage
+    pub const AllocatorUsage = struct {
+        /// Pages managed by this allocator
+        capacity: usize,
+        /// Allocated pages
+        allocated: usize,
+    };
+
+    pub fn usage(self: *PageAllocator) AllocatorUsage {
+        var i: usize = 0;
+        for (self.alloc_table) |e| {
+            if (e) i += 1;
+        }
+        return AllocatorUsage {
+            .capacity = self.alloc_table.len,
+            .allocated = i,
+        };
     }
 };
