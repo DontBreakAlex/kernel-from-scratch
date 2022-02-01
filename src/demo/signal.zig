@@ -11,7 +11,7 @@ pub fn testSignal() void {
     if (pid == 0) {
         // Child
         _ = lib.signal(.SIGINT, handleSignal);
-        lib.exit();
+        lib.exit(0);
     }
     // Parent
     vga.format("Child has PID {}\n", .{pid});

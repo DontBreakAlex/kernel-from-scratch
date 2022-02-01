@@ -74,16 +74,15 @@ export fn syscallHandlerInKS(regs_ptr: *idt.Regs, u_cr3: *[1024]PageEntry, us_es
     scheduler.canSwitch = true;
     @setRuntimeSafety(false);
     regs.eax = @bitCast(usize, switch (regs.eax) {
-        0 => read(regs.ebx, regs.ecx, regs.edx),
+        1 => exit(regs.ebx),
+        2 => fork(regs_ptr, us_esp) catch -1,
+        3 => read(regs.ebx, regs.ecx, regs.edx),
         9 => mmap(regs.ebx),
         11 => munmap(regs.ebx, regs.ecx),
-        // Should be sigaction
-        13 => signal(regs.ebx, regs.ecx),
-        39 => getpid(),
-        57 => fork(regs_ptr, us_esp) catch -1,
-        60 => exit(),
+        20 => getpid(),
+        48 => signal(regs.ebx, regs.ecx),
         162 => sleep(),
-        184 => usage(regs.ebx) catch -1,
+        222 => usage(regs.ebx) catch -1,
         else => {
             @panic("Unhandled syscall");
         },
@@ -165,8 +164,8 @@ fn read(fd: usize, buff: usize, count: usize) isize {
     return ret;
 }
 
-fn exit() isize {
-    scheduler.runningProcess.status = .Dead;
+fn exit(code: usize) isize {
+    scheduler.runningProcess.status = .Zombie;
     scheduler.schedule(undefined, undefined, undefined);
     return 0;
 }

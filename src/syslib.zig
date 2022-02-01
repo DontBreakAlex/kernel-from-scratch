@@ -11,7 +11,7 @@ pub var userAllocator = generalPurposeAllocator.allocator();
 pub fn read(fd: usize, buffer: []u8, count: usize) isize {
     return asm volatile (
         \\mov $0, %%eax
-        \\int $0x80
+        \\int $0x3
         : [ret] "=&{eax}" (-> isize),
         : [fd] "{ebx}" (fd),
           [buf] "{ecx}" (buffer.ptr),
@@ -45,7 +45,7 @@ pub fn munmap(buf: []u8) void {
 
 pub fn getPid() usize {
     return asm volatile (
-        \\mov $39, %%eax
+        \\mov $20, %%eax
         \\int $0x80
         : [ret] "={eax}" (-> usize),
     );
@@ -53,7 +53,7 @@ pub fn getPid() usize {
 
 pub fn fork() isize {
     return asm volatile (
-        \\mov $57, %%eax
+        \\mov $2, %%eax
         \\int $0x80
         : [ret] "={eax}" (-> isize),
     );
@@ -61,24 +61,26 @@ pub fn fork() isize {
 
 pub fn signal(sig: Signal, handler: fn () void) isize {
     return asm volatile (
-        \\mov $57, %%eax
+        \\mov $48, %%eax
         : [ret] "=&{eax}" (-> isize),
         : [sig] "{ebx}" (@enumToInt(sig)),
           [hdl] "{ecx}" (@ptrToInt(handler)),
     );
 }
 
-pub fn exit() noreturn {
+pub fn exit(code: usize) noreturn {
     asm volatile (
-        \\mov $60, %%eax
+        \\mov $1, %%eax
         \\int $0x80
+        :
+        : [code] "{ebx}" (code),
     );
     unreachable;
 }
 
 pub fn usage(ptr: *@import("memory/page_allocator.zig").PageAllocator.AllocatorUsage) isize {
     return asm volatile (
-        \\mov $184, %%eax
+        \\mov $222, %%eax
         \\int $0x80
         : [ret] "=&{eax}" (-> isize),
         : [addr] "{ebx}" (ptr),

@@ -19,14 +19,13 @@ pub fn run() void {
     while (true) {
         vga.putChar('>');
         if (readLine()) |line| {
-            defer line.deinit();
-
             var args = std.mem.tokenize(u8, line.items, " ");
             if (commands.find(args.next() orelse continue)) |command| {
                 _ = command(&args);
             } else {
                 vga.format("Command not found: {s}\n", .{line.items});
             }
+            line.deinit();
         } else |err| {
             vga.format("\nReadline error: \"{s}\"\n", .{err});
         }

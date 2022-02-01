@@ -1,13 +1,15 @@
 const std = @import("std");
 const paging = @import("memory/paging.zig");
 const PageDirectory = paging.PageDirectory;
-const allocator = @import("memory/mem.zig").allocator;
+const mem = @import("memory/mem.zig");
+const allocator = mem.allocator;
 const vmem = @import("memory/vmem.zig");
 pub const Signal = enum(u8) { SIGINT = 0 };
 const SignalQueue = std.fifo.LinearFifo(Signal, .Dynamic); // TODO: Use fixed size
 const Children = std.SinglyLinkedList(*Process);
 const Child = Children.Node;
 const US_STACK_BASE = 0x1000000;
+const KERNEL_STACK_SIZE = 2;
 const Buffer = utils.Buffer;
 const keyboard = @import("keyboard.zig");
 const serial = @import("serial.zig");
@@ -97,7 +99,7 @@ const Process = struct {
         self.vmem.free(v_addr);
         var i: usize = 0;
         while (i < page_count) : (i += 1) {
-            _ = self.pd.unMap(v_addr + paging.PAGE_SIZE * i) catch unreachable;
+            self.pd.freeVirt(v_addr + paging.PAGE_SIZE * i) catch unreachable;
         }
     }
 
@@ -119,9 +121,7 @@ const Process = struct {
         new_process.owner_id = 0;
         new_process.vmem = vmem.VMemManager{};
         new_process.vmem.copy_from(&self.vmem);
-        new_process.kstack = try paging.pageAllocator.alloc();
-        try paging.kernelPageDirectory.mapOneToOne(new_process.kstack);
-        new_process.kstack += paging.PAGE_SIZE;
+        new_process.kstack = try mem.allocKstack(KERNEL_STACK_SIZE);
         self.childrens.prepend(child);
         return new_process;
     }
@@ -130,6 +130,7 @@ const Process = struct {
         // TODO: Dealloc stacks
         self.signals.deinit();
         self.pd.deinit();
+        mem.freeKstack(self.kstack, KERNEL_STACK_SIZE);
         allocator.destroy(self);
     }
 };
@@ -173,11 +174,8 @@ pub fn startProcess(func: Fn) !void {
         try process.pd.mapOneToOne(paging.PAGE_SIZE * i);
     }
     paging.printDirectory(process.pd.cr3);
-    process.kstack = try paging.pageAllocator.alloc();
+    process.kstack = try mem.allocKstack(2);
     serial.format("Kernel stack bottom: 0x{x:0>8}\n", .{process.kstack});
-    try paging.kernelPageDirectory.mapOneToOne(process.kstack);
-    process.kstack += paging.PAGE_SIZE;
-    serial.format("Kernel stack top: 0x{x:0>8}\n", .{process.kstack});
     var esp = try paging.pageAllocator.alloc();
     try paging.kernelPageDirectory.mapOneToOne(esp);
     try process.pd.mapVirtToPhy(process.esp - paging.PAGE_SIZE, esp, paging.WRITE);
@@ -211,8 +209,7 @@ pub export fn schedule(esp: usize, regs: usize, cr3: usize) callconv(.C) void {
             queue.writeItem(runningProcess) catch @panic("Scheduler failed");
             runningProcess = queue.readItem() orelse @panic("Scheduler failed");
         },
-        .Dead => {
-            runningProcess.deinit();
+        .Zombie => {
             while (queue.count == 0) {
                 if (events.count() == 0)
                     @panic("Attempt to kill last process !");

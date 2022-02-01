@@ -64,6 +64,25 @@ pub fn unMapBuffer(size: usize, v_addr: usize) !void {
     }
 }
 
-pub fn allocKstack(page_count: usize) void {
+pub fn allocKstack(page_count: usize) !usize {
+    // Alloc one more page that will not be mapped to trigger a page fault when the stack overflows
+    const first_page = try vmemManager.alloc(page_count + 1);
+    const last_page = first_page + PAGE_SIZE * page_count;
+    var i: usize = 0;
+    while (i < page_count) : (i += 1) {
+        errdefer while (i != 0) : (i -= 1) paging.kernelPageDirectory.freeVirt(last_page - (i - 1) * PAGE_SIZE) catch @panic("Free failed inside alloc failure");
+        try paging.kernelPageDirectory.allocVirt(last_page - i * PAGE_SIZE, paging.WRITE);
+    }
+    return last_page + PAGE_SIZE;
+}
 
+/// Frees a kernel stack. Takes size of the stack in pages.
+pub fn freeKstack(addr: usize, stack_size: usize) void {
+    const last_page = addr - PAGE_SIZE;
+    const first_page = addr - PAGE_SIZE * stack_size;
+    var i: usize = 0;
+    while (i < stack_size) : (i += 1) {
+        paging.kernelPageDirectory.freeVirt(last_page - i * PAGE_SIZE) catch unreachable;
+    }
+    vmemManager.free(first_page);
 }
