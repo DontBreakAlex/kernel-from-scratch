@@ -9,6 +9,7 @@ const mem = @import("memory/mem.zig");
 const PageDirectory = paging.PageDirectory;
 const PageEntry = paging.PageEntry;
 const PageAllocator = @import("memory/page_allocator.zig").PageAllocator;
+const Event = scheduler.Event;
 
 pub fn init() void {
     idt.setInterruptHandler(0x80, syscall_handler, true);
@@ -148,8 +149,8 @@ fn read(fd: usize, buff: usize, count: usize) isize {
     defer scheduler.canSwitch = true;
     if (scheduler.runningProcess.fd[fd]) |descriptor| {
         while (descriptor.readableLength() == 0) {
-            scheduler.runningProcess.status = .IO;
-            scheduler.queueEvent(descriptor, scheduler.runningProcess) catch return -1;
+            scheduler.queueEvent(Event{ .IO = descriptor }, scheduler.runningProcess) catch return -1;
+            scheduler.runningProcess.status = .Sleeping;
             scheduler.canSwitch = true;
             asm volatile ("int $0x81");
             scheduler.canSwitch = false;
@@ -165,6 +166,7 @@ fn read(fd: usize, buff: usize, count: usize) isize {
 }
 
 fn exit(code: usize) isize {
+    _ = code;
     scheduler.runningProcess.status = .Zombie;
     scheduler.schedule(undefined, undefined, undefined);
     return 0;
@@ -177,4 +179,8 @@ fn usage(u_ptr: usize) !isize {
     u_struct.* = paging.pageAllocator.usage();
     try mem.unMapStructure(PageAllocator.AllocatorUsage, u_struct);
     return 0;
+}
+
+fn waitpid() isize {
+    scheduler.canSwitch = false;
 }

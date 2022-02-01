@@ -17,7 +17,7 @@ const serial = @import("serial.zig");
 pub var wantsToSwitch: bool = false;
 pub var canSwitch: bool = true;
 
-pub const Status = enum { Running, Paused, Zombie, Dead, IO };
+pub const Status = enum { Running, Paused, Zombie, Dead, Sleeping };
 
 const Process = struct {
     pid: u16,
@@ -137,8 +137,12 @@ const Process = struct {
 
 const ProcessQueue = std.fifo.LinearFifo(*Process, .Dynamic);
 const EventList = std.ArrayListUnmanaged(*Process);
-const Events = std.AutoHashMap(*Buffer, EventList);
+const Events = std.AutoHashMap(Event, EventList);
 const Fn = fn () void;
+pub const Event = union(enum) {
+    IO: *Buffer,
+    CHILD,
+};
 
 pub var queue: ProcessQueue = ProcessQueue.init(allocator);
 pub var events: Events = Events.init(allocator);
@@ -193,7 +197,7 @@ pub fn startProcess(func: Fn) !void {
 pub export fn schedule(esp: usize, regs: usize, cr3: usize) callconv(.C) void {
     canSwitch = false;
     switch (runningProcess.status) {
-        .IO => {
+        .Sleeping => {
             while (queue.count == 0)
                 asm volatile (
                     \\sti
@@ -227,7 +231,7 @@ pub export fn schedule(esp: usize, regs: usize, cr3: usize) callconv(.C) void {
     runningProcess.restore();
 }
 
-pub fn queueEvent(key: *Buffer, val: *Process) !void {
+pub fn queueEvent(key: Event, val: *Process) !void {
     var res = try events.getOrPut(key);
     var array: *EventList = res.value_ptr;
     if (!res.found_existing)
@@ -236,7 +240,7 @@ pub fn queueEvent(key: *Buffer, val: *Process) !void {
 }
 
 pub fn writeWithEvent(buffer: *Buffer, data: []const u8) !void {
-    if (events.getPtr(buffer)) |array| {
+    if (events.getPtr(Event{ .IO = buffer })) |array| {
         try queue.ensureUnusedCapacity(array.items.len);
         try buffer.write(data);
         queue.writeAssumeCapacity(array.items);
