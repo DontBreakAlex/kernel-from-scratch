@@ -63,3 +63,7 @@ pub fn unMapBuffer(size: usize, v_addr: usize) !void {
         }
     }
 }
+
+pub fn allocKstack(page_count: usize) void {
+
+}

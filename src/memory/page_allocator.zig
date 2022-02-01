@@ -29,28 +29,19 @@ pub const PageAllocator = struct {
 
     fn allocFn(self: *PageAllocator, len: usize, ptr_align: u29, len_align: u29, ret_addr: usize) ![]u8 {
         _ = ret_addr;
-        const buf = if (ptr_align <= PAGE_SIZE)
-            try self.allocPageAligned(len)
-        else
-            try self.allocAligned(len, ptr_align);
-        if (len_align == 0) {
-            return buf[0..len];
-        } else if (len_align == 1) {
-            return buf;
-        } else {
-            const requested_len = std.mem.alignAllocLen(buf.len, len, len_align);
-            return buf[0..requested_len];
-        }
+        if (ptr_align > PAGE_SIZE)
+            @panic("Unsuported page align");
+        const page_count = utils.divCeil(len, PAGE_SIZE);
+        const buf = try self.allocMultiple(page_count);
+        return buf[0..std.mem.alignAllocLen(buf.len, len, len_align)];
     }
 
-    fn freeFn(self: *PageAllocator, buf: []u8, buf_align: u29, ret_addr: usize) void {
-        _ = ret_addr;
-        const first_page = if (buf_align <= PAGE_SIZE) @ptrToInt(buf.ptr) else std.mem.alignBackward(@ptrToInt(buf.ptr), PAGE_SIZE);
-        const last_page = std.mem.alignBackward(@ptrToInt(buf.ptr) + buf.len, PAGE_SIZE);
-        const start = (first_page - self.base) / PAGE_SIZE;
-        const end = (last_page - self.base) / PAGE_SIZE;
-
-        self.multipleFree(start, end);
+    fn freeFn(self: *PageAllocator, buf: []u8, _: u29, _: usize) void {
+        const page_count = utils.divCeil(buf.len, PAGE_SIZE);
+        var i: usize = 0;
+        while (i < page_count) : (i += 1) {
+            _ = self.free(buf.ptr + PAGE_SIZE * i) catch unreachable;
+        }
     }
 
     fn resizeFn(self: *PageAllocator, buf: []u8, buf_align: u29, new_len: usize, len_align: u29, ret_addr: usize) ?usize {
@@ -65,18 +56,16 @@ pub const PageAllocator = struct {
 
     /// Returns a single page of physical memory
     pub fn alloc(self: *PageAllocator) !usize {
-        for (self.alloc_table) |*e, i| {
-            if (e.* == false) {
-                markAllocated(e);
-                // vga.format("Allocated: 0x{x:0>8}\n", .{self.base + i * PAGE_SIZE});
+        for (self.alloc_table) |e, i| {
+            if (e == false) {
+                self.markAllocated(i);
                 return self.base + i * PAGE_SIZE;
             }
         }
         return Allocator.Error.OutOfMemory;
     }
 
-    pub fn allocPageAligned(self: *PageAllocator, size: usize) ![]u8 {
-        const count = utils.divCeil(size, PAGE_SIZE);
+    pub fn allocMultiple(self: *PageAllocator, count: usize) ![]u8 {
         var continuous: usize = 0;
         for (self.alloc_table) |e, i| {
             if (e == false) {
@@ -84,9 +73,9 @@ pub const PageAllocator = struct {
                 if (continuous == count) {
                     const first_page = i + 1 - count;
                     const last_page = i + 1;
-                    for (self.alloc_table[first_page..last_page]) |*p| {
-                        markAllocated(p);
-                    }
+                    var o = first_page;
+                    while (o <= last_page) : (o += 1)
+                        self.markAllocated(o);
                     return @intToPtr([*]u8, self.base + first_page * PAGE_SIZE)[0..(count * PAGE_SIZE)];
                 }
             } else {
@@ -94,51 +83,6 @@ pub const PageAllocator = struct {
             }
         }
         return Allocator.Error.OutOfMemory;
-    }
-
-    pub fn allocAligned(self: *PageAllocator, size: usize, aligment: u29) ![]u8 {
-        outer: for (self.alloc_table) |*e, i| {
-            if (e.* == false) {
-                const page_begin = self.base + i * PAGE_SIZE;
-                const page_end = page_begin + PAGE_SIZE;
-                const aligned = std.mem.alignForward(page_begin, aligment);
-
-                // Check if pointer can be aligned inside the page
-                if (aligned < page_end) {
-                    const allocated = (page_end - aligned);
-                    if (allocated >= size) {
-                        markAllocated(e);
-                        return @intToPtr([*]u8, aligned)[0..allocated];
-                    }
-                    const remaining = size - allocated;
-                    const missing_pages = utils.divCeil(remaining, PAGE_SIZE);
-                    // Check that next pages are free
-                    for (self.alloc_table[i + 1 .. i + missing_pages + 1]) |f| {
-                        if (f == true)
-                            continue :outer;
-                    }
-                    for (self.alloc_table[i .. i + missing_pages + 1]) |*f| {
-                        markAllocated(f);
-                    }
-                    const alloc_end = self.base + (i + missing_pages + 1) * PAGE_SIZE;
-                    const alloc_size = alloc_end - aligned;
-                    return @intToPtr([*]u8, aligned)[0..alloc_size];
-                }
-            }
-        }
-        return Allocator.Error.OutOfMemory;
-    }
-
-    /// Resizes a buffer (resizing to one will not free)
-    pub fn resize(self: *PageAllocator, buf: []u8, new_len: usize) !usize {
-        const last_allocated_page = (std.mem.alignBackward((@ptrToInt(buf.ptr) + buf.len), PAGE_SIZE) - self.base) / PAGE_SIZE;
-        const new_last_page = (std.mem.alignBackward((@ptrToInt(buf.ptr) + new_len), PAGE_SIZE) - self.base) / PAGE_SIZE;
-        for (self.alloc_table[last_allocated_page + 1 .. new_last_page + 1]) |e|
-            if (e == true)
-                return Allocator.Error.OutOfMemory;
-        for (self.alloc_table[last_allocated_page + 1 .. new_last_page + 1]) |*e|
-            markAllocated(e);
-        return (new_last_page + 1) * PAGE_SIZE - @ptrToInt(buf.ptr);
     }
 
     /// Frees a single page
@@ -150,14 +94,7 @@ pub const PageAllocator = struct {
             @panic("Attempt to free non-existant page");
         if (self.alloc_table[index] == false)
             @panic("Page double free");
-        markFree(&self.alloc_table[index]);
-    }
-
-    /// Frees pages from start to end
-    pub fn multipleFree(self: *PageAllocator, start: usize, end: usize) void {
-        for (self.alloc_table[start .. end + 1]) |*e| {
-            markFree(e);
-        }
+        self.markFree(index);
     }
 
     const ReserveError = error{
@@ -176,17 +113,17 @@ pub const PageAllocator = struct {
         // This is disabled because it causes issues when trying to reserve structures that share pages
         // for (pages) |p| if (p == true)
         //     return ReserveError.AllreadyAllocated;
-        for (pages) |*p| markAllocated(p);
+        for (pages) |*p| p.* = true;
     }
 
-    fn markAllocated(ptr: *bool) void {
-        serial.format("Allocated 0x{x:0>8}\n", .{ @ptrToInt(ptr) });
-        ptr.* = true;
+    fn markAllocated(self: *PageAllocator, index: usize) void {
+        self.alloc_table[index] = true;
+        serial.format("Allocated 0x{x:0>8}\n", .{ self.base + index * PAGE_SIZE });
     }
 
-    fn markFree(ptr: *bool) void {
-        serial.format("Freed 0x{x:0>8}\n", .{ @ptrToInt(ptr) });
-        ptr.* = false;
+    fn markFree(self: *PageAllocator, index: usize) void {
+        self.alloc_table[index] = false;
+        serial.format("Freed 0x{x:0>8}\n", .{ self.base + index * PAGE_SIZE });
     }
 
     /// Holds memory usage

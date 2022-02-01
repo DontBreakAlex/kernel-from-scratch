@@ -35,13 +35,12 @@ fn setup() !void {
     dir[0].flags = PRESENT | WRITE;
     dir[0].phy_addr = @truncate(u20, tab_alloc >> 12);
     kernelPageDirectory = PageDirectory{ .cr3 = dir };
-    vga.format("Kernel cr3: 0x{x:0>8}\n", .{dir_alloc});
+    serial.format("Kernel cr3: 0x{x:0>8}\n", .{dir_alloc});
 
     try kernelPageDirectory.mapOneToOne(dir_alloc);
     try kernelPageDirectory.mapOneToOne(tab_alloc);
     printDirectory(kernelPageDirectory.cr3);
 
-    utils.boch_break();
     // Map first 1M of memory (where the kernel is)
     var i: usize = 0;
     while (i < 256) : (i += 1) {
@@ -168,7 +167,8 @@ pub const PageDirectory = struct {
 
     pub fn dup(self: *PageDirectory) !PageDirectory {
         var new: PageDirectory = try PageDirectory.init();
-        vga.format("Duped cr3: {x}\n", .{new});
+        serial.format("Duping cr3: {x}\n", .{new});
+        printDirectory(self.cr3);
         for (self.cr3) |*page_table, dir_offset| {
             if (page_table.flags & PRESENT == 1) {
                 for (@intToPtr(*[1024]PageEntry, @intCast(usize, page_table.phy_addr) << 12)) |*entry, table_offset| {
@@ -232,12 +232,12 @@ fn initEmpty(entries: []PageEntry) void {
     }
 }
 
-fn printDirectory(entries: []PageEntry) void {
-    vga.format("Page Directory: 0x{x:0>8}-0x{x:0>8}\n", .{ @ptrToInt(entries.ptr), @ptrToInt(entries.ptr) + entries.len * @sizeOf(PageEntry) });
+pub fn printDirectory(entries: []PageEntry) void {
+    serial.format("Page Directory: 0x{x:0>8}-0x{x:0>8}\n", .{ @ptrToInt(entries.ptr), @ptrToInt(entries.ptr) + entries.len * @sizeOf(PageEntry) });
     for (entries) |*e| {
         if (e.flags & PRESENT == 1) {
             const addr = @intCast(usize, e.phy_addr) << 12;
-            vga.format("  Page Table: 0x{x:0>8}-0x{x:0>8}\n", .{ addr, addr + @sizeOf(PageEntry) * 1024 });
+            serial.format("  Page Table: 0x{x:0>8}-0x{x:0>8}\n", .{ addr, addr + @sizeOf(PageEntry) * 1024 });
             printTable(@intToPtr(*[1024]PageEntry, addr));
         }
     }
@@ -247,7 +247,7 @@ fn printTable(entries: []PageEntry) void {
     for (entries) |*e| {
         if (e.flags & PRESENT == 1) {
             const addr = @intCast(usize, e.phy_addr) << 12;
-            vga.format("    0x{x:0>8}\n", .{addr});
+            serial.format("    0x{x:0>8}\n", .{addr});
         }
     }
 }

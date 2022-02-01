@@ -172,6 +172,7 @@ pub fn startProcess(func: Fn) !void {
     while (i < 256) : (i += 1) {
         try process.pd.mapOneToOne(paging.PAGE_SIZE * i);
     }
+    paging.printDirectory(process.pd.cr3);
     process.kstack = try paging.pageAllocator.alloc();
     serial.format("Kernel stack bottom: 0x{x:0>8}\n", .{process.kstack});
     try paging.kernelPageDirectory.mapOneToOne(process.kstack);
