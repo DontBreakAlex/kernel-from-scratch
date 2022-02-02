@@ -5,11 +5,13 @@ const idt = @import("idt.zig");
 const utils = @import("utils.zig");
 const vga = @import("vga.zig");
 const mem = @import("memory/mem.zig");
+const serial = @import("serial.zig");
 
 const PageDirectory = paging.PageDirectory;
 const PageEntry = paging.PageEntry;
 const PageAllocator = @import("memory/page_allocator.zig").PageAllocator;
 const Event = scheduler.Event;
+const Process = scheduler.Process;
 
 pub fn init() void {
     idt.setInterruptHandler(0x80, syscall_handler, true);
@@ -78,6 +80,7 @@ export fn syscallHandlerInKS(regs_ptr: *idt.Regs, u_cr3: *[1024]PageEntry, us_es
         1 => exit(regs.ebx),
         2 => fork(regs_ptr, us_esp) catch -1,
         3 => read(regs.ebx, regs.ecx, regs.edx),
+        7 => waitpid(),
         9 => mmap(regs.ebx),
         11 => munmap(regs.ebx, regs.ecx),
         20 => getpid(),
@@ -168,7 +171,14 @@ fn read(fd: usize, buff: usize, count: usize) isize {
 fn exit(code: usize) isize {
     scheduler.canSwitch = false;
     scheduler.runningProcess.status = .Zombie;
-    scheduler.runningProcess.state.ExitCode = code;
+    scheduler.runningProcess.state = .{ .ExitCode = code };
+    serial.format("{x}\n", .{&scheduler.runningProcess});
+    if (scheduler.runningProcess.parent) |parent| {
+        if (parent.status == .Sleeping) {
+            parent.status = .Paused;
+            scheduler.queue.writeItem(parent) catch @panic("Alloc failure in exit");
+        }
+    } else @panic("Init process exited");
     scheduler.canSwitch = true;
     scheduler.schedule(undefined, undefined, undefined);
     return 0;
@@ -185,18 +195,27 @@ fn usage(u_ptr: usize) !isize {
 
 fn waitpid() isize {
     scheduler.canSwitch = false;
+    defer scheduler.canSwitch = true;
     var child = scheduler.runningProcess.childrens.first;
     var prev: ?*scheduler.Child = null;
-    while (child) |c| {
-        if (c.data.status == .Zombie) {
-            const code = c.data.state.ExitCode;
-            if (prev) |p|
-                p.removeNext()
-            else
-                scheduler.runningProcess.childrens.popFirst();
-            c.data.deinit();
+    while (true) {
+        scheduler.runningProcess.status = .Sleeping;
+        scheduler.canSwitch = true;
+        asm volatile ("int $0x81");
+        scheduler.canSwitch = false;
+        while (child) |c| {
+            if (c.data.status == .Zombie) {
+                const pid = c.data.pid;
+                _ = if (prev) |p|
+                    p.removeNext()
+                else
+                    scheduler.runningProcess.childrens.popFirst();
+                c.data.deinit();
+                return @intCast(isize, pid);
+            }
+            prev = c;
+            child = c.next;
         }
-        prev = c;
-        child = c.next;
     }
+    return -1;
 }

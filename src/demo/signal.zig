@@ -15,4 +15,6 @@ pub fn testSignal() void {
     }
     // Parent
     vga.format("Child has PID {}\n", .{pid});
+    _ = lib.wait();
+    vga.putStr("Child terminated\n");
 }

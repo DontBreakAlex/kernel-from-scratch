@@ -78,6 +78,14 @@ pub fn exit(code: usize) noreturn {
     unreachable;
 }
 
+pub fn wait() isize {
+    return asm volatile (
+        \\mov $7, %%eax
+        \\int $0x80
+        : [ret] "={eax}" (-> isize),
+    );
+}
+
 pub fn usage(ptr: *@import("memory/page_allocator.zig").PageAllocator.AllocatorUsage) isize {
     return asm volatile (
         \\mov $222, %%eax

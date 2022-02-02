@@ -39,7 +39,7 @@ fn setup() !void {
 
     try kernelPageDirectory.mapOneToOne(dir_alloc);
     try kernelPageDirectory.mapOneToOne(tab_alloc);
-    printDirectory(kernelPageDirectory.cr3);
+    // printDirectory(kernelPageDirectory.cr3);
 
     // Map first 1M of memory (where the kernel is)
     var i: usize = 0;
@@ -168,7 +168,7 @@ pub const PageDirectory = struct {
     pub fn dup(self: *PageDirectory) !PageDirectory {
         var new: PageDirectory = try PageDirectory.init();
         serial.format("Duping cr3: {x}\n", .{new});
-        printDirectory(self.cr3);
+        // printDirectory(self.cr3);
         for (self.cr3) |*page_table, dir_offset| {
             if (page_table.flags & PRESENT == 1) {
                 for (@intToPtr(*[1024]PageEntry, @intCast(usize, page_table.phy_addr) << 12)) |*entry, table_offset| {

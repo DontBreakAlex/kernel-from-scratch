@@ -15,6 +15,7 @@ const srl = @import("serial.zig");
 pub fn panic(msg: []const u8, _: ?*std.builtin.StackTrace) noreturn {
     @setCold(true);
     vga.format("KERNEL PANIC: {s}\n", .{msg});
+    srl.format("KERNEL PANIC: {s}\n", .{msg});
     utl.printTrace();
     utl.boch_break();
     utl.halt();

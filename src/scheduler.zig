@@ -52,7 +52,7 @@ const Process = struct {
 
     /// Saves a process. Does not update current process.
     pub fn save(self: *Process, esp: usize, regs: usize, cr3: usize) void {
-        self.state = State{ .SavedState = ProcessState{ .cr3 = cr3, .esp = esp, .regs = regs }};
+        self.state = State{ .SavedState = ProcessState{ .cr3 = cr3, .esp = esp, .regs = regs } };
     }
 
     /// Resume the process. Does not update current process.
@@ -118,12 +118,14 @@ const Process = struct {
         new_process.signals = SignalQueue.init(allocator);
         std.mem.copy(usize, &new_process.handlers, &self.handlers);
         new_process.pd = try self.pd.dup();
-        new_process.state.SavedState.cr3 = @ptrToInt(new_process.pd.cr3);
+        new_process.state = State{ .SavedState = ProcessState{ .cr3 = @ptrToInt(new_process.pd.cr3), .esp = undefined, .regs = undefined } };
         new_process.owner_id = 0;
         new_process.vmem = vmem.VMemManager{};
         new_process.vmem.copy_from(&self.vmem);
         new_process.kstack = try mem.allocKstack(KERNEL_STACK_SIZE);
+        serial.format("Kernel stack bottom: 0x{x:0>8}\n", .{new_process.kstack});
         self.childrens.prepend(child);
+        new_process.parent = self;
         return new_process;
     }
 
@@ -166,17 +168,17 @@ pub fn startProcess(func: Fn) !void {
     process.signals = SignalQueue.init(allocator);
     process.handlers = .{0} ** 1;
     process.pd = try PageDirectory.init();
-    process.state = State { .SavedState = ProcessState{
+    process.state = .{ .SavedState = ProcessState{
         .cr3 = @ptrToInt(process.pd.cr3),
         .esp = US_STACK_BASE,
         .regs = 0,
-    }
-    };
+    } };
     process.owner_id = 0;
     process.vmem = vmem.VMemManager{};
     process.vmem.init();
     process.fd = .{null} ** 128;
     process.fd[0] = &keyboard.queue;
+    process.parent = null;
 
     var i: usize = 0;
     while (i < 256) : (i += 1) {
