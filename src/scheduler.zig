@@ -7,7 +7,7 @@ const vmem = @import("memory/vmem.zig");
 pub const Signal = enum(u8) { SIGINT = 0 };
 const SignalQueue = std.fifo.LinearFifo(Signal, .Dynamic); // TODO: Use fixed size
 const Children = std.SinglyLinkedList(*Process);
-const Child = Children.Node;
+pub const Child = Children.Node;
 const US_STACK_BASE = 0x1000000;
 const KERNEL_STACK_SIZE = 2;
 const Buffer = utils.Buffer;
@@ -17,6 +17,12 @@ const serial = @import("serial.zig");
 pub var wantsToSwitch: bool = false;
 pub var canSwitch: bool = true;
 
+pub const ProcessState = struct {
+    cr3: usize,
+    esp: usize,
+    regs: usize,
+};
+pub const State = union { SavedState: ProcessState, ExitCode: usize };
 pub const Status = enum { Running, Paused, Zombie, Dead, Sleeping };
 
 const Process = struct {
@@ -26,10 +32,7 @@ const Process = struct {
     childrens: Children,
     signals: SignalQueue,
     handlers: [1]usize,
-    cr3: usize,
-    // Virt addr
-    esp: usize,
-    regs: usize,
+    state: State,
     // Phy addr
     kstack: usize,
     pd: PageDirectory,
@@ -49,9 +52,7 @@ const Process = struct {
 
     /// Saves a process. Does not update current process.
     pub fn save(self: *Process, esp: usize, regs: usize, cr3: usize) void {
-        self.cr3 = cr3;
-        self.esp = esp;
-        self.regs = regs;
+        self.state = State{ .SavedState = ProcessState{ .cr3 = cr3, .esp = esp, .regs = regs }};
     }
 
     /// Resume the process. Does not update current process.
@@ -64,9 +65,9 @@ const Process = struct {
             \\popa
             \\iret
             :
-            : [new_esp] "r" (self.esp),
-              [pd] "r" (self.cr3),
-              [regs] "r" (self.regs),
+            : [new_esp] "r" (self.state.SavedState.esp),
+              [pd] "r" (self.state.SavedState.cr3),
+              [regs] "r" (self.state.SavedState.regs),
             : "memory"
         );
     }
@@ -78,8 +79,8 @@ const Process = struct {
             \\mov %[new_esp], %%esp
             \\iret
             :
-            : [new_esp] "r" (self.esp),
-              [pd] "r" (self.cr3),
+            : [new_esp] "r" (self.state.SavedState.esp),
+              [pd] "r" (self.state.SavedState.cr3),
             : "memory"
         );
     }
@@ -117,7 +118,7 @@ const Process = struct {
         new_process.signals = SignalQueue.init(allocator);
         std.mem.copy(usize, &new_process.handlers, &self.handlers);
         new_process.pd = try self.pd.dup();
-        new_process.cr3 = @ptrToInt(new_process.pd.cr3);
+        new_process.state.SavedState.cr3 = @ptrToInt(new_process.pd.cr3);
         new_process.owner_id = 0;
         new_process.vmem = vmem.VMemManager{};
         new_process.vmem.copy_from(&self.vmem);
@@ -165,8 +166,12 @@ pub fn startProcess(func: Fn) !void {
     process.signals = SignalQueue.init(allocator);
     process.handlers = .{0} ** 1;
     process.pd = try PageDirectory.init();
-    process.cr3 = @ptrToInt(process.pd.cr3);
-    process.esp = US_STACK_BASE;
+    process.state = State { .SavedState = ProcessState{
+        .cr3 = @ptrToInt(process.pd.cr3),
+        .esp = US_STACK_BASE,
+        .regs = 0,
+    }
+    };
     process.owner_id = 0;
     process.vmem = vmem.VMemManager{};
     process.vmem.init();
@@ -182,8 +187,8 @@ pub fn startProcess(func: Fn) !void {
     serial.format("Kernel stack bottom: 0x{x:0>8}\n", .{process.kstack});
     var esp = try paging.pageAllocator.alloc();
     try paging.kernelPageDirectory.mapOneToOne(esp);
-    try process.pd.mapVirtToPhy(process.esp - paging.PAGE_SIZE, esp, paging.WRITE);
-    process.esp -= 12;
+    try process.pd.mapVirtToPhy(process.state.SavedState.esp - paging.PAGE_SIZE, esp, paging.WRITE);
+    process.state.SavedState.esp -= 12;
     esp += 4092;
     @intToPtr(*usize, esp).* = 0x202; // eflags
     esp -= 4;

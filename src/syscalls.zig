@@ -118,8 +118,8 @@ fn fork(regs_ptr: *idt.Regs, us_esp: usize) !isize {
     errdefer new_process.deinit();
     // 20 is the space space used by syscall_handler
     // In case of weird bug, check here (expected issue: FPU data corruption)
-    new_process.esp = us_esp + 20;
-    new_process.regs = @ptrToInt(regs_ptr);
+    new_process.state.SavedState.esp = us_esp + 20;
+    new_process.state.SavedState.regs = @ptrToInt(regs_ptr);
     scheduler.canSwitch = false;
     {
         const regs = try mem.mapStructure(idt.Regs, regs_ptr, new_process.pd);
@@ -166,8 +166,10 @@ fn read(fd: usize, buff: usize, count: usize) isize {
 }
 
 fn exit(code: usize) isize {
-    _ = code;
+    scheduler.canSwitch = false;
     scheduler.runningProcess.status = .Zombie;
+    scheduler.runningProcess.state.ExitCode = code;
+    scheduler.canSwitch = true;
     scheduler.schedule(undefined, undefined, undefined);
     return 0;
 }
@@ -183,4 +185,18 @@ fn usage(u_ptr: usize) !isize {
 
 fn waitpid() isize {
     scheduler.canSwitch = false;
+    var child = scheduler.runningProcess.childrens.first;
+    var prev: ?*scheduler.Child = null;
+    while (child) |c| {
+        if (c.data.status == .Zombie) {
+            const code = c.data.state.ExitCode;
+            if (prev) |p|
+                p.removeNext()
+            else
+                scheduler.runningProcess.childrens.popFirst();
+            c.data.deinit();
+        }
+        prev = c;
+        child = c.next;
+    }
 }
