@@ -219,3 +219,7 @@ fn waitpid() isize {
     }
     return -1;
 }
+
+fn kill(pid: usize, sig: usize) isize {
+    
+}

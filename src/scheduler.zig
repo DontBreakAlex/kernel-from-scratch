@@ -118,19 +118,22 @@ const Process = struct {
         new_process.signals = SignalQueue.init(allocator);
         std.mem.copy(usize, &new_process.handlers, &self.handlers);
         new_process.pd = try self.pd.dup();
+        errdefer self.pd.deinit();
         new_process.state = State{ .SavedState = ProcessState{ .cr3 = @ptrToInt(new_process.pd.cr3), .esp = undefined, .regs = undefined } };
         new_process.owner_id = 0;
         new_process.vmem = vmem.VMemManager{};
         new_process.vmem.copy_from(&self.vmem);
         new_process.kstack = try mem.allocKstack(KERNEL_STACK_SIZE);
+        errdefer mem.freeKstack(new_process.kstack);
         serial.format("Kernel stack bottom: 0x{x:0>8}\n", .{new_process.kstack});
+        try processes.put(new_process.pid, new_process);
         self.childrens.prepend(child);
         new_process.parent = self;
         return new_process;
     }
 
     pub fn deinit(self: *Process) void {
-        // TODO: Dealloc stacks
+        processes.remove(self.pid);
         self.signals.deinit();
         self.pd.deinit();
         mem.freeKstack(self.kstack, KERNEL_STACK_SIZE);
@@ -138,6 +141,7 @@ const Process = struct {
     }
 };
 
+const ProcessMap = std.AutoHashMap(u16, *Process);
 const ProcessQueue = std.fifo.LinearFifo(*Process, .Dynamic);
 const EventList = std.ArrayListUnmanaged(*Process);
 const Events = std.AutoHashMap(Event, EventList);
@@ -149,6 +153,7 @@ pub const Event = union(enum) {
 
 pub var queue: ProcessQueue = ProcessQueue.init(allocator);
 pub var events: Events = Events.init(allocator);
+pub var processes: ProcessMap = ProcessMap.init(allocator);
 var currentPid: u16 = 1;
 pub var runningProcess: *Process = undefined;
 
@@ -198,6 +203,7 @@ pub fn startProcess(func: Fn) !void {
     esp -= 4;
     @intToPtr(*usize, esp).* = @ptrToInt(func); // eip
     // utils.boch_break();
+    try processes.put(process.pid, process);
     process.start();
 }
 
