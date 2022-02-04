@@ -124,7 +124,7 @@ const Process = struct {
         new_process.vmem = vmem.VMemManager{};
         new_process.vmem.copy_from(&self.vmem);
         new_process.kstack = try mem.allocKstack(KERNEL_STACK_SIZE);
-        errdefer mem.freeKstack(new_process.kstack);
+        errdefer mem.freeKstack(new_process.kstack, KERNEL_STACK_SIZE);
         serial.format("Kernel stack bottom: 0x{x:0>8}\n", .{new_process.kstack});
         try processes.put(new_process.pid, new_process);
         self.childrens.prepend(child);
@@ -133,7 +133,7 @@ const Process = struct {
     }
 
     pub fn deinit(self: *Process) void {
-        processes.remove(self.pid);
+        _ = processes.remove(self.pid);
         self.signals.deinit();
         self.pd.deinit();
         mem.freeKstack(self.kstack, KERNEL_STACK_SIZE);

@@ -84,6 +84,7 @@ export fn syscallHandlerInKS(regs_ptr: *idt.Regs, u_cr3: *[1024]PageEntry, us_es
         9 => mmap(regs.ebx),
         11 => munmap(regs.ebx, regs.ecx),
         20 => getpid(),
+        37 => kill(regs.ebx),
         48 => signal(regs.ebx, regs.ecx),
         162 => sleep(),
         222 => usage(regs.ebx) catch -1,
@@ -221,5 +222,7 @@ fn waitpid() isize {
 }
 
 fn kill(pid: usize, sig: usize) isize {
-    
+    const process = scheduler.processes.get(pid) orelse return -1;
+    process.queueSignal(sig);
+    return 0;
 }
