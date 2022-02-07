@@ -118,12 +118,12 @@ pub const PageAllocator = struct {
 
     fn markAllocated(self: *PageAllocator, index: usize) void {
         self.alloc_table[index] = true;
-        serial.format("Allocated 0x{x:0>8}\n", .{self.base + index * PAGE_SIZE});
+        // serial.format("Allocated 0x{x:0>8}\n", .{self.base + index * PAGE_SIZE});
     }
 
     fn markFree(self: *PageAllocator, index: usize) void {
         self.alloc_table[index] = false;
-        serial.format("Freed 0x{x:0>8}\n", .{self.base + index * PAGE_SIZE});
+        // serial.format("Freed 0x{x:0>8}\n", .{self.base + index * PAGE_SIZE});
     }
 
     /// Holds memory usage

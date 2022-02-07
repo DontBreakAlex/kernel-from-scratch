@@ -14,7 +14,7 @@ const Event = scheduler.Event;
 const Process = scheduler.Process;
 
 pub fn init() void {
-    idt.setInterruptHandler(0x80, syscall_handler, true);
+    idt.setIdtEntry(0x80, @ptrToInt(syscall_handler));
     idt.setIdtEntry(0x81, @ptrToInt(preempt));
 }
 
@@ -36,7 +36,14 @@ fn preempt() callconv(.Naked) void {
     @panic("Schedule returned in preempt");
 }
 
-pub fn syscall_handler(regs: *idt.Regs) void {
+pub fn syscall_handler() callconv(.Naked) void {
+    asm volatile (
+        \\pusha
+        \\mov %%esp, %%ebp
+        \\sub $512, %%esp
+        \\andl $0xFFFFFFF0, %%esp
+        \\fxsave (%%esp)
+        ::: "ebp");
     asm volatile (
         \\mov %%cr3, %%ecx
         \\mov %%esp, %%edx
@@ -44,18 +51,21 @@ pub fn syscall_handler(regs: *idt.Regs) void {
         \\mov (%[new_stack]), %%esp
         \\push %%edx
         \\push %%ecx
-        \\push %[reg_ptr]
+        \\push %%ebp
         \\call syscallHandlerInKS
         \\add $4, %%esp
         \\pop %%ecx
         \\pop %%edx
         \\mov %%ecx, %%cr3
         \\mov %%edx, %%esp
+        \\fxrstor (%%esp)
+        \\mov %%ebp, %%esp
+        \\popa
+        \\iret
         :
-        : [reg_ptr] "r" (regs),
-          [new_cr3] "r" (paging.kernelPageDirectory.cr3),
+        : [new_cr3] "r" (paging.kernelPageDirectory.cr3),
           [new_stack] "r" (&scheduler.runningProcess.kstack),
-        : "ecx", "edx", "memory"
+        : "ebp", "ecx", "edx"
     );
 }
 
@@ -84,7 +94,7 @@ export fn syscallHandlerInKS(regs_ptr: *idt.Regs, u_cr3: *[1024]PageEntry, us_es
         9 => mmap(regs.ebx),
         11 => munmap(regs.ebx, regs.ecx),
         20 => getpid(),
-        37 => kill(regs.ebx),
+        37 => kill(regs.ebx, regs.ecx),
         48 => signal(regs.ebx, regs.ecx),
         162 => sleep(),
         222 => usage(regs.ebx) catch -1,
@@ -96,7 +106,7 @@ export fn syscallHandlerInKS(regs_ptr: *idt.Regs, u_cr3: *[1024]PageEntry, us_es
     mem.unMapStructure(idt.Regs, regs) catch unreachable;
     if (scheduler.wantsToSwitch) {
         scheduler.wantsToSwitch = false;
-        scheduler.schedule(us_esp + 20, @ptrToInt(regs_ptr), @ptrToInt(u_cr3));
+        scheduler.schedule(us_esp, @ptrToInt(regs_ptr), @ptrToInt(u_cr3));
     }
 }
 
@@ -120,9 +130,7 @@ fn getpid() isize {
 fn fork(regs_ptr: *idt.Regs, us_esp: usize) !isize {
     const new_process = try scheduler.runningProcess.clone();
     errdefer new_process.deinit();
-    // 20 is the space space used by syscall_handler
-    // In case of weird bug, check here (expected issue: FPU data corruption)
-    new_process.state.SavedState.esp = us_esp + 20;
+    new_process.state.SavedState.esp = us_esp;
     new_process.state.SavedState.regs = @ptrToInt(regs_ptr);
     scheduler.canSwitch = false;
     {
@@ -144,7 +152,7 @@ fn sleep() isize {
 }
 
 fn signal(sig: usize, handler: usize) isize {
-    return @intCast(isize, scheduler.runningProcess.setSigHanlder(@intToEnum(scheduler.Signal, sig), handler));
+    return @bitCast(isize, scheduler.runningProcess.setSigHanlder(@intToEnum(scheduler.Signal, @truncate(u8, sig)), handler));
 }
 
 fn read(fd: usize, buff: usize, count: usize) isize {
@@ -222,7 +230,9 @@ fn waitpid() isize {
 }
 
 fn kill(pid: usize, sig: usize) isize {
-    const process = scheduler.processes.get(pid) orelse return -1;
-    process.queueSignal(sig);
+    scheduler.canSwitch = false;
+    defer scheduler.canSwitch = true;
+    const process = scheduler.processes.get(@intCast(u16, pid)) orelse return -1;
+    process.queueSignal(@intToEnum(scheduler.Signal, sig)) catch return -1;
     return 0;
 }

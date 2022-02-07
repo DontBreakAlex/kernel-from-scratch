@@ -62,6 +62,7 @@ pub fn fork() isize {
 pub fn signal(sig: Signal, handler: fn () void) isize {
     return asm volatile (
         \\mov $48, %%eax
+        \\int $0x80
         : [ret] "=&{eax}" (-> isize),
         : [sig] "{ebx}" (@enumToInt(sig)),
           [hdl] "{ecx}" (@ptrToInt(handler)),
@@ -93,6 +94,24 @@ pub fn usage(ptr: *@import("memory/page_allocator.zig").PageAllocator.AllocatorU
         : [ret] "=&{eax}" (-> isize),
         : [addr] "{ebx}" (ptr),
         : "memory"
+    );
+}
+
+pub fn sleep() isize {
+    return asm volatile (
+        \\mov $162, %%eax
+        \\int $0x80
+        : [ret] "=&{eax}" (-> isize),
+    );
+}
+
+pub fn kill(pid: usize, sig: Signal) isize {
+    return asm volatile (
+        \\mov $37, %%eax
+        \\int $0x80
+        : [ret] "=&{eax}" (-> isize),
+        : [pid] "{ebx}" (pid),
+          [sig] "{ecx}" (sig),
     );
 }
 

@@ -86,21 +86,6 @@ fn buildIsr(comptime handler: InterruptHandler, comptime save_fpu: bool) fn () c
                 : [ret] "={ebp}" (-> usize),
             )));
 
-            // DOES NOT WORK: process cannot be saved from us (wrong vmem)
-            // if (try_switch) {
-            //     utils.disable_int();
-            //     if (scheduler.canSwitch and scheduler.wantsToSwitch) {
-            //         scheduler.wantsToSwitch = false;
-            //         utils.enable_int();
-            //         scheduler.schedule(asm volatile (""
-            //             : [ret] "={esp}" (-> usize),
-            //         ), asm volatile (""
-            //             : [ret] "={ebp}" (-> usize),
-            //         ));
-            //     }
-            //     utils.enable_int();
-            // }
-
             if (save_fpu) {
                 asm volatile (
                     \\fxrstor (%%esp)

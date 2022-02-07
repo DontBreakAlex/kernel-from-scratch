@@ -57,6 +57,31 @@ const Process = struct {
 
     /// Resume the process. Does not update current process.
     pub fn restore(self: *Process) void {
+        if (self.signals.count != 0) {
+            const sig = self.signals.peekItem(0);
+            const handler = self.handlers[@enumToInt(sig)];
+            if (handler != 0) {
+                self.signals.discard(1);
+                asm volatile (
+                    \\xchg %%bx, %%bx
+                    \\mov %[pd], %%cr3
+                    \\mov %[new_esp], %%esp
+                    \\push %[regs]
+                    \\call *%[handler]
+                    \\pop %[regs]
+                    \\fxrstor (%%esp)
+                    \\mov %[regs], %%esp
+                    \\popa
+                    \\iret
+                    :
+                    : [new_esp] "r" (self.state.SavedState.esp),
+                      [pd] "r" (self.state.SavedState.cr3),
+                      [regs] "r" (self.state.SavedState.regs),
+                      [handler] "r" (handler),
+                    : "memory"
+                );
+            }
+        }
         asm volatile (
             \\mov %[pd], %%cr3
             \\mov %[new_esp], %%esp
@@ -125,6 +150,7 @@ const Process = struct {
         new_process.vmem.copy_from(&self.vmem);
         new_process.kstack = try mem.allocKstack(KERNEL_STACK_SIZE);
         errdefer mem.freeKstack(new_process.kstack, KERNEL_STACK_SIZE);
+        serial.format("Process with PID {} has PD at 0x{x:0>8}\n", .{ new_process.pid, @ptrToInt(new_process.pd.cr3) });
         serial.format("Kernel stack bottom: 0x{x:0>8}\n", .{new_process.kstack});
         try processes.put(new_process.pid, new_process);
         self.childrens.prepend(child);
@@ -189,7 +215,8 @@ pub fn startProcess(func: Fn) !void {
     while (i < 256) : (i += 1) {
         try process.pd.mapOneToOne(paging.PAGE_SIZE * i);
     }
-    paging.printDirectory(process.pd.cr3);
+    // paging.printDirectory(process.pd.cr3);
+    serial.format("Shell has PD at 0x{x:0>8}\n", .{@ptrToInt(process.pd.cr3)});
     process.kstack = try mem.allocKstack(2);
     serial.format("Kernel stack bottom: 0x{x:0>8}\n", .{process.kstack});
     var esp = try paging.pageAllocator.alloc();
@@ -220,11 +247,12 @@ pub export fn schedule(esp: usize, regs: usize, cr3: usize) callconv(.C) void {
             runningProcess = queue.readItem() orelse @panic("Scheduler failed");
         },
         .Running => {
-            if (queue.count == 0) return;
             runningProcess.status = .Paused;
             runningProcess.save(esp, regs, cr3);
-            queue.writeItem(runningProcess) catch @panic("Scheduler failed");
-            runningProcess = queue.readItem() orelse @panic("Scheduler failed");
+            if (queue.count != 0) {
+                queue.writeItem(runningProcess) catch @panic("Scheduler failed");
+                runningProcess = queue.readItem() orelse @panic("Scheduler failed");
+            }
         },
         .Zombie => {
             while (queue.count == 0) {
