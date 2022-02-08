@@ -12,10 +12,10 @@ align 4
 
 section .bss
 align 16
-stack_bottom:
-resb 16384
-global stack_top
 stack_top:
+resb 16384
+global stack_bottom
+stack_bottom:
 
 section .text
 
@@ -30,7 +30,7 @@ ret0:
 
 global _start:function (_start.end - _start)
 _start:
-	mov esp, stack_top
+	mov esp, stack_bottom
 	cli ; We don't want any interrupt while seting the GDT
 	lgdt [gdtr_descr]
 	; Enable SSE

@@ -62,6 +62,7 @@ pub fn unMapBuffer(size: usize, v_addr: usize) !void {
             _ = try paging.kernelPageDirectory.unMap(v_addr + PAGE_SIZE * i);
         }
     }
+    vmemManager.free(first_page);
 }
 
 pub fn allocKstack(page_count: usize) !usize {

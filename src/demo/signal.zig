@@ -23,9 +23,9 @@ pub noinline fn testSignal() void {
     }
     // Parent
     vga.format("Child has PID {}\n", .{pid});
-    // var key: u8 = 0;
-    // vga.putStr("Press key to kill child");
-    // _ = lib.read(0, std.mem.asBytes(&key), 1);
+    var key: u8 = 0;
+    vga.putStr("Press key to kill child\n");
+    _ = lib.read(0, std.mem.asBytes(&key), 1);
     _ = lib.kill(@intCast(usize, pid), .SIGINT);
     _ = lib.wait();
     vga.putStr("Child terminated\n");

@@ -181,7 +181,6 @@ fn exit(code: usize) isize {
     scheduler.canSwitch = false;
     scheduler.runningProcess.status = .Zombie;
     scheduler.runningProcess.state = .{ .ExitCode = code };
-    serial.format("{x}\n", .{&scheduler.runningProcess});
     if (scheduler.runningProcess.parent) |parent| {
         if (parent.status == .Sleeping) {
             parent.status = .Paused;

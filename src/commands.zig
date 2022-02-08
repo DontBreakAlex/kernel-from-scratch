@@ -7,12 +7,12 @@ const ArgsIterator = *std.mem.TokenIterator(u8);
 
 pub const CommandFn = fn (args: ArgsIterator) u8;
 pub const Command = struct { name: []const u8, cmd: CommandFn };
-extern const stack_top: u8;
+extern const stack_bottom: u8;
 
-pub const commands: [12]Command = .{
+pub const commands: [10]Command = .{
     .{ .name = "echo", .cmd = echo },
-    .{ .name = "pstack", .cmd = printStack },
-    .{ .name = "ptrace", .cmd = printTrace },
+    // .{ .name = "pstack", .cmd = printStack },
+    // .{ .name = "ptrace", .cmd = printTrace },
     .{ .name = "reboot", .cmd = reboot },
     .{ .name = "halt", .cmd = halt },
     .{ .name = "poweroff", .cmd = poweroff },
@@ -47,10 +47,10 @@ fn escaped(char: u8) u8 {
 }
 
 fn printStack(_: ArgsIterator) u8 {
-    const bottom: usize = utils.get_register(.esp);
-    const top: *const u8 = &stack_top;
-    const len = (@ptrToInt(top) - bottom);
-    const s = @intToPtr([*]u8, bottom)[0..len];
+    const top: usize = utils.get_register(.esp);
+    const bottom: *const u8 = &stack_bottom;
+    const len = (@ptrToInt(bottom) - top);
+    const s = @intToPtr([*]u8, top)[0..len];
     var i = len - 1;
     var line: [16]u8 = undefined;
     while (i >= 16) : (i -= 16) {

@@ -205,7 +205,7 @@ pub const PageDirectory = struct {
         for (self.cr3) |*tables| {
             if (tables.flags & PRESENT == 1) {
                 const table_addr: usize = @intCast(usize, tables.phy_addr) << 12;
-                serial.format("Table addr: 0x{x:0>8}\n", .{table_addr});
+                // serial.format("Table addr: 0x{x:0>8}\n", .{table_addr});
                 for (@intToPtr(*[1024]PageEntry, table_addr)) |*table_entry| {
                     if (table_entry.flags & PRESENT == 1) {
                         const phy_addr: usize = @intCast(usize, table_entry.phy_addr) << 12;

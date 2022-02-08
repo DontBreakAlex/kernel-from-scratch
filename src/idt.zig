@@ -60,19 +60,23 @@ pub fn setIdtEntry(index: u8, handler: usize) void {
 }
 
 const InterruptHandler = fn (*Regs) void;
+pub const Config = struct {
+    save_fpu: bool = false,
+    swap_cr3: bool = false,
+};
 
-pub fn setInterruptHandler(index: u8, comptime handler: InterruptHandler, comptime save_fpu: bool) void {
-    const isr = @ptrToInt(buildIsr(handler, save_fpu));
+pub fn setInterruptHandler(index: u8, comptime handler: InterruptHandler, comptime config: Config) void {
+    const isr = @ptrToInt(buildIsr(handler, config));
     idt_entries[index] = buildEntry(isr, KERN_CODE, ISR_GATE_TYPE, 0x0);
 }
 
-fn buildIsr(comptime handler: InterruptHandler, comptime save_fpu: bool) fn () callconv(.Naked) void {
+fn buildIsr(comptime handler: InterruptHandler, comptime config: Config) fn () callconv(.Naked) void {
     return struct {
         fn func() callconv(.Naked) void {
             asm volatile (
                 \\pusha
             );
-            if (save_fpu) {
+            if (config.save_fpu) {
                 asm volatile (
                     \\mov %%esp, %%ebp
                     \\sub $512, %%esp
@@ -86,7 +90,7 @@ fn buildIsr(comptime handler: InterruptHandler, comptime save_fpu: bool) fn () c
                 : [ret] "={ebp}" (-> usize),
             )));
 
-            if (save_fpu) {
+            if (config.save_fpu) {
                 asm volatile (
                     \\fxrstor (%%esp)
                     \\mov %%ebp, %%esp
