@@ -51,6 +51,14 @@ pub fn getPid() usize {
     );
 }
 
+pub fn getUid() usize {
+    return asm volatile (
+        \\mov $102, %%eax
+        \\int $0x80
+        : [ret] "={eax}" (-> usize),
+    );
+}
+
 pub fn fork() isize {
     return asm volatile (
         \\mov $2, %%eax

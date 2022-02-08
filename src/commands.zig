@@ -9,7 +9,7 @@ pub const CommandFn = fn (args: ArgsIterator) u8;
 pub const Command = struct { name: []const u8, cmd: CommandFn };
 extern const stack_bottom: u8;
 
-pub const commands: [10]Command = .{
+pub const commands: [11]Command = .{
     .{ .name = "echo", .cmd = echo },
     // .{ .name = "pstack", .cmd = printStack },
     // .{ .name = "ptrace", .cmd = printTrace },
@@ -20,6 +20,7 @@ pub const commands: [10]Command = .{
     .{ .name = "int", .cmd = interrupt },
     .{ .name = "panic", .cmd = panic },
     .{ .name = "getpid", .cmd = getPid },
+    .{ .name = "getuid", .cmd = getUid },
     .{ .name = "test", .cmd = runTest },
     .{ .name = "free", .cmd = free },
 };
@@ -128,6 +129,11 @@ fn panic(_: ArgsIterator) u8 {
 
 fn getPid(_: ArgsIterator) u8 {
     vga.format("Current PID: {}\n", .{lib.getPid()});
+    return 0;
+}
+
+fn getUid(_: ArgsIterator) u8 {
+    vga.format("Current UID: {}\n", .{lib.getUid()});
     return 0;
 }
 

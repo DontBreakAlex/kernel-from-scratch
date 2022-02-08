@@ -96,6 +96,7 @@ export fn syscallHandlerInKS(regs_ptr: *idt.Regs, u_cr3: *[1024]PageEntry, us_es
         20 => getpid(),
         37 => kill(regs.ebx, regs.ecx),
         48 => signal(regs.ebx, regs.ecx),
+        102 => getuid(),
         162 => sleep(),
         222 => usage(regs.ebx) catch -1,
         else => {
@@ -125,6 +126,10 @@ fn munmap(addr: usize, count: usize) isize {
 
 fn getpid() isize {
     return scheduler.runningProcess.pid;
+}
+
+fn getuid() isize {
+    return scheduler.runningProcess.owner_id;
 }
 
 fn fork(regs_ptr: *idt.Regs, us_esp: usize) !isize {
