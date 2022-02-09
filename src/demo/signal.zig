@@ -18,7 +18,7 @@ pub noinline fn testSignal() void {
         _ = lib.signal(.SIGINT, handleSignal);
         vga.putStr("Hello from child\n");
         while (keepRunning)
-            _ = lib.sleep();
+            _ = lib.sigwait();
         lib.exit(0);
     }
     // Parent

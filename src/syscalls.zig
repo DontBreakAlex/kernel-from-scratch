@@ -98,6 +98,7 @@ export fn syscallHandlerInKS(regs_ptr: *idt.Regs, u_cr3: *[1024]PageEntry, us_es
         48 => signal(regs.ebx, regs.ecx),
         102 => getuid(),
         162 => sleep(),
+        177 => sigwait(),
         222 => usage(regs.ebx) catch -1,
         else => {
             @panic("Unhandled syscall");
@@ -149,9 +150,8 @@ fn fork(regs_ptr: *idt.Regs, us_esp: usize) !isize {
 }
 
 fn sleep() isize {
-    if (!scheduler.canSwitch) {
+    if (!scheduler.canSwitch)
         unreachable;
-    }
     scheduler.wantsToSwitch = true;
     return 0;
 }
@@ -238,5 +238,13 @@ fn kill(pid: usize, sig: usize) isize {
     defer scheduler.canSwitch = true;
     const process = scheduler.processes.get(@intCast(u16, pid)) orelse return -1;
     process.queueSignal(@intToEnum(scheduler.Signal, sig)) catch return -1;
+    return 0;
+}
+
+fn sigwait() isize {
+    if (!scheduler.canSwitch)
+        unreachable;
+    scheduler.runningProcess.status = .Sleeping;
+    scheduler.wantsToSwitch = true;
     return 0;
 }

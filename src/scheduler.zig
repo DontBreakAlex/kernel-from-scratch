@@ -41,7 +41,12 @@ const Process = struct {
     fd: [128]?*Buffer,
 
     pub fn queueSignal(self: *Process, sig: Signal) !void {
-        return self.signals.writeItem(sig);
+        const ret = try self.signals.writeItem(sig);
+        if (self.status == .Sleeping) {
+            self.status = .Paused;
+            queue.writeItem(self) catch @panic("Scheduler failed");
+        }
+        return ret;
     }
 
     pub fn setSigHanlder(self: *Process, sig: Signal, handler: usize) usize {
@@ -57,29 +62,36 @@ const Process = struct {
 
     /// Resume the process. Does not update current process.
     pub fn restore(self: *Process) void {
+        // Check if there is a signal to be delivered
         if (self.signals.count != 0) {
             const sig = self.signals.peekItem(0);
             const handler = self.handlers[@enumToInt(sig)];
+            // Check if there is a handler for the signal
             if (handler != 0) {
-                self.signals.discard(1);
-                asm volatile (
-                    \\xchg %%bx, %%bx
-                    \\mov %[pd], %%cr3
-                    \\mov %[new_esp], %%esp
-                    \\push %[regs]
-                    \\call *%[handler]
-                    \\pop %[regs]
-                    \\fxrstor (%%esp)
-                    \\mov %[regs], %%esp
-                    \\popa
-                    \\iret
-                    :
-                    : [new_esp] "r" (self.state.SavedState.esp),
-                      [pd] "r" (self.state.SavedState.cr3),
-                      [regs] "r" (self.state.SavedState.regs),
-                      [handler] "r" (handler),
-                    : "memory"
-                );
+                if (self.state.SavedState.cr3 != @ptrToInt(paging.kernelPageDirectory.cr3)) {
+                    // Process is not in a syscall, we can deliver the signal
+                    self.signals.discard(1);
+                    asm volatile (
+                        \\xchg %%bx, %%bx
+                        \\mov %[pd], %%cr3
+                        \\mov %[new_esp], %%esp
+                        \\push %[regs]
+                        \\call *%[handler]
+                        \\pop %[regs]
+                        \\fxrstor (%%esp)
+                        \\mov %[regs], %%esp
+                        \\popa
+                        \\iret
+                        :
+                        : [new_esp] "r" (self.state.SavedState.esp),
+                          [pd] "r" (self.state.SavedState.cr3),
+                          [regs] "r" (self.state.SavedState.regs),
+                          [handler] "r" (handler),
+                        : "memory"
+                    );
+                }
+                // Process is in a syscall, reschedule when the syscall is over to deliver the signal
+                wantsToSwitch = true;
             }
         }
         asm volatile (

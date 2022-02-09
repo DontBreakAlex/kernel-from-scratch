@@ -123,6 +123,14 @@ pub fn kill(pid: usize, sig: Signal) isize {
     );
 }
 
+pub fn sigwait() isize {
+    return asm volatile (
+        \\mov $177, %%eax
+        \\int $0x80
+        : [ret] "=&{eax}" (-> isize),
+    );
+}
+
 const PageAllocator = struct {
     const vtable = Allocator.VTable{
         .alloc = alloc,
