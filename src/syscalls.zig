@@ -248,3 +248,5 @@ fn sigwait() isize {
     scheduler.wantsToSwitch = true;
     return 0;
 }
+
+fn pipe() isize {}

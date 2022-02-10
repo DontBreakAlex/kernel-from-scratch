@@ -13,6 +13,7 @@ const KERNEL_STACK_SIZE = 2;
 const Buffer = utils.Buffer;
 const keyboard = @import("keyboard.zig");
 const serial = @import("serial.zig");
+const FileDescriptor = @import("file_descriptor.zig").FileDescriptor;
 
 pub var wantsToSwitch: bool = false;
 pub var canSwitch: bool = true;
@@ -38,7 +39,7 @@ const Process = struct {
     pd: PageDirectory,
     owner_id: u16,
     vmem: vmem.VMemManager,
-    fd: [128]?*Buffer,
+    fd: [128]?FileDescriptor,
 
     pub fn queueSignal(self: *Process, sig: Signal) !void {
         const ret = try self.signals.writeItem(sig);
@@ -185,7 +186,7 @@ const EventList = std.ArrayListUnmanaged(*Process);
 const Events = std.AutoHashMap(Event, EventList);
 const Fn = fn () void;
 pub const Event = union(enum) {
-    IO: *Buffer,
+    IO: FileDescriptor,
     CHILD,
 };
 
@@ -220,7 +221,7 @@ pub fn startProcess(func: Fn) !void {
     process.vmem = vmem.VMemManager{};
     process.vmem.init();
     process.fd = .{null} ** 128;
-    process.fd[0] = &keyboard.queue;
+    process.fd[0] = FileDescriptor{ .SimpleReadable = &keyboard.queue };
     process.parent = null;
 
     var i: usize = 0;
@@ -292,13 +293,13 @@ pub fn queueEvent(key: Event, val: *Process) !void {
     try array.append(allocator, val);
 }
 
-pub fn writeWithEvent(buffer: *Buffer, data: []const u8) !void {
-    if (events.getPtr(Event{ .IO = buffer })) |array| {
+pub fn writeWithEvent(fd: FileDescriptor, data: []const u8) !void {
+    if (events.getPtr(Event{ .IO = fd })) |array| {
         try queue.ensureUnusedCapacity(array.items.len);
-        try buffer.write(data);
+        try fd.write(data);
         queue.writeAssumeCapacity(array.items);
         array.clearRetainingCapacity();
     } else {
-        try buffer.write(data);
+        try fd.write(data);
     }
 }
