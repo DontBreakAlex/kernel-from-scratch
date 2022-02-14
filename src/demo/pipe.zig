@@ -5,19 +5,27 @@ const utils = @import("../utils.zig");
 
 pub noinline fn testPipe() void {
     var pipe = [2]usize{ 0, 0 };
-    _ = lib.pipe(pipe);
+    if (lib.pipe(pipe) != 0)
+        return vga.putStr("Pipe failure\n");
     const pid = lib.fork();
+    if (pid == -1)
+        return vga.putStr("Fork failure\n");
     if (pid == 0) {
         // Child
         vga.putStr("Hello from child\n");
-        _ = lib.write(pipe[1], &.{ 1, 2, 3 }, 3);
+        if (lib.write(pipe[1], &.{ 1, 2, 3 }, 3) != 3)
+            return vga.putStr("Write failure");
         lib.exit(0);
     }
     // Parent
     vga.format("Child has PID {}\n", .{pid});
     var data: [3]u8 = .{ 0, 0, 0 };
-    _ = lib.read(pipe[0], &data, 3);
-    _ = lib.wait();
+    if (lib.read(pipe[0], &data, 3) != 3)
+        return vga.putStr("Read failure\n");
+    if (lib.wait() != pid)
+        return vga.putStr("Wait failure\n");
     vga.putStr("Child terminated\n");
-    vga.format("Read in pipe: {any}\n", .{data});
+    vga.format("Data read from pipe: {any}\n", .{data});
+    if (lib.close(pipe[0]) != 0 or lib.close(pipe[1]) != 0)
+        return vga.putStr("Close failure");
 }

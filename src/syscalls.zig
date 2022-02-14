@@ -94,6 +94,7 @@ export fn syscallHandlerInKS(regs_ptr: *idt.Regs, u_cr3: *[1024]PageEntry, us_es
         2 => fork(regs_ptr, us_esp) catch -1,
         3 => read(regs.ebx, regs.ecx, regs.edx),
         4 => write(regs.ebx, regs.ecx, regs.edx),
+        6 => close(regs.ebx),
         7 => waitpid(),
         9 => mmap(regs.ebx),
         11 => munmap(regs.ebx, regs.ecx),
@@ -289,5 +290,11 @@ fn pipe(us_fds: usize) !isize {
     new_pipe.* = Pipe{ .refcount = 2 };
     ks_fds[0] = fd_out.i;
     ks_fds[1] = fd_in.i;
+    return 0;
+}
+
+fn close(fd: usize) isize {
+    const descriptor = &scheduler.runningProcess.fd[fd];
+    descriptor.close();
     return 0;
 }

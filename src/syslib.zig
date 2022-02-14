@@ -151,6 +151,15 @@ pub fn pipe(fds: [2]usize) isize {
     );
 }
 
+pub fn close(fd: usize) isize {
+    return asm volatile (
+        \\mov $6, %%eax
+        \\int $0x80
+        : [ret] "=&{eax}" (-> isize),
+        : [fd] "{ebx}" (fd),
+    );
+}
+
 const PageAllocator = struct {
     const vtable = Allocator.VTable{
         .alloc = alloc,
