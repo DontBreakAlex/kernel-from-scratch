@@ -10,6 +10,7 @@ const Children = std.SinglyLinkedList(*Process);
 pub const Child = Children.Node;
 const US_STACK_BASE = 0x1000000;
 const KERNEL_STACK_SIZE = 2;
+const FD_COUNT = 4;
 const Buffer = utils.Buffer;
 const keyboard = @import("keyboard.zig");
 const serial = @import("serial.zig");
@@ -39,7 +40,7 @@ const Process = struct {
     pd: PageDirectory,
     owner_id: u16,
     vmem: vmem.VMemManager,
-    fd: [128]?FileDescriptor,
+    fd: [FD_COUNT]FileDescriptor,
 
     pub fn queueSignal(self: *Process, sig: Signal) !void {
         const ret = try self.signals.writeItem(sig);
@@ -144,7 +145,6 @@ const Process = struct {
 
     /// Clones the process. Esp is not copied and must be set manually.
     pub fn clone(self: *Process) !*Process {
-        // TODO: Copy fds
         var new_process: *Process = try allocator.create(Process);
         errdefer allocator.destroy(new_process);
         const child: *Child = try allocator.create(Child);
@@ -155,6 +155,11 @@ const Process = struct {
         new_process.childrens = Children{};
         new_process.signals = SignalQueue.init(allocator);
         std.mem.copy(usize, &new_process.handlers, &self.handlers);
+        std.mem.copy(FileDescriptor, &new_process.fd, &self.fd);
+        for (self.fd) |*fd|
+            fd.dup();
+        errdefer for (new_process.fd) |*fd|
+            fd.close();
         new_process.pd = try self.pd.dup();
         errdefer self.pd.deinit();
         new_process.state = State{ .SavedState = ProcessState{ .cr3 = @ptrToInt(new_process.pd.cr3), .esp = undefined, .regs = undefined } };
@@ -177,6 +182,20 @@ const Process = struct {
         self.pd.deinit();
         mem.freeKstack(self.kstack, KERNEL_STACK_SIZE);
         allocator.destroy(self);
+    }
+
+    pub const FileDescriptorAndIndex = struct {
+        fd: *FileDescriptor,
+        i: u8,
+    };
+
+    pub fn getAvailableFd(self: *Process) !FileDescriptorAndIndex {
+        for (self.fd) |*descriptor, i| {
+            if (descriptor.* == .Closed) {
+                return FileDescriptorAndIndex{ .fd = descriptor, .i = @intCast(u8, i) };
+            }
+        }
+        return error.NoFd;
     }
 };
 
@@ -220,7 +239,7 @@ pub fn startProcess(func: Fn) !void {
     process.owner_id = 0;
     process.vmem = vmem.VMemManager{};
     process.vmem.init();
-    process.fd = .{null} ** 128;
+    process.fd = .{.Closed} ** FD_COUNT;
     process.fd[0] = FileDescriptor{ .SimpleReadable = &keyboard.queue };
     process.parent = null;
 
@@ -293,13 +312,26 @@ pub fn queueEvent(key: Event, val: *Process) !void {
     try array.append(allocator, val);
 }
 
-pub fn writeWithEvent(fd: FileDescriptor, data: []const u8) !void {
+pub fn writeWithEvent(fd: FileDescriptor, src: []const u8) !void {
     if (events.getPtr(Event{ .IO = fd })) |array| {
         try queue.ensureUnusedCapacity(array.items.len);
-        try fd.write(data);
+        try fd.write(src);
         queue.writeAssumeCapacity(array.items);
         array.clearRetainingCapacity();
     } else {
-        try fd.write(data);
+        try fd.write(src);
     }
+}
+
+pub fn readWithEvent(fd: FileDescriptor, dst: []u8) !usize {
+    var ret: usize = undefined;
+    if (events.getPtr(Event{ .IO = fd })) |array| {
+        try queue.ensureUnusedCapacity(array.items.len);
+        ret = fd.read(dst);
+        queue.writeAssumeCapacity(array.items);
+        array.clearRetainingCapacity();
+    } else {
+        ret = fd.read(dst);
+    }
+    return ret;
 }

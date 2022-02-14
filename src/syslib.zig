@@ -19,6 +19,17 @@ pub fn read(fd: usize, buffer: []u8, count: usize) isize {
     );
 }
 
+pub fn write(fd: usize, buffer: []const u8, count: usize) isize {
+    return asm volatile (
+        \\mov $4, %%eax
+        \\int $0x80
+        : [ret] "=&{eax}" (-> isize),
+        : [fd] "{ebx}" (fd),
+          [buf] "{ecx}" (buffer.ptr),
+          [cnt] "{edx}" (count),
+    );
+}
+
 pub fn mmap(cnt: usize) ![]u8 {
     var buf = asm volatile (
         \\mov $9, %%eax
@@ -128,6 +139,15 @@ pub fn sigwait() isize {
         \\mov $177, %%eax
         \\int $0x80
         : [ret] "=&{eax}" (-> isize),
+    );
+}
+
+pub fn pipe(fds: [2]usize) isize {
+    return asm volatile (
+        \\mov $42, %%eax
+        \\int $0x80
+        : [ret] "=&{eax}" (-> isize),
+        : [fd] "{ebx}" (&fds),
     );
 }
 

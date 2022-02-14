@@ -6,12 +6,15 @@ const utils = @import("utils.zig");
 const vga = @import("vga.zig");
 const mem = @import("memory/mem.zig");
 const serial = @import("serial.zig");
+const file_descriptor = @import("file_descriptor.zig");
 
 const PageDirectory = paging.PageDirectory;
 const PageEntry = paging.PageEntry;
 const PageAllocator = @import("memory/page_allocator.zig").PageAllocator;
 const Event = scheduler.Event;
 const Process = scheduler.Process;
+const Pipe = file_descriptor.Pipe;
+const FileDescriptor = file_descriptor.FileDescriptor;
 
 pub fn init() void {
     idt.setIdtEntry(0x80, @ptrToInt(syscall_handler));
@@ -90,11 +93,13 @@ export fn syscallHandlerInKS(regs_ptr: *idt.Regs, u_cr3: *[1024]PageEntry, us_es
         1 => exit(regs.ebx),
         2 => fork(regs_ptr, us_esp) catch -1,
         3 => read(regs.ebx, regs.ecx, regs.edx),
+        4 => write(regs.ebx, regs.ecx, regs.edx),
         7 => waitpid(),
         9 => mmap(regs.ebx),
         11 => munmap(regs.ebx, regs.ecx),
         20 => getpid(),
         37 => kill(regs.ebx, regs.ecx),
+        42 => pipe(regs.ebx) catch -1,
         48 => signal(regs.ebx, regs.ecx),
         102 => getuid(),
         162 => sleep(),
@@ -161,25 +166,47 @@ fn signal(sig: usize, handler: usize) isize {
 }
 
 fn read(fd: usize, buff: usize, count: usize) isize {
-    var ret: isize = undefined;
     scheduler.canSwitch = false;
     defer scheduler.canSwitch = true;
-    if (scheduler.runningProcess.fd[fd]) |descriptor| {
+    const descriptor = scheduler.runningProcess.fd[fd];
+    if (descriptor != .Closed) {
+        if (!descriptor.isReadable())
+            return -1;
         while (descriptor.readableLength() == 0) {
-            scheduler.queueEvent(Event{ .IO = descriptor }, scheduler.runningProcess) catch return -1;
+            scheduler.queueEvent(descriptor.event(), scheduler.runningProcess) catch return -1;
             scheduler.runningProcess.status = .Sleeping;
             scheduler.canSwitch = true;
             asm volatile ("int $0x81");
             scheduler.canSwitch = false;
         }
         var user_buf = mem.mapBuffer(count, buff, scheduler.runningProcess.pd) catch return -1;
-        ret = @intCast(isize, descriptor.read(user_buf));
-        mem.unMapBuffer(count, @ptrToInt(user_buf.ptr)) catch @panic("Syscall failure");
-    } else {
-        ret = -1;
+        defer mem.unMapBuffer(count, @ptrToInt(user_buf.ptr)) catch @panic("Syscall failure");
+        return @intCast(isize, scheduler.readWithEvent(descriptor, user_buf) catch return -1);
     }
-    scheduler.canSwitch = true;
-    return ret;
+    return -1;
+}
+
+fn write(fd: usize, buff: usize, count: usize) isize {
+    scheduler.canSwitch = false;
+    defer scheduler.canSwitch = true;
+    const descriptor = scheduler.runningProcess.fd[fd];
+    if (descriptor != .Closed) {
+        if (!descriptor.isWritable())
+            return -1;
+        while (descriptor.writableLength() == 0) {
+            scheduler.queueEvent(descriptor.event(), scheduler.runningProcess) catch return -1;
+            scheduler.runningProcess.status = .Sleeping;
+            scheduler.canSwitch = true;
+            asm volatile ("int $0x81");
+            scheduler.canSwitch = false;
+        }
+        var user_buf = mem.mapBuffer(count, buff, scheduler.runningProcess.pd) catch return -1;
+        defer mem.unMapBuffer(count, @ptrToInt(user_buf.ptr)) catch @panic("Syscall failure");
+        const to_write = std.math.min(descriptor.writableLength(), count);
+        scheduler.writeWithEvent(descriptor, user_buf[0..to_write]) catch return -1;
+        return @intCast(isize, to_write);
+    }
+    return -1;
 }
 
 fn exit(code: usize) isize {
@@ -249,4 +276,18 @@ fn sigwait() isize {
     return 0;
 }
 
-fn pipe() isize {}
+fn pipe(us_fds: usize) !isize {
+    const new_pipe: *Pipe = try mem.allocator.create(Pipe);
+    const ks_fds = try mem.mapStructure([2]usize, @intToPtr(*[2]usize, us_fds), scheduler.runningProcess.pd);
+    defer mem.unMapStructure([2]usize, ks_fds) catch unreachable;
+    const fd_out = try scheduler.runningProcess.getAvailableFd();
+    fd_out.fd.* = .{ .PipeOut = new_pipe };
+    errdefer fd_out.fd.* = .Closed;
+    const fd_in = try scheduler.runningProcess.getAvailableFd();
+    fd_in.fd.* = .{ .PipeIn = new_pipe };
+    errdefer fd_in.fd.* = .Closed;
+    new_pipe.* = Pipe{ .refcount = 2 };
+    ks_fds[0] = fd_out.i;
+    ks_fds[1] = fd_in.i;
+    return 0;
+}

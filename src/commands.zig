@@ -142,6 +142,9 @@ fn runTest(args: ArgsIterator) u8 {
         if (std.mem.eql(u8, "signal", arg)) {
             @import("demo/signal.zig").testSignal();
             return 0;
+        } else if (std.mem.eql(u8, "pipe", arg)) {
+            @import("demo/pipe.zig").testPipe();
+            return 0;
         }
         vga.format("No test for: {s}\n", .{arg});
         return 1;
