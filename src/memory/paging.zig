@@ -47,7 +47,7 @@ fn setup(size: usize) !void {
     }
     try PageAllocator.map(0x100000, size);
     // printDirectory(kernelPageDirectory.cr3);
-    
+
     kernelPageDirectory.load();
     asm volatile (
         \\mov %%cr0, %%eax
@@ -173,12 +173,8 @@ pub const PageDirectory = struct {
                         if (v_addr != p_addr) {
                             const phy_mem = @intToPtr(*[PAGE_SIZE]u8, p_addr);
                             const new_mem = @intToPtr(*[PAGE_SIZE]u8, try pageAllocator.alloc());
-                            kernelPageDirectory.mapOneToOne(@ptrToInt(phy_mem)) catch |err| if (err != MapError.AlreadyMapped) return err;
-                            kernelPageDirectory.mapOneToOne(@ptrToInt(new_mem)) catch |err| if (err != MapError.AlreadyMapped) return err;
                             std.mem.copy(u8, new_mem, phy_mem);
                             try new.mapVirtToPhy(v_addr, @ptrToInt(new_mem), WRITE | PRESENT);
-                            _ = try kernelPageDirectory.unMap(@ptrToInt(phy_mem));
-                            _ = try kernelPageDirectory.unMap(@ptrToInt(new_mem));
                         } else {
                             try new.mapOneToOne(v_addr);
                         }
@@ -219,12 +215,10 @@ pub const PageDirectory = struct {
                     }
                 }
                 pageAllocator.free(table_addr);
-                _ = kernelPageDirectory.unMap(table_addr) catch unreachable;
             }
         }
         const dir_addr = @ptrToInt(self.cr3);
         pageAllocator.free(dir_addr);
-        _ = kernelPageDirectory.unMap(dir_addr) catch unreachable;
     }
 };
 

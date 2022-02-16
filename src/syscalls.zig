@@ -146,8 +146,6 @@ fn fork(regs_ptr: *idt.Regs, us_esp: usize) !isize {
     scheduler.canSwitch = false;
     {
         const regs = try new_process.pd.vPtrToPhy(idt.Regs, regs_ptr);
-        vga.putPtr(@ptrToInt(regs));
-        utils.boch_break();
         regs.eax = 0;
     }
     try scheduler.queue.writeItem(new_process);

@@ -16,7 +16,7 @@ pub noinline fn bomb() void {
                 lib.exit(0);
             }
             if (pid != 0)
-                vga.format("Hello from PID {}\n", .{ pid2 });
+                vga.format("Hello from PID {}\n", .{pid2});
         }
     }
 }
