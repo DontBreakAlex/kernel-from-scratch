@@ -28,7 +28,8 @@ export fn kernel_main() void {
     idt.init();
     pic.init();
     // pit.init();
-    mem.init(mlb.MULTIBOOT.mem_upper);
+    srl.format("Phy memory: 0x{x:0>8}-0x{x:0>8}\n", .{ 0x100000, 0x100000 + mlb.MULTIBOOT.mem_upper * 1024 });
+    mem.init(mlb.MULTIBOOT.mem_upper / 4);
     // mlb.loadSymbols() catch {};
     kbr.init();
     sys.init();

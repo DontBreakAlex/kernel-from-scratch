@@ -18,14 +18,14 @@ pub const PAGE_SIZE = 0x1000;
 pub var pageAllocator: PageAllocator = undefined;
 
 pub fn init(size: usize) void {
-    pageAllocator = PageAllocator.init(0x100000, size);
-    setup() catch |err| {
+    setup(size) catch |err| {
         vga.format("Paging error: {s}\n", .{err});
         @panic("Failed to setup paging");
     };
 }
 
-fn setup() !void {
+fn setup(size: usize) !void {
+    pageAllocator = PageAllocator.init(0x100000, size);
     const dir_alloc = try pageAllocator.alloc();
     const tab_alloc = try pageAllocator.alloc();
     const dir = @intToPtr(*[1024]PageEntry, dir_alloc);
@@ -39,19 +39,15 @@ fn setup() !void {
 
     try kernelPageDirectory.mapOneToOne(dir_alloc);
     try kernelPageDirectory.mapOneToOne(tab_alloc);
-    // printDirectory(kernelPageDirectory.cr3);
 
     // Map first 1M of memory (where the kernel is)
     var i: usize = 0;
     while (i < 256) : (i += 1) {
         try kernelPageDirectory.mapOneToOne(0x1000 * i);
     }
-
-    var allocator_begin = std.mem.alignBackward(@ptrToInt(pageAllocator.alloc_table.ptr), PAGE_SIZE);
-    const allocator_end = std.mem.alignBackward(@ptrToInt(pageAllocator.alloc_table.ptr) + pageAllocator.alloc_table.len, PAGE_SIZE);
-    while (allocator_begin <= allocator_end) : (allocator_begin += PAGE_SIZE)
-        try kernelPageDirectory.mapOneToOne(allocator_begin);
-    // try kernelPageDirectory.allocVirt(0x1000000 - 0x1000, WRITE);
+    try PageAllocator.map(0x100000, size);
+    // printDirectory(kernelPageDirectory.cr3);
+    
     kernelPageDirectory.load();
     asm volatile (
         \\mov %%cr0, %%eax
@@ -86,10 +82,9 @@ pub const PageDirectory = struct {
         const page_table = &self.cr3[dir_offset];
         if ((page_table.flags & PRESENT) == 0) {
             const allocated = try pageAllocator.alloc();
+            initEmpty(@intToPtr(*[1024]PageEntry, allocated));
             page_table.flags = PRESENT | WRITE;
             page_table.phy_addr = @truncate(u20, allocated >> 12);
-            try kernelPageDirectory.mapOneToOne(allocated);
-            initEmpty(@intToPtr(*[1024]PageEntry, allocated));
         }
         const page_table_entry = &@intToPtr(*[1024]PageEntry, @intCast(usize, page_table.phy_addr) << 12)[table_offset];
         if ((page_table_entry.flags & PRESENT) == 1) {
@@ -192,6 +187,15 @@ pub const PageDirectory = struct {
             }
         }
         return new;
+    }
+
+    pub fn vPtrToPhy(self: *const PageDirectory, comptime T: type, ptr: *T) !*T {
+        return @intToPtr(*T, self.virtToPhy(@ptrToInt(ptr)) orelse return error.NotMapped);
+    }
+
+    pub fn vBufferToPhy(self: *const PageDirectory, size: usize, ptr: usize) ![]u8 {
+        const p_addr = self.virtToPhy(ptr) orelse return error.NotMapped;
+        return @intToPtr([*]u8, p_addr)[0..size];
     }
 
     pub fn deinit(self: *PageDirectory) void {

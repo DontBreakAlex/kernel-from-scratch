@@ -145,6 +145,9 @@ fn runTest(args: ArgsIterator) u8 {
         } else if (std.mem.eql(u8, "pipe", arg)) {
             @import("demo/pipe.zig").testPipe();
             return 0;
+        } else if (std.mem.eql(u8, "fork_bomb", arg)) {
+            @import("demo/fork_bomb.zig").bomb();
+            return 0;
         }
         vga.format("No test for: {s}\n", .{arg});
         return 1;

@@ -56,8 +56,8 @@ pub const VMemManager = struct {
 
     pub fn init(self: *VMemManager) void {
         self.available.prepend(&self.nodes[0]);
-        self.nodes[0].data.addr = 0x1000000;
-        self.nodes[0].data.size = 0xc0000000 / PAGE_SIZE;
+        self.nodes[0].data.addr = 0x10000000;
+        self.nodes[0].data.size = 0xefffffff / PAGE_SIZE;
         self.lastFreedNode = &self.nodes[1];
     }
 

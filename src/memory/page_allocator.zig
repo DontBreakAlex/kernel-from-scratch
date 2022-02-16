@@ -1,6 +1,7 @@
 const std = @import("std");
 const Allocator = std.mem.Allocator;
-const PAGE_SIZE = @import("paging.zig").PAGE_SIZE;
+const paging = @import("paging.zig");
+const PAGE_SIZE = paging.PAGE_SIZE;
 const utils = @import("../utils.zig");
 const vga = @import("../vga.zig");
 const serial = @import("../serial.zig");
@@ -21,6 +22,16 @@ pub const PageAllocator = struct {
             e.* = false;
         }
         return PageAllocator{ .base = base + PAGE_SIZE * table_footprint, .alloc_table = alloc_table };
+    }
+
+    /// Maps the managed memory one-to-one
+    /// Base: where available memory starts
+    /// Size: how mage pages (4Kib) are available
+    pub fn map(base: usize, page_count: usize) !void {
+        var i: usize = 0;
+        while (i < page_count) : (i += 1) {
+            try paging.kernelPageDirectory.mapOneToOne(base + i * PAGE_SIZE);
+        }
     }
 
     pub fn allocator(self: *PageAllocator) Allocator {

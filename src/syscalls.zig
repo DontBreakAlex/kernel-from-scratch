@@ -83,7 +83,7 @@ pub fn syscall_handler() callconv(.Naked) void {
 export fn syscallHandlerInKS(regs_ptr: *idt.Regs, u_cr3: *[1024]PageEntry, us_esp: usize) callconv(.C) void {
     const PD = PageDirectory{ .cr3 = u_cr3 };
     scheduler.canSwitch = false;
-    const regs = mem.mapStructure(idt.Regs, regs_ptr, PD) catch |err| {
+    const regs = PD.vPtrToPhy(idt.Regs, regs_ptr) catch |err| {
         vga.format("{}\n", .{err});
         @panic("Syscall failure");
     };
@@ -111,7 +111,6 @@ export fn syscallHandlerInKS(regs_ptr: *idt.Regs, u_cr3: *[1024]PageEntry, us_es
         },
     });
     // TODO: Try to reuse maps
-    mem.unMapStructure(idt.Regs, regs) catch unreachable;
     if (scheduler.wantsToSwitch) {
         scheduler.wantsToSwitch = false;
         scheduler.schedule(us_esp, @ptrToInt(regs_ptr), @ptrToInt(u_cr3));
@@ -146,9 +145,10 @@ fn fork(regs_ptr: *idt.Regs, us_esp: usize) !isize {
     new_process.state.SavedState.regs = @ptrToInt(regs_ptr);
     scheduler.canSwitch = false;
     {
-        const regs = try mem.mapStructure(idt.Regs, regs_ptr, new_process.pd);
+        const regs = try new_process.pd.vPtrToPhy(idt.Regs, regs_ptr);
+        vga.putPtr(@ptrToInt(regs));
+        utils.boch_break();
         regs.eax = 0;
-        try mem.unMapStructure(idt.Regs, regs);
     }
     try scheduler.queue.writeItem(new_process);
     scheduler.canSwitch = true;
@@ -180,8 +180,7 @@ fn read(fd: usize, buff: usize, count: usize) isize {
             asm volatile ("int $0x81");
             scheduler.canSwitch = false;
         }
-        var user_buf = mem.mapBuffer(count, buff, scheduler.runningProcess.pd) catch return -1;
-        defer mem.unMapBuffer(count, @ptrToInt(user_buf.ptr)) catch @panic("Syscall failure");
+        var user_buf = scheduler.runningProcess.pd.vBufferToPhy(count, buff) catch return -1;
         return @intCast(isize, scheduler.readWithEvent(descriptor, user_buf) catch return -1);
     }
     return -1;
@@ -201,8 +200,7 @@ fn write(fd: usize, buff: usize, count: usize) isize {
             asm volatile ("int $0x81");
             scheduler.canSwitch = false;
         }
-        var user_buf = mem.mapBuffer(count, buff, scheduler.runningProcess.pd) catch return -1;
-        defer mem.unMapBuffer(count, @ptrToInt(user_buf.ptr)) catch @panic("Syscall failure");
+        var user_buf = scheduler.runningProcess.pd.vBufferToPhy(count, buff) catch return -1;
         const to_write = std.math.min(descriptor.writableLength(), count);
         scheduler.writeWithEvent(descriptor, user_buf[0..to_write]) catch return -1;
         return @intCast(isize, to_write);
@@ -228,9 +226,8 @@ fn exit(code: usize) isize {
 fn usage(u_ptr: usize) !isize {
     scheduler.canSwitch = false;
     defer scheduler.canSwitch = true;
-    var u_struct = try mem.mapStructure(PageAllocator.AllocatorUsage, @intToPtr(*PageAllocator.AllocatorUsage, u_ptr), scheduler.runningProcess.pd);
+    var u_struct = try scheduler.runningProcess.pd.vPtrToPhy(PageAllocator.AllocatorUsage, @intToPtr(*PageAllocator.AllocatorUsage, u_ptr));
     u_struct.* = paging.pageAllocator.usage();
-    try mem.unMapStructure(PageAllocator.AllocatorUsage, u_struct);
     return 0;
 }
 
@@ -279,8 +276,7 @@ fn sigwait() isize {
 
 fn pipe(us_fds: usize) !isize {
     const new_pipe: *Pipe = try mem.allocator.create(Pipe);
-    const ks_fds = try mem.mapStructure([2]usize, @intToPtr(*[2]usize, us_fds), scheduler.runningProcess.pd);
-    defer mem.unMapStructure([2]usize, ks_fds) catch unreachable;
+    const ks_fds = try scheduler.runningProcess.pd.vPtrToPhy([2]usize, @intToPtr(*[2]usize, us_fds));
     const fd_out = try scheduler.runningProcess.getAvailableFd();
     fd_out.fd.* = .{ .PipeOut = new_pipe };
     errdefer fd_out.fd.* = .Closed;
