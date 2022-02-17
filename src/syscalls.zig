@@ -106,6 +106,7 @@ export fn syscallHandlerInKS(regs_ptr: *idt.Regs, u_cr3: *[1024]PageEntry, us_es
         162 => sleep(),
         177 => sigwait(),
         222 => usage(regs.ebx) catch -1,
+        223 => command(regs.ebx),
         else => {
             @panic("Unhandled syscall");
         },
@@ -208,6 +209,7 @@ fn write(fd: usize, buff: usize, count: usize) isize {
 
 fn exit(code: usize) isize {
     scheduler.canSwitch = false;
+    serial.format("Process {} exiting\n", .{scheduler.runningProcess.pid});
     scheduler.runningProcess.status = .Zombie;
     scheduler.runningProcess.state = .{ .ExitCode = code };
     if (scheduler.runningProcess.parent) |parent| {
@@ -242,6 +244,7 @@ fn waitpid() isize {
         while (child) |c| {
             if (c.data.status == .Zombie) {
                 const pid = c.data.pid;
+                serial.format("Process {} found dead child with PID {}\n", .{ scheduler.runningProcess.pid, pid });
                 _ = if (prev) |p|
                     p.removeNext()
                 else
@@ -290,5 +293,20 @@ fn pipe(us_fds: usize) !isize {
 fn close(fd: usize) isize {
     const descriptor = &scheduler.runningProcess.fd[fd];
     descriptor.close();
+    return 0;
+}
+
+fn command(cmd: usize) isize {
+    switch (cmd) {
+        0 => {
+            serial.format("Running processes: \n", .{});
+            var it = scheduler.processes.valueIterator();
+            while (it.next()) |process| {
+                serial.format("{:0>3}: {}\n", .{ process.*.pid, process.*.status });
+            }
+            serial.format("Process count: {}\n", .{scheduler.processes.count()});
+        },
+        else => {},
+    }
     return 0;
 }

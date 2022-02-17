@@ -5,17 +5,22 @@ const utils = @import("../utils.zig");
 
 pub noinline fn bomb() void {
     while (true) {
-        switch (lib.fork()) {
+        const ret = lib.fork();
+        switch (ret) {
             -1 => {
                 vga.putStr("Fork failure\n");
                 lib.exit(1);
             },
             0 => {
-                vga.format("Hello from PID {}\n", .{ lib.getPid() });
+                vga.format("Hello from PID {}\n", .{lib.getPid()});
             },
             else => {
-                _ = lib.wait();
-                return;
+                const pid = lib.wait();
+                vga.format("Child with PID {} died ({})\n", .{ pid, lib.getPid() });
+                if (lib.getPid() == 1)
+                    return
+                else
+                    lib.exit(0);
             },
         }
     }

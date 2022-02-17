@@ -254,7 +254,6 @@ pub fn startProcess(func: Fn) !void {
     process.kstack = try mem.allocKstack(2);
     serial.format("Kernel stack bottom: 0x{x:0>8}\n", .{process.kstack});
     var esp = try paging.pageAllocator.alloc();
-    try paging.kernelPageDirectory.mapOneToOne(esp);
     try process.pd.mapVirtToPhy(process.state.SavedState.esp - paging.PAGE_SIZE, esp, paging.WRITE);
     process.state.SavedState.esp -= 12;
     esp += 4092;
@@ -302,6 +301,11 @@ pub export fn schedule(esp: usize, regs: usize, cr3: usize) callconv(.C) void {
         else => @panic("Scheduler interupted non-running process (?!)"),
     }
     runningProcess.status = .Running;
+    const pid = runningProcess.pid;
+    _ = pid;
+    // if (pid == 274) {
+    //     serial.format("{s}\n", .{runningProcess});
+    // }
     canSwitch = true;
     runningProcess.restore();
 }

@@ -162,7 +162,7 @@ pub const PageDirectory = struct {
 
     pub fn dup(self: *PageDirectory) !PageDirectory {
         var new: PageDirectory = try PageDirectory.init();
-        serial.format("Duping cr3: {x}\n", .{new});
+        // serial.format("Duping cr3: {x}\n", .{new});
         // printDirectory(self.cr3);
         for (self.cr3) |*page_table, dir_offset| {
             if (page_table.flags & PRESENT == 1) {
