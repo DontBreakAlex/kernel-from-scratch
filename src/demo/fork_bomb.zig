@@ -16,7 +16,7 @@ pub noinline fn bomb() void {
             },
             else => {
                 const pid = lib.wait();
-                vga.format("Child with PID {} died ({})\n", .{ pid, lib.getPid() });
+                vga.format("Child with PID {} died\n", .{pid});
                 if (lib.getPid() == 1)
                     return
                 else

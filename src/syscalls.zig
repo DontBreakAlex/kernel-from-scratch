@@ -91,7 +91,10 @@ export fn syscallHandlerInKS(regs_ptr: *idt.Regs, u_cr3: *[1024]PageEntry, us_es
     @setRuntimeSafety(false);
     regs.eax = @bitCast(usize, switch (regs.eax) {
         1 => exit(regs.ebx),
-        2 => fork(regs_ptr, us_esp) catch -1,
+        2 => fork(regs_ptr, us_esp) catch |err| cat: {
+            serial.format("Fork error: {}\n", .{err});
+            break :cat -1;
+        },
         3 => read(regs.ebx, regs.ecx, regs.edx),
         4 => write(regs.ebx, regs.ecx, regs.edx),
         6 => close(regs.ebx),
@@ -209,7 +212,6 @@ fn write(fd: usize, buff: usize, count: usize) isize {
 
 fn exit(code: usize) isize {
     scheduler.canSwitch = false;
-    serial.format("Process {} exiting\n", .{scheduler.runningProcess.pid});
     scheduler.runningProcess.status = .Zombie;
     scheduler.runningProcess.state = .{ .ExitCode = code };
     if (scheduler.runningProcess.parent) |parent| {

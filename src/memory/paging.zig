@@ -170,13 +170,14 @@ pub const PageDirectory = struct {
                     if (entry.flags & PRESENT == 1) {
                         const v_addr: usize = dir_offset << 22 | table_offset << 12;
                         const p_addr = @intCast(usize, entry.phy_addr) << 12;
-                        if (v_addr != p_addr) {
+                        if (dir_offset == 0 and table_offset < 256) {
+                            std.debug.assert(v_addr == p_addr);
+                            try new.mapOneToOne(v_addr);
+                        } else {
                             const phy_mem = @intToPtr(*[PAGE_SIZE]u8, p_addr);
                             const new_mem = @intToPtr(*[PAGE_SIZE]u8, try pageAllocator.alloc());
                             std.mem.copy(u8, new_mem, phy_mem);
                             try new.mapVirtToPhy(v_addr, @ptrToInt(new_mem), WRITE | PRESENT);
-                        } else {
-                            try new.mapOneToOne(v_addr);
                         }
                     }
                 }

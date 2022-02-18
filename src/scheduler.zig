@@ -161,7 +161,7 @@ const Process = struct {
         errdefer for (new_process.fd) |*fd|
             fd.close();
         new_process.pd = try self.pd.dup();
-        errdefer self.pd.deinit();
+        errdefer new_process.pd.deinit();
         new_process.state = State{ .SavedState = ProcessState{ .cr3 = @ptrToInt(new_process.pd.cr3), .esp = undefined, .regs = undefined } };
         new_process.owner_id = 0;
         new_process.vmem = vmem.VMemManager{};
@@ -301,11 +301,6 @@ pub export fn schedule(esp: usize, regs: usize, cr3: usize) callconv(.C) void {
         else => @panic("Scheduler interupted non-running process (?!)"),
     }
     runningProcess.status = .Running;
-    const pid = runningProcess.pid;
-    _ = pid;
-    // if (pid == 274) {
-    //     serial.format("{s}\n", .{runningProcess});
-    // }
     canSwitch = true;
     runningProcess.restore();
 }
