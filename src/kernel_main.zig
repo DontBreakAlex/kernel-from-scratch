@@ -11,11 +11,11 @@ const mem = @import("memory/mem.zig");
 const sch = @import("scheduler.zig");
 const sys = @import("syscalls.zig");
 const srl = @import("serial.zig");
+const log = @import("log.zig");
 
 pub fn panic(msg: []const u8, _: ?*std.builtin.StackTrace) noreturn {
     @setCold(true);
-    vga.format("KERNEL PANIC: {s}\n", .{msg});
-    srl.format("KERNEL PANIC: {s}\n", .{msg});
+    log.format("KERNEL PANIC: {s}\n", .{msg});
     utl.printTrace();
     utl.boch_break();
     utl.halt();

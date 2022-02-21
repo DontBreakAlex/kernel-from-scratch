@@ -249,14 +249,13 @@ pub fn startProcess(func: Fn) !void {
     while (i < 256) : (i += 1) {
         try process.pd.mapOneToOne(paging.PAGE_SIZE * i);
     }
-    // paging.printDirectory(process.pd.cr3);
     serial.format("Shell has PD at 0x{x:0>8}\n", .{@ptrToInt(process.pd.cr3)});
     process.kstack = try mem.allocKstack(2);
     serial.format("Kernel stack bottom: 0x{x:0>8}\n", .{process.kstack});
     var esp = try paging.pageAllocator.alloc();
     try process.pd.mapVirtToPhy(process.state.SavedState.esp - paging.PAGE_SIZE, esp, paging.WRITE);
-    process.state.SavedState.esp -= 12;
-    esp += 4092;
+    process.state.SavedState.esp -= 16;
+    esp += 4088;
     @intToPtr(*usize, esp).* = 0x202; // eflags
     esp -= 4;
     @intToPtr(*usize, esp).* = 0x8; // cs

@@ -15,6 +15,7 @@ const Event = scheduler.Event;
 const Process = scheduler.Process;
 const Pipe = file_descriptor.Pipe;
 const FileDescriptor = file_descriptor.FileDescriptor;
+const Regs = idt.Regs;
 
 pub fn init() void {
     idt.setIdtEntry(0x80, @ptrToInt(syscall_handler));
@@ -80,16 +81,17 @@ pub fn syscall_handler() callconv(.Naked) void {
 // edi: arg5
 // ebp: arg6
 
-export fn syscallHandlerInKS(regs_ptr: *idt.Regs, u_cr3: *[1024]PageEntry, us_esp: usize) callconv(.C) void {
+export fn syscallHandlerInKS(regs_ptr: *Regs, u_cr3: *[1024]PageEntry, us_esp: usize) callconv(.C) void {
     const PD = PageDirectory{ .cr3 = u_cr3 };
     scheduler.canSwitch = false;
-    const regs = PD.vPtrToPhy(idt.Regs, regs_ptr) catch |err| {
+    const regs = PD.vPtrToPhy(Regs, regs_ptr) catch |err| {
         vga.format("{}\n", .{err});
         @panic("Syscall failure");
     };
+    const userEax: *volatile isize = @ptrCast(*volatile isize, &regs.eax);
     scheduler.canSwitch = true;
     @setRuntimeSafety(false);
-    regs.eax = @bitCast(usize, switch (regs.eax) {
+    userEax.* = switch (regs.eax) {
         1 => exit(regs.ebx),
         2 => fork(regs_ptr, us_esp) catch |err| cat: {
             serial.format("Fork error: {}\n", .{err});
@@ -113,36 +115,36 @@ export fn syscallHandlerInKS(regs_ptr: *idt.Regs, u_cr3: *[1024]PageEntry, us_es
         else => {
             @panic("Unhandled syscall");
         },
-    });
-    // TODO: Try to reuse maps
+    };
+    // serial.format("eax = {}\n", .{ userEax.* });
     if (scheduler.wantsToSwitch) {
         scheduler.wantsToSwitch = false;
         scheduler.schedule(us_esp, @ptrToInt(regs_ptr), @ptrToInt(u_cr3));
     }
 }
 
-fn mmap(count: usize) isize {
+noinline fn mmap(count: usize) isize {
     scheduler.canSwitch = false;
     defer scheduler.canSwitch = true;
     return @intCast(isize, scheduler.runningProcess.allocPages(count) catch std.math.maxInt(usize));
 }
 
-fn munmap(addr: usize, count: usize) isize {
+noinline fn munmap(addr: usize, count: usize) isize {
     scheduler.canSwitch = false;
     defer scheduler.canSwitch = true;
     scheduler.runningProcess.deallocPages(addr, count);
     return 0;
 }
 
-fn getpid() isize {
+noinline fn getpid() isize {
     return scheduler.runningProcess.pid;
 }
 
-fn getuid() isize {
+noinline fn getuid() isize {
     return scheduler.runningProcess.owner_id;
 }
 
-fn fork(regs_ptr: *idt.Regs, us_esp: usize) !isize {
+noinline fn fork(regs_ptr: *idt.Regs, us_esp: usize) !isize {
     const new_process = try scheduler.runningProcess.clone();
     errdefer new_process.deinit();
     new_process.state.SavedState.esp = us_esp;
@@ -157,18 +159,18 @@ fn fork(regs_ptr: *idt.Regs, us_esp: usize) !isize {
     return new_process.pid;
 }
 
-fn sleep() isize {
+noinline fn sleep() isize {
     if (!scheduler.canSwitch)
         unreachable;
     scheduler.wantsToSwitch = true;
     return 0;
 }
 
-fn signal(sig: usize, handler: usize) isize {
+noinline fn signal(sig: usize, handler: usize) isize {
     return @bitCast(isize, scheduler.runningProcess.setSigHanlder(@intToEnum(scheduler.Signal, @truncate(u8, sig)), handler));
 }
 
-fn read(fd: usize, buff: usize, count: usize) isize {
+noinline fn read(fd: usize, buff: usize, count: usize) isize {
     scheduler.canSwitch = false;
     defer scheduler.canSwitch = true;
     const descriptor = scheduler.runningProcess.fd[fd];
@@ -188,7 +190,7 @@ fn read(fd: usize, buff: usize, count: usize) isize {
     return -1;
 }
 
-fn write(fd: usize, buff: usize, count: usize) isize {
+noinline fn write(fd: usize, buff: usize, count: usize) isize {
     scheduler.canSwitch = false;
     defer scheduler.canSwitch = true;
     const descriptor = scheduler.runningProcess.fd[fd];
@@ -210,7 +212,7 @@ fn write(fd: usize, buff: usize, count: usize) isize {
     return -1;
 }
 
-fn exit(code: usize) isize {
+noinline fn exit(code: usize) isize {
     scheduler.canSwitch = false;
     scheduler.runningProcess.status = .Zombie;
     scheduler.runningProcess.state = .{ .ExitCode = code };
@@ -225,7 +227,7 @@ fn exit(code: usize) isize {
     return 0;
 }
 
-fn usage(u_ptr: usize) !isize {
+noinline fn usage(u_ptr: usize) !isize {
     scheduler.canSwitch = false;
     defer scheduler.canSwitch = true;
     var u_struct = try scheduler.runningProcess.pd.vPtrToPhy(PageAllocator.AllocatorUsage, @intToPtr(*PageAllocator.AllocatorUsage, u_ptr));
@@ -233,7 +235,7 @@ fn usage(u_ptr: usize) !isize {
     return 0;
 }
 
-fn waitpid() isize {
+noinline fn waitpid() isize {
     scheduler.canSwitch = false;
     defer scheduler.canSwitch = true;
     var child = scheduler.runningProcess.childrens.first;
@@ -247,10 +249,11 @@ fn waitpid() isize {
             if (c.data.status == .Zombie) {
                 const pid = c.data.pid;
                 serial.format("Process {} found dead child with PID {}\n", .{ scheduler.runningProcess.pid, pid });
-                _ = if (prev) |p|
-                    p.removeNext()
-                else
-                    scheduler.runningProcess.childrens.popFirst();
+                if (prev) |p| {
+                    _ = p.removeNext();
+                } else {
+                    _ = scheduler.runningProcess.childrens.popFirst();
+                }
                 c.data.deinit();
                 return @intCast(isize, pid);
             }
@@ -261,7 +264,7 @@ fn waitpid() isize {
     return -1;
 }
 
-fn kill(pid: usize, sig: usize) isize {
+noinline fn kill(pid: usize, sig: usize) isize {
     scheduler.canSwitch = false;
     defer scheduler.canSwitch = true;
     const process = scheduler.processes.get(@intCast(u16, pid)) orelse return -1;
@@ -269,7 +272,7 @@ fn kill(pid: usize, sig: usize) isize {
     return 0;
 }
 
-fn sigwait() isize {
+noinline fn sigwait() isize {
     if (!scheduler.canSwitch)
         unreachable;
     scheduler.runningProcess.status = .Sleeping;
@@ -277,7 +280,7 @@ fn sigwait() isize {
     return 0;
 }
 
-fn pipe(us_fds: usize) !isize {
+noinline fn pipe(us_fds: usize) !isize {
     const new_pipe: *Pipe = try mem.allocator.create(Pipe);
     const ks_fds = try scheduler.runningProcess.pd.vPtrToPhy([2]usize, @intToPtr(*[2]usize, us_fds));
     const fd_out = try scheduler.runningProcess.getAvailableFd();
@@ -292,13 +295,13 @@ fn pipe(us_fds: usize) !isize {
     return 0;
 }
 
-fn close(fd: usize) isize {
+noinline fn close(fd: usize) isize {
     const descriptor = &scheduler.runningProcess.fd[fd];
     descriptor.close();
     return 0;
 }
 
-fn command(cmd: usize) isize {
+noinline fn command(cmd: usize) isize {
     switch (cmd) {
         0 => {
             serial.format("Running processes: \n", .{});

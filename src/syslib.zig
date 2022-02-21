@@ -5,7 +5,7 @@ const Allocator = std.mem.Allocator;
 const GeneralPurposeAllocator = std.heap.GeneralPurposeAllocator;
 const PAGE_SIZE = @import("memory/paging.zig").PAGE_SIZE;
 const pageAllocator = Allocator{ .ptr = undefined, .vtable = &PageAllocator.vtable };
-var generalPurposeAllocator = GeneralPurposeAllocator(.{}){ .backing_allocator = pageAllocator };
+var generalPurposeAllocator = GeneralPurposeAllocator(.{ .safety = false, .stack_trace_frames = 0 }){ .backing_allocator = pageAllocator };
 pub var userAllocator = generalPurposeAllocator.allocator();
 
 pub fn read(fd: usize, buffer: []u8, count: usize) isize {

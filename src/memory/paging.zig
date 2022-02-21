@@ -186,8 +186,8 @@ pub const PageDirectory = struct {
         return new;
     }
 
-    pub fn vPtrToPhy(self: *const PageDirectory, comptime T: type, ptr: *T) !*T {
-        return @intToPtr(*T, self.virtToPhy(@ptrToInt(ptr)) orelse return error.NotMapped);
+    pub fn vPtrToPhy(self: *const PageDirectory, comptime T: type, ptr: *T) !*volatile T {
+        return @intToPtr(*volatile T, self.virtToPhy(@ptrToInt(ptr)) orelse return error.NotMapped);
     }
 
     pub fn vBufferToPhy(self: *const PageDirectory, size: usize, ptr: usize) ![]u8 {

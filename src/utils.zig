@@ -2,6 +2,7 @@ const IdtPtr = @import("idt.zig").IdtPtr;
 const std = @import("std");
 const mlb = @import("multiboot.zig");
 const vga = @import("vga.zig");
+const log = @import("log.zig");
 
 pub inline fn lidt(ptr: *const IdtPtr) void {
     asm volatile ("lidt (%%eax)"
@@ -99,7 +100,7 @@ pub fn printTrace() void {
     var it = std.debug.StackIterator.init(first_trace_addr, null);
     while (it.next()) |return_address| {
         const name: [*:0]const u8 = mlb.getSymbolName(return_address) catch "??????";
-        vga.format("{x:0>8} ({s})\n", .{ return_address, name });
+        log.format("{x:0>8} ({s})\n", .{ return_address, name });
     }
 }
 

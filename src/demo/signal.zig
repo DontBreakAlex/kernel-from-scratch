@@ -32,7 +32,8 @@ pub noinline fn testSignal() void {
         return vga.putStr("Read failure\n");
     if (lib.kill(@intCast(usize, pid), .SIGINT) != 0)
         return vga.putStr("Kill failure\n");
-    if (lib.wait() != pid)
-        return vga.putStr("Wait failure\n");
+    const pid2 = lib.wait();
+    if (pid2 != pid)
+        return vga.format("Wait failure ({})\n", .{pid2});
     vga.putStr("Child terminated\n");
 }
