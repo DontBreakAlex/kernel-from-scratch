@@ -41,6 +41,8 @@ const Process = struct {
     owner_id: u16,
     vmem: vmem.VMemManager,
     fd: [FD_COUNT]FileDescriptor,
+    BSS: usize,
+    DATA: usize,
 
     pub fn queueSignal(self: *Process, sig: Signal) !void {
         const ret = try self.signals.writeItem(sig);
