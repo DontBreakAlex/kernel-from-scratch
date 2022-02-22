@@ -130,7 +130,7 @@ pub fn kill(pid: usize, sig: Signal) isize {
         \\int $0x80
         : [ret] "=&{eax}" (-> isize),
         : [pid] "{ebx}" (pid),
-          [sig] "{ecx}" (sig),
+          [sig] "{ecx}" (@intCast(usize, @enumToInt(sig))),
     );
 }
 

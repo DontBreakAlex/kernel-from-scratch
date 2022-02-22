@@ -9,7 +9,10 @@ pub noinline fn bomb() void {
         switch (ret) {
             -1 => {
                 vga.putStr("Fork failure\n");
-                lib.exit(1);
+                if (lib.getPid() == 1)
+                    return
+                else
+                    lib.exit(0);
             },
             0 => {
                 vga.format("Hello from PID {}\n", .{lib.getPid()});

@@ -98,11 +98,12 @@ pub const VMemManager = struct {
             current.next = null;
         }
         if (current.data.size - count != 0) {
-            var new_block = try self.allocNode();
-            new_block.data.size = current.data.size - count;
-            new_block.data.addr = current.data.addr + count * PAGE_SIZE;
-            current.data.size = count;
-            self.insertAvailable(new_block);
+            if (self.allocNode()) |new_block| {
+                new_block.data.size = current.data.size - count;
+                new_block.data.addr = current.data.addr + count * PAGE_SIZE;
+                current.data.size = count;
+                self.insertAvailable(new_block);
+            } else |_| {}
         }
         self.allocated.prepend(current);
         return current.data.addr;
