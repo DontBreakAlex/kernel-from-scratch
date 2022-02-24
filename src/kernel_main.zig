@@ -35,5 +35,23 @@ export fn kernel_main() void {
     sys.init();
 
     utl.enable_int();
-    sch.startProcess(shl.run) catch {};
+    sch.startProcess(disk) catch {};
+}
+
+const PataSatus = packed struct {
+    err: u1,
+    idx: u1,
+    corr: u1,
+    drq: u1,
+    srv: u1,
+    df: u1,
+    rdy: u1,
+    bsy: u1,
+};
+
+fn disk() void {
+    var data: PataSatus = undefined;
+    std.mem.asBytes(&data)[0] = utl.in(u8, 0x1F7);
+    vga.format("{b}\n", .{ data });
+    while (true) utl.halt();
 }
