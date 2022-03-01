@@ -12,6 +12,7 @@ const sch = @import("scheduler.zig");
 const sys = @import("syscalls.zig");
 const srl = @import("serial.zig");
 const log = @import("log.zig");
+const ata = @import("ata.zig");
 
 pub fn panic(msg: []const u8, _: ?*std.builtin.StackTrace) noreturn {
     @setCold(true);
@@ -50,8 +51,6 @@ const PataSatus = packed struct {
 };
 
 fn disk() void {
-    var data: PataSatus = undefined;
-    std.mem.asBytes(&data)[0] = utl.in(u8, 0x1F7);
-    vga.format("{b}\n", .{ data });
+    ata.detectDisks();
     while (true) utl.halt();
 }
