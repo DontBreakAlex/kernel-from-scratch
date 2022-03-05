@@ -1,6 +1,7 @@
 const std = @import("std");
 const utils = @import("utils.zig");
 const serial = @import("serial.zig");
+const ext = @import("ext2.zig");
 
 const PRIMARY_IO_BASE: u16 = 0x1F0;
 const PRIMARY_CONTROL_BASE: u16 = 0x3F6;
@@ -60,9 +61,9 @@ pub fn detectDisks() void {
 
     _ = select(PRIMARY_IO_BASE, SELECT_SLAVE);
     utils.out(PRIMARY_CONTROL_BASE, DISABLE_IRQ);
-    var data: [512]u8 = .{0} ** 512;
-    read(&data, PRIMARY_IO_BASE, SELECT_SLAVE, 0);
-    serial.format("{s}\n", .{data});
+    var data: [1024]u8 = .{0} ** 1024;
+    read(&data, PRIMARY_IO_BASE, SELECT_SLAVE, 2);
+    serial.format("{s}\n", .{ std.mem.bytesAsValue(ext.Ext2Header, data[0..120]) });
 }
 
 pub fn read(dst: []u8, io_port: u16, drv: u8, offset: u28) void {
