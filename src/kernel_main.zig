@@ -12,7 +12,7 @@ const sch = @import("scheduler.zig");
 const sys = @import("syscalls.zig");
 const srl = @import("serial.zig");
 const log = @import("log.zig");
-const ata = @import("ata.zig");
+const ata = @import("io/ata.zig");
 
 pub fn panic(msg: []const u8, _: ?*std.builtin.StackTrace) noreturn {
     @setCold(true);
@@ -36,7 +36,9 @@ export fn kernel_main() void {
     sys.init();
 
     utl.enable_int();
-    sch.startProcess(disk) catch {};
+    ata.init() catch log.format("Failed to init cache\n", .{});
+    disk();
+    // sch.startProcess(shl.run()) catch {};
 }
 
 const PataSatus = packed struct {
@@ -52,5 +54,6 @@ const PataSatus = packed struct {
 
 fn disk() void {
     ata.detectDisks();
-    while (true) utl.halt();
+    const cmd = @import("commands.zig");
+    cmd.poweroff(undefined);
 }

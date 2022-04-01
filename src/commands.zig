@@ -101,7 +101,7 @@ fn halt(_: ArgsIterator) u8 {
 }
 
 // Only works on emulators
-fn poweroff(_: ArgsIterator) u8 {
+pub fn poweroff(_: ArgsIterator) noreturn {
     utils.out(0xB004, @as(u16, 0x2000));
     utils.out(0x604, @as(u16, 0x2000));
     utils.out(0x4004, @as(u16, 0x3400));
@@ -110,7 +110,7 @@ fn poweroff(_: ArgsIterator) u8 {
         \\cli
         \\hlt
     );
-    return 0;
+    unreachable;
 }
 
 const multiboot = @import("multiboot.zig");
