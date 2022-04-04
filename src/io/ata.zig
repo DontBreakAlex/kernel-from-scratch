@@ -28,7 +28,7 @@ const DISABLE_IRQ: u8 = 0b10;
 
 const CMD_READ: u8 = 0x20;
 
-const AtaSatus = packed struct {
+const AtaStatus = packed struct {
     err: u1,
     idx: u1,
     corr: u1,
@@ -51,14 +51,14 @@ pub const AtaDevice = struct {
         return if (self.slave) SELECT_SLAVE else SELECT_MASTER;
     }
 
-    pub fn readStatus(self: AtaDevice) AtaSatus {
-        var data: AtaSatus = undefined;
+    pub fn readStatus(self: AtaDevice) AtaStatus {
+        var data: AtaStatus = undefined;
         std.mem.asBytes(&data)[0] = utils.in(u8, self.getIoPort(STATUS_REG_OFFSET));
         return data;
     }
 
-    pub fn select(self: AtaDevice) AtaSatus {
-        var data: AtaSatus = undefined;
+    pub fn select(self: AtaDevice) AtaStatus {
+        var data: AtaStatus = undefined;
         utils.out(self.getIoPort(DRIVE_REG_OFFSET), self.getSelector());
         var i: usize = 0;
         while (i < 15) : (i += 1)
@@ -66,7 +66,7 @@ pub const AtaDevice = struct {
         return data;
     }
 
-    pub fn read(self: AtaDevice, dst: []u8, offset: u28) void {
+    pub fn read(self: AtaDevice, dst: []u8, offset: u28) !void {
         std.debug.assert(dst.len % 512 == 0);
         std.debug.assert(dst.len / 512 + 1 < 256);
         const drive = self.getSelector() | ENABLE_LBA | @truncate(u8, offset >> 24);
@@ -84,9 +84,7 @@ pub const AtaDevice = struct {
 
         var i: usize = 0;
         while (i < count) : (i += 1) {
-            var status = self.readStatus();
-            while (status.bsy == 1 or status.drq == 0)
-                status = self.readStatus();
+            _ = try self.io_wait();
             // TODO: Check for errors
             var j: usize = 0;
             while (j < 256) : (j += 1) {
@@ -97,21 +95,35 @@ pub const AtaDevice = struct {
             }
         }
     }
+
+    fn io_wait(self: AtaDevice) !AtaStatus {
+        while (true) {
+            const status = self.readStatus();
+
+            if (status.bsy == 0 and status.drq == 1) {
+                return status;
+            }
+
+            if (status.err == 1 or status.df == 1) {
+                return error.DriveError;
+            }
+        }
+    }
 };
 
-var disk1 = AtaDevice{
+pub var disk1 = AtaDevice{
     .primary = true,
     .slave = false,
 };
-var disk2 = AtaDevice{
+pub var disk2 = AtaDevice{
     .primary = false,
     .slave = false,
 };
-var disk3 = AtaDevice{
+pub var disk3 = AtaDevice{
     .primary = true,
     .slave = true,
 };
-var disk4 = AtaDevice{
+pub var disk4 = AtaDevice{
     .primary = false,
     .slave = true,
 };
@@ -125,16 +137,6 @@ pub fn detectDisks() void {
     serial.format("Secondary bus (slave) : {s}\n", .{disk4.select()});
     utils.out(PRIMARY_CONTROL_BASE, DISABLE_IRQ);
     utils.out(SECONDARY_CONTROL_BASE, DISABLE_IRQ);
-
-    _ = disk3.select();
-    // var data: [1024]u8 = .{0} ** 1024;
-    // disk3.read(&data, 2);
-    // serial.format("{s}\n", .{std.mem.bytesAsValue(ext.Ext2Header, data[0..120])});
-    var fs = ext.create(&disk3) catch unreachable;
-    var inode = fs.readInode(2) catch unreachable;
-    serial.format("{s}\n", .{ inode });
-    inode.readDir() catch unreachable;
-    // fs.readInode(3) catch unreachable;
 }
 
 pub fn init() !void {

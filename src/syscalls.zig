@@ -7,6 +7,7 @@ const vga = @import("vga.zig");
 const mem = @import("memory/mem.zig");
 const serial = @import("serial.zig");
 const file_descriptor = @import("file_descriptor.zig");
+const proc = @import("process.zig");
 
 const PageDirectory = paging.PageDirectory;
 const PageEntry = paging.PageEntry;
@@ -167,7 +168,7 @@ noinline fn sleep() isize {
 }
 
 noinline fn signal(sig: usize, handler: usize) isize {
-    return @bitCast(isize, scheduler.runningProcess.setSigHanlder(@intToEnum(scheduler.Signal, @truncate(u8, sig)), handler));
+    return @bitCast(isize, scheduler.runningProcess.setSigHanlder(@intToEnum(proc.Signal, @truncate(u8, sig)), handler));
 }
 
 noinline fn read(fd: usize, buff: usize, count: usize) isize {
@@ -239,7 +240,7 @@ noinline fn waitpid() isize {
     scheduler.canSwitch = false;
     defer scheduler.canSwitch = true;
     var child = scheduler.runningProcess.childrens.first;
-    var prev: ?*scheduler.Child = null;
+    var prev: ?*proc.Child = null;
     while (true) {
         scheduler.runningProcess.status = .Sleeping;
         scheduler.canSwitch = true;
@@ -268,7 +269,7 @@ noinline fn kill(pid: usize, sig: usize) isize {
     scheduler.canSwitch = false;
     defer scheduler.canSwitch = true;
     const process = scheduler.processes.get(@intCast(u16, pid)) orelse return -1;
-    process.queueSignal(@intToEnum(scheduler.Signal, sig)) catch return -1;
+    process.queueSignal(@intToEnum(proc.Signal, sig)) catch return -1;
     return 0;
 }
 

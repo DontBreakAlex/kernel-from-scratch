@@ -157,10 +157,14 @@ pub const DiskDirent = packed struct {
         return @intToPtr([*]u8, @ptrToInt(self) + @sizeOf(DiskDirent))[0..self.name_length];
     }
 
-    pub fn getNext(self: *const DiskDirent) *DiskDirent {
-        return @intToPtr(*DiskDirent, @ptrToInt(self) + self.size);
+    pub fn getNext(self: *const DiskDirent) ?*DiskDirent {
+        const ptr = @intToPtr(*DiskDirent, @ptrToInt(self) + self.size);
+
+        return if (ptr.inode == 0) null else ptr;
     }
 };
+
+const EXT2MAGIC = 0xEF53;
 
 const FIFO: u16 = 0x1000;
 const CHARDEV: u16 = 0x2000;
@@ -170,7 +174,7 @@ const REGULAR: u16 = 0x8000;
 const SYMLINK: u16 = 0xA000;
 const SOCKET: u16 = 0xC000;
 
-const Inode = struct {
+pub const Inode = struct {
     fs: *Ext2FS,
     id: usize,
     mode: u16,
@@ -190,6 +194,7 @@ const Inode = struct {
         var block_index = src_cursor / cache.BLOCK_SIZE;
         var index_within_block = src_cursor % cache.BLOCK_SIZE;
         var block = try cache.getOrReadBlock(self.fs.drive, self.getNthBlock(block_index));
+        defer cache.releaseBuffer(block);
         var will_read = std.math.min(to_read, cache.BLOCK_SIZE - index_within_block);
         std.mem.copy(u8, dst[dst_cursor..will_read], block.data.slice[index_within_block..will_read]);
         to_read -= will_read;
@@ -210,10 +215,11 @@ const Inode = struct {
         defer mem.allocator.free(data);
 
         try self.read(data, 0);
-        const dirent = @ptrCast(*DiskDirent, data.ptr);
-        serial.format("{s} {s}\n", .{ dirent, dirent.getName() });
-        const next = dirent.getNext();
-        serial.format("{s} {s}\n", .{ next, next.getName() });
+        var dirent: ?*DiskDirent = @ptrCast(*DiskDirent, data.ptr);
+        while (dirent) |entry| {
+            serial.format("{s} {s}\n", .{ entry, entry.getName() });
+            dirent = entry.getNext();
+        }
     }
 };
 
@@ -227,7 +233,7 @@ const std = @import("std");
 
 const AtaDevice = ata.AtaDevice;
 
-const Ext2FS = struct {
+pub const Ext2FS = struct {
     drive: *AtaDevice,
     superblock: *Ext2Header,
     block_group_descriptor_table: []BlockGroupDescriptor,
@@ -238,13 +244,12 @@ const Ext2FS = struct {
         const offset_in_group = index % self.superblock.inodes_per_group;
         const group_descriptor = &self.block_group_descriptor_table[group];
         const inode_block = group_descriptor.inode_table + offset_in_group * self.superblock.inode_size / self.superblock.getBlockSize();
-        // serial.format("{s} {}\n", .{ group_descriptor, inode_block });
         const inode_buffer = try cache.getOrReadBlock(self.drive, inode_block);
-        // TODO: Cast to array of inodes
+        defer cache.releaseBuffer(inode_buffer);
         const inodes_per_block = self.superblock.getBlockSize() / self.superblock.inode_size;
         const inodes = @ptrCast([*]DiskInode, inode_buffer.data.slice)[0..inodes_per_block];
         const node = inodes[offset_in_group % inodes_per_block];
-        serial.format("{}\n", .{ node.size });
+        serial.format("{}\n", .{node.size});
         return Inode{
             .fs = self,
             .id = inode,
@@ -260,18 +265,31 @@ const Ext2FS = struct {
 
 pub fn create(drive: *AtaDevice) !*Ext2FS {
     const sblock_buffer = try cache.getOrReadBlock(drive, 1);
+    errdefer cache.releaseBuffer(sblock_buffer);
+
     var fs: *Ext2FS = try mem.allocator.create(Ext2FS);
+    errdefer mem.allocator.destroy(fs);
+
     fs.drive = drive;
     fs.superblock = @ptrCast(*Ext2Header, sblock_buffer.data.slice);
-    // serial.format("{s}\n", .{@ptrCast(*Ext2Header, sblock_buffer.data.slice)});
+    if (fs.superblock.magic != EXT2MAGIC)
+        return error.NotExt2;
+
     const blk_size = fs.superblock.getBlockSize();
-    if (blk_size != cache.BLOCK_SIZE) @panic("Unsupported block size");
+    if (blk_size != cache.BLOCK_SIZE)
+        @panic("Unsupported block size");
+
     const blkgrp_cnt1 = utils.divCeil(fs.superblock.blocks_count, fs.superblock.blocks_per_group);
     const blkgrp_cnt2 = utils.divCeil(fs.superblock.inodes_count, fs.superblock.inodes_per_group);
-    if (blkgrp_cnt1 != blkgrp_cnt2) @panic("Incoherent block group count");
-    if (blkgrp_cnt1 > blk_size / 32) @panic("Unsupported block count");
+
+    if (blkgrp_cnt1 != blkgrp_cnt2)
+        @panic("Incoherent block group count");
+    if (blkgrp_cnt1 > blk_size / 32)
+        @panic("Unsupported block count");
+
     const bgd_talbe_offset: u28 = if (blk_size == 1024) 2 else 1;
     const bgd_buffer = try cache.getOrReadBlock(drive, bgd_talbe_offset);
     fs.block_group_descriptor_table = @ptrCast([*]BlockGroupDescriptor, bgd_buffer.data.slice)[0..blkgrp_cnt1];
+
     return fs;
 }

@@ -1,6 +1,6 @@
 const std = @import("std");
 const utils = @import("utils.zig");
-pub const Signal = @import("scheduler.zig").Signal;
+pub const Signal = @import("process.zig").Signal;
 const Allocator = std.mem.Allocator;
 const GeneralPurposeAllocator = std.heap.GeneralPurposeAllocator;
 const PAGE_SIZE = @import("memory/paging.zig").PAGE_SIZE;

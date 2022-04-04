@@ -1,37 +1,57 @@
 const mem = @import("../memory/mem.zig");
 const std = @import("std");
 const ata = @import("ata.zig");
+const ext = @import("ext2.zig");
 
 pub const BLOCK_SIZE = 1024;
 const CACHE_SIZE = 512;
 const SECTORS_PER_BLOCK = 2;
+
 const AtaDevice = ata.AtaDevice;
+const Ext2FS = ext.Ext2FS;
+const Inode = ext.Inode;
+/// Uniquely identifies a buffer (an ext block)
 const BufferHeader = struct {
     lba: u28,
     drive: AtaDevice,
 };
-const List = std.TailQueue(struct {
+const Status = union(enum) { Empty, Unlocked: BufferHeader, Locked: BufferHeader };
+const BufferData = struct {
     slice: *[BLOCK_SIZE]u8,
     status: Status,
-});
-pub const Buffer = List.Node;
-const HashMap = std.AutoHashMap(BufferHeader, *Buffer);
-const Status = union(enum) { Empty, Unlocked: BufferHeader, Locked: BufferHeader };
-var freeList = List{};
-var hashMap = HashMap.init(mem.allocator);
+};
+const BufferList = std.TailQueue(BufferData);
+const BufferMap = std.AutoHashMap(BufferHeader, *Buffer);
+
+pub const Buffer = BufferList.Node;
+
+const InodeHeader = struct {
+    fs: *Ext2FS,
+    id: usize,
+};
+const InodeMap = std.AutoHashMap(InodeHeader, *Inode);
 
 pub fn init() !void {
     var buffers = try mem.allocator.alloc([BLOCK_SIZE]u8, CACHE_SIZE);
     for (buffers) |*buff| {
         var buffer = try mem.allocator.create(Buffer);
         buffer.data = .{ .slice = buff, .status = .Empty };
-        freeList.prepend(buffer);
+        bufferList.prepend(buffer);
     }
 }
 
+/// List of available buffers
+var bufferList = BufferList{};
+/// List of buffers containing data, indexed by header
+var hashMap = BufferMap.init(mem.allocator);
+
 pub fn getBuffer() ?*Buffer {
     // TODO: Remove from hashmap if necessary
-    return freeList.popFirst();
+    var buffer = bufferList.popFirst() orelse return null;
+    if (buffer.data.status == .Unlocked) {
+        _ = hashMap.remove(buffer.data.status.Unlocked);
+    }
+    return buffer;
 }
 
 pub fn getOrReadBlock(disk: *AtaDevice, block: usize) !*Buffer {
@@ -50,7 +70,7 @@ pub fn getOrReadBlock(disk: *AtaDevice, block: usize) !*Buffer {
         const buffer_header = BufferHeader{ .drive = disk.*, .lba = lba };
         try hashMap.put(buffer_header, buffer);
         // Assumes that the disk is selected
-        disk.read(buffer.data.slice, lba);
+        try disk.read(buffer.data.slice, lba);
         buffer.data.status = Status{ .Locked = buffer_header };
         return buffer;
     }
@@ -58,7 +78,21 @@ pub fn getOrReadBlock(disk: *AtaDevice, block: usize) !*Buffer {
 
 /// TODO: Put buffer back in free list
 pub fn releaseBuffer(buffer: *Buffer) void {
-    buffer.data.status = .Unlocked;
+    const status = Status{ .Unlocked = buffer.data.status.Locked };
+    buffer.data.status = status;
+    bufferList.append(buffer);
 }
 
-// TODO: Free old buffers
+var inodeMap = InodeMap.init(mem.allocator);
+
+pub fn getOrReadInode(fs: *Ext2FS, inode: usize) !*Inode {
+    const header = InodeHeader{ .fs = fs, .id = inode };
+    if (inodeMap.get(header)) |node| {
+        return node;
+    }
+    var node = try mem.allocator.create(Inode);
+    errdefer mem.allocator.destroy(node);
+    node.* = try fs.readInode(inode);
+    try inodeMap.put(header, node);
+    return node;
+}

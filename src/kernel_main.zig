@@ -13,6 +13,7 @@ const sys = @import("syscalls.zig");
 const srl = @import("serial.zig");
 const log = @import("log.zig");
 const ata = @import("io/ata.zig");
+const fs = @import("io/fs.zig");
 
 pub fn panic(msg: []const u8, _: ?*std.builtin.StackTrace) noreturn {
     @setCold(true);
@@ -37,8 +38,8 @@ export fn kernel_main() void {
 
     utl.enable_int();
     ata.init() catch log.format("Failed to init cache\n", .{});
-    disk();
-    // sch.startProcess(shl.run()) catch {};
+    fs.init() catch @panic("Failed to init filesystem !");
+    sch.startProcess(shl.run) catch {};
 }
 
 const PataSatus = packed struct {
