@@ -157,10 +157,35 @@ pub const DiskDirent = packed struct {
         return @intToPtr([*]u8, @ptrToInt(self) + @sizeOf(DiskDirent))[0..self.name_length];
     }
 
-    pub fn getNext(self: *const DiskDirent) ?*DiskDirent {
-        const ptr = @intToPtr(*DiskDirent, @ptrToInt(self) + self.size);
+    pub fn getNext(self: *const DiskDirent) *DiskDirent {
+        return @intToPtr(*DiskDirent, @ptrToInt(self) + self.size);
+    }
+};
 
-        return if (ptr.inode == 0) null else ptr;
+pub const DiskDirentIterator = struct {
+    first: *DiskDirent,
+    current: *DiskDirent,
+    last: *DiskDirent,
+
+    pub fn init(data: []u8) DiskDirentIterator {
+        const first = @ptrCast(*DiskDirent, data.ptr);
+        return DiskDirentIterator{
+            .first = first,
+            .current = first,
+            .last = @intToPtr(*DiskDirent, @ptrToInt(data.ptr) + data.len),
+        };
+    }
+
+    pub fn next(self: *DiskDirentIterator) ?*DiskDirent {
+        if (self.current == self.last)
+            return null;
+        // Skip node if it is unused
+        if (self.current.inode != 0) {
+            defer self.current = self.current.getNext();
+            return self.current;
+        }
+        return self.next();
+        // return @call(.{ .modifier = .always_tail }, self.next, .{});
     }
 };
 
@@ -215,10 +240,9 @@ pub const Inode = struct {
         defer mem.allocator.free(data);
 
         try self.read(data, 0);
-        var dirent: ?*DiskDirent = @ptrCast(*DiskDirent, data.ptr);
-        while (dirent) |entry| {
+        var iter = DiskDirentIterator.init(data);
+        while (iter.next()) |entry| {
             serial.format("{s} {s}\n", .{ entry, entry.getName() });
-            dirent = entry.getNext();
         }
     }
 };

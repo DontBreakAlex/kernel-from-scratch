@@ -169,6 +169,17 @@ pub fn command(cmd: usize) isize {
     );
 }
 
+pub fn getcwd(buf: []u8) isize {
+    return asm volatile (
+        \\mov $79, %%eax
+        \\int $0x80
+        : [ret] "=&{eax}" (-> isize),
+        : [addr] "{ebx}" (buf.ptr),
+          [len] "{ecx}" (buf.len),
+        : "eax", "memory"
+    );
+}
+
 const PageAllocator = struct {
     const vtable = Allocator.VTable{
         .alloc = alloc,

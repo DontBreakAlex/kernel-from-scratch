@@ -10,7 +10,7 @@ const Inode = ext.Inode;
 const DirEnt = dirent.DirEnt;
 
 var root_fs: *Fs = undefined;
-var root_dirent: DirEnt = undefined;
+pub var root_dirent: DirEnt = undefined;
 
 pub fn init() !void {
     root_fs = blk: {
@@ -45,5 +45,5 @@ pub fn init() !void {
         .e_type = .Dir,
         .children = null,
     };
-    log.format("Root dirent: {s}\n", .{root_dirent});
+    try root_dirent.inode.readDir();
 }

@@ -9,7 +9,7 @@ pub const CommandFn = fn (args: ArgsIterator) u8;
 pub const Command = struct { name: []const u8, cmd: CommandFn };
 extern const stack_bottom: u8;
 
-pub const commands: [12]Command = .{
+pub const commands: [13]Command = .{
     .{ .name = "echo", .cmd = echo },
     // .{ .name = "pstack", .cmd = printStack },
     // .{ .name = "ptrace", .cmd = printTrace },
@@ -24,6 +24,7 @@ pub const commands: [12]Command = .{
     .{ .name = "test", .cmd = runTest },
     .{ .name = "free", .cmd = free },
     .{ .name = "ps", .cmd = printProcesses },
+    .{ .name = "pwd", .cmd = getcwd },
 };
 
 pub fn find(name: []const u8) ?CommandFn {
@@ -168,4 +169,14 @@ fn free(_: ArgsIterator) u8 {
 
 fn printProcesses(_: ArgsIterator) u8 {
     return @intCast(u8, lib.command(0));
+}
+
+fn getcwd(_: ArgsIterator) u8 {
+    var buf: [256]u8 = .{1} ** 256;
+    if (lib.getcwd(&buf) < 0) {
+        vga.putStr("getcwd failure\n");
+        return 1;
+    }
+    vga.format("{s}\n", .{@ptrCast([*:0]const u8, &buf)});
+    return 0;
 }

@@ -1,0 +1,6 @@
+{
+    "Import file": {
+        "prefix": "import",
+        "body": "const ${1:std} = @import(\"${2:std}\");"
+    }
+}

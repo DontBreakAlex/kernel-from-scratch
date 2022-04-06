@@ -5,6 +5,7 @@ const serial = @import("serial.zig");
 const paging = @import("memory/paging.zig");
 const scheduler = @import("scheduler.zig");
 const file_descriptor = @import("file_descriptor.zig");
+const dirent = @import("io/dirent.zig");
 
 pub const FD_COUNT = 4;
 pub const US_STACK_BASE = 0x1000000;
@@ -23,6 +24,7 @@ pub const Children = std.SinglyLinkedList(*Process);
 pub const SignalQueue = std.fifo.LinearFifo(Signal, .Dynamic); // TODO: Use fixed size
 const PageDirectory = paging.PageDirectory;
 const FileDescriptor = file_descriptor.FileDescriptor;
+const DirEnt = dirent.DirEnt;
 
 pub const Process = struct {
     pid: u16,
@@ -38,8 +40,7 @@ pub const Process = struct {
     owner_id: u16,
     vmem: vmem.VMemManager,
     fd: [FD_COUNT]FileDescriptor,
-    BSS: usize,
-    DATA: usize,
+    cwd: *DirEnt,
 
     pub fn queueSignal(self: *Process, sig: Signal) !void {
         const ret = try self.signals.writeItem(sig);
@@ -155,6 +156,7 @@ pub const Process = struct {
         new_process.status = .Paused;
         new_process.childrens = Children{};
         new_process.signals = SignalQueue.init(allocator);
+        new_process.cwd = self.cwd;
         std.mem.copy(usize, &new_process.handlers, &self.handlers);
         std.mem.copy(FileDescriptor, &new_process.fd, &self.fd);
         for (self.fd) |*fd|

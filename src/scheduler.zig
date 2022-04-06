@@ -1,4 +1,5 @@
 const std = @import("std");
+const fs = @import("io/fs.zig");
 const vga = @import("vga.zig");
 const mem = @import("memory/mem.zig");
 const vmem = @import("memory/vmem.zig");
@@ -49,6 +50,7 @@ pub fn startProcess(func: Fn) !void {
         .esp = US_STACK_BASE,
         .regs = 0,
     } };
+    process.cwd = &fs.root_dirent;
     process.owner_id = 0;
     process.vmem = vmem.VMemManager{};
     process.vmem.init();
