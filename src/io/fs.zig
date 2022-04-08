@@ -42,8 +42,12 @@ pub fn init() !void {
         .parent = null,
         .name = .{'/'} ++ .{undefined} ** 255,
         .namelen = 1,
-        .e_type = .Dir,
+        .e_type = .Directory,
         .children = null,
     };
-    try root_dirent.inode.readDir();
+    try root_dirent.readChildren();
+    var it = root_dirent.children.?.first;
+    while (it) |node| : (it = node.next) {
+        log.format("{s}\n", .{node.data.getName()});
+    }
 }

@@ -325,7 +325,9 @@ noinline fn getcwd(buff: usize, size: usize) isize {
     return @intCast(isize, cnt) + 1;
 }
 
-// noinline fn chdir(path: usize) isize {
-//     const u_ptr = scheduler.runningProcess.pd.virtToPhy(path) orelse return -1;
-//     var u_path = @ptrCast([*:0]u8, u_ptr);
-// }
+noinline fn chdir(path: usize) isize {
+    const u_ptr = scheduler.runningProcess.pd.virtToPhy(path) orelse return -1;
+    var u_path = @ptrCast([*:0]u8, u_ptr);
+    scheduler.runningProcess.cwd.resolve(path) catch return -1;
+    return 0;
+}

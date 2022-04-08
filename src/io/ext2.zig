@@ -187,6 +187,10 @@ pub const DiskDirentIterator = struct {
         return self.next();
         // return @call(.{ .modifier = .always_tail }, self.next, .{});
     }
+
+    pub fn deinit(self: *const DiskDirentIterator) void {
+        mem.allocator.free(@ptrCast([*]u8, self.first)[0 .. @ptrToInt(self.last) - @ptrToInt(self.first)]);
+    }
 };
 
 const EXT2MAGIC = 0xEF53;
@@ -235,15 +239,11 @@ pub const Inode = struct {
         };
     }
 
-    pub fn readDir(self: *const Inode) !void {
+    pub fn readDir(self: *const Inode) !DiskDirentIterator {
         var data = try mem.allocator.alloc(u8, self.size);
-        defer mem.allocator.free(data);
 
         try self.read(data, 0);
-        var iter = DiskDirentIterator.init(data);
-        while (iter.next()) |entry| {
-            serial.format("{s} {s}\n", .{ entry, entry.getName() });
-        }
+        return DiskDirentIterator.init(data);
     }
 };
 
@@ -299,17 +299,27 @@ pub fn create(drive: *AtaDevice) !*Ext2FS {
     if (fs.superblock.magic != EXT2MAGIC)
         return error.NotExt2;
 
+    if (fs.superblock.feature_incompat != 0x02) {
+        log.format("Unsuported feature flags in ext2 fs: expected 0x02, found 0x{x:0>2}\n", .{fs.superblock.feature_incompat});
+        return error.UnsuportedFeatures;
+    }
     const blk_size = fs.superblock.getBlockSize();
-    if (blk_size != cache.BLOCK_SIZE)
-        @panic("Unsupported block size");
+    if (blk_size != cache.BLOCK_SIZE) {
+        log.format("Unsupported block size in ext2 fs: expected {d}, found {d}\n", .{ cache.BLOCK_SIZE, blk_size });
+        return error.UnsuportedBlkSize;
+    }
 
     const blkgrp_cnt1 = utils.divCeil(fs.superblock.blocks_count, fs.superblock.blocks_per_group);
     const blkgrp_cnt2 = utils.divCeil(fs.superblock.inodes_count, fs.superblock.inodes_per_group);
 
-    if (blkgrp_cnt1 != blkgrp_cnt2)
-        @panic("Incoherent block group count");
-    if (blkgrp_cnt1 > blk_size / 32)
-        @panic("Unsupported block count");
+    if (blkgrp_cnt1 != blkgrp_cnt2) {
+        log.format("Incoherent block group count in ext2 fs\n", .{});
+        return error.IncoherentBlkSize;
+    }
+    if (blkgrp_cnt1 > blk_size / 32) {
+        log.format("To many block group descriptors in ext2 fs\n", .{});
+        return error.ToManyBlockGroups;
+    }
 
     const bgd_talbe_offset: u28 = if (blk_size == 1024) 2 else 1;
     const bgd_buffer = try cache.getOrReadBlock(drive, bgd_talbe_offset);
