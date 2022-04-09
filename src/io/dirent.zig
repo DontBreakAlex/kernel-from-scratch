@@ -84,7 +84,12 @@ pub const DirEnt = struct {
         var cursor: *DirEnt = if (path[0] == '/') &fs.root_dirent else self;
         var iterator: Iterator = std.mem.tokenize(u8, path, "/");
         while (iterator.next()) |name| {
-            cursor = try cursor.findChildren(name);
+            var next = try cursor.findChildren(name);
+            if (next.inode == cursor.inode) {} else if (cursor.parent != null and next.inode == cursor.parent.?.inode) {
+                cursor = cursor.parent.?;
+            } else {
+                cursor = next;
+            }
         }
         return cursor;
     }
