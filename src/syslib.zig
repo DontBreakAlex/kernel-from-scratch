@@ -180,6 +180,17 @@ pub fn getcwd(buf: []u8) isize {
     );
 }
 
+pub fn chdir(buf: []const u8) isize {
+    return asm volatile (
+        \\mov $80, %%eax
+        \\int $0x80
+        : [ret] "=&{eax}" (-> isize),
+        : [addr] "{ebx}" (buf.ptr),
+          [len] "{ecx}" (buf.len),
+        : "eax", "memory"
+    );
+}
+
 const PageAllocator = struct {
     const vtable = Allocator.VTable{
         .alloc = alloc,

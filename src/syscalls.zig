@@ -109,6 +109,7 @@ export fn syscallHandlerInKS(regs_ptr: *Regs, u_cr3: *[1024]PageEntry, us_esp: u
         42 => pipe(regs.ebx) catch -1,
         48 => signal(regs.ebx, regs.ecx),
         79 => getcwd(regs.ebx, regs.ecx),
+        80 => chdir(regs.ebx, regs.ecx),
         102 => getuid(),
         162 => sleep(),
         177 => sigwait(),
@@ -325,9 +326,8 @@ noinline fn getcwd(buff: usize, size: usize) isize {
     return @intCast(isize, cnt) + 1;
 }
 
-noinline fn chdir(path: usize) isize {
-    const u_ptr = scheduler.runningProcess.pd.virtToPhy(path) orelse return -1;
-    var u_path = @ptrCast([*:0]u8, u_ptr);
-    scheduler.runningProcess.cwd.resolve(path) catch return -1;
+noinline fn chdir(buff: usize, size: usize) isize {
+    var path = scheduler.runningProcess.pd.vBufferToPhy(size, buff) catch return -1;
+    scheduler.runningProcess.cwd = scheduler.runningProcess.cwd.resolve(path) catch return -1;
     return 0;
 }

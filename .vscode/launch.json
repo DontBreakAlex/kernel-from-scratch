@@ -13,7 +13,6 @@
 			"remote": true,
 			"cwd": "${workspaceRoot}",
 			"valuesFormatting": "disabled",
-            "showDevDebugOutput": true
 		}
 	]
 }

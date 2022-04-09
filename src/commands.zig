@@ -9,7 +9,7 @@ pub const CommandFn = fn (args: ArgsIterator) u8;
 pub const Command = struct { name: []const u8, cmd: CommandFn };
 extern const stack_bottom: u8;
 
-pub const commands: [13]Command = .{
+pub const commands: [14]Command = .{
     .{ .name = "echo", .cmd = echo },
     // .{ .name = "pstack", .cmd = printStack },
     // .{ .name = "ptrace", .cmd = printTrace },
@@ -25,6 +25,7 @@ pub const commands: [13]Command = .{
     .{ .name = "free", .cmd = free },
     .{ .name = "ps", .cmd = printProcesses },
     .{ .name = "pwd", .cmd = getcwd },
+    .{ .name = "cd", .cmd = cd },
 };
 
 pub fn find(name: []const u8) ?CommandFn {
@@ -179,4 +180,16 @@ fn getcwd(_: ArgsIterator) u8 {
     }
     vga.format("{s}\n", .{@ptrCast([*:0]const u8, &buf)});
     return 0;
+}
+
+fn cd(args: ArgsIterator) u8 {
+    if (args.next()) |directory| {
+        if (lib.chdir(directory) < 0) {
+            vga.putStr("chdir failed\n");
+            return 1;
+        }
+        return 0;
+    }
+    vga.putStr("Error: no directory specified\n");
+    return 1;
 }

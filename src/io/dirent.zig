@@ -3,6 +3,7 @@ const ext = @import("ext2.zig");
 const fs = @import("fs.zig");
 const mem = @import("../memory/mem.zig");
 const cache = @import("cache.zig");
+const serial = @import("../serial.zig");
 
 const MAX_NESTED = 256;
 const Inode = ext.Inode;
@@ -57,19 +58,30 @@ pub const DirEnt = struct {
             totallen += c.namelen;
             current = c.parent;
         }
+        totallen = if (parents.len == 1) totallen + 1 else totallen + (parents.len - 1);
         if (dst.len < totallen)
             return error.BufferTooSmall;
+        if (totallen == 1) {
+            dst[0] = '/';
+            return totallen;
+        }
         var cursor: usize = 0;
+        var first = parents.pop();
+        std.mem.copy(u8, dst[cursor .. cursor + first.namelen], first.getName());
+        cursor += first.namelen;
         while (parents.popOrNull()) |entry| {
-            std.mem.copy(u8, dst[cursor..entry.namelen], entry.getName());
+            dst[cursor] = '/';
+            cursor += 1;
+            var tmp = dst[cursor .. cursor + entry.namelen];
+            std.mem.copy(u8, tmp, entry.getName());
             cursor += entry.namelen;
         }
         return totallen;
     }
 
-    const Iterator = *std.mem.TokenIterator(u8);
-    pub fn resolve(self: *DirEnt, path: []u8) !*DirEnt {
-        var cursor: *DirEnt = if (path[0] == '/') fs.root_dirent else self;
+    const Iterator = std.mem.TokenIterator(u8);
+    pub fn resolve(self: *DirEnt, path: []const u8) !*DirEnt {
+        var cursor: *DirEnt = if (path[0] == '/') &fs.root_dirent else self;
         var iterator: Iterator = std.mem.tokenize(u8, path, "/");
         while (iterator.next()) |name| {
             cursor = try cursor.findChildren(name);
@@ -77,20 +89,20 @@ pub const DirEnt = struct {
         return cursor;
     }
 
-    fn findChildren(self: *DirEnt, name: []u8) !*DirEnt {
-        if (self.e_type != .Dir)
+    fn findChildren(self: *DirEnt, name: []const u8) !*DirEnt {
+        if (self.e_type != .Directory)
             return error.NotADirectory;
         if (self.children == null)
             try self.readChildren();
         var it = self.children.?.first;
         while (it) |node| : (it = node.next) {
-            if (std.mem.eql(node.data.getName(), name))
+            if (std.mem.eql(u8, node.data.getName(), name))
                 return &node.data;
         }
         return error.NotFound;
     }
 
-    pub fn readChildren(self: *DirEnt) !void {
+    fn readChildren(self: *DirEnt) !void {
         var iter = try self.inode.readDir();
         defer iter.deinit();
 

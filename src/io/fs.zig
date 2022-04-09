@@ -40,14 +40,9 @@ pub fn init() !void {
     root_dirent = DirEnt{
         .inode = try cache.getOrReadInode(root_fs, 2),
         .parent = null,
-        .name = .{'/'} ++ .{undefined} ** 255,
-        .namelen = 1,
+        .name = undefined,
+        .namelen = 0,
         .e_type = .Directory,
         .children = null,
     };
-    try root_dirent.readChildren();
-    var it = root_dirent.children.?.first;
-    while (it) |node| : (it = node.next) {
-        log.format("{s}\n", .{node.data.getName()});
-    }
 }
