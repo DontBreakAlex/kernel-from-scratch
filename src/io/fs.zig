@@ -6,8 +6,8 @@ const mem = @import("../memory/mem.zig");
 const cache = @import("cache.zig");
 const dirent = @import("dirent.zig");
 const Fs = ext.Ext2FS;
-const Inode = ext.Inode;
 const DirEnt = dirent.DirEnt;
+const InodeRef = dirent.InodeRef;
 
 var root_fs: *Fs = undefined;
 pub var root_dirent: DirEnt = undefined;
@@ -38,7 +38,7 @@ pub fn init() !void {
     };
 
     root_dirent = DirEnt{
-        .inode = try cache.getOrReadInode(root_fs, 2),
+        .inode = .{ .ext = try cache.getOrReadInode(root_fs, 2) },
         .parent = null,
         .name = undefined,
         .namelen = 0,
@@ -46,3 +46,10 @@ pub fn init() !void {
         .children = null,
     };
 }
+
+const File = struct {
+    refcount: usize,
+    inode: InodeRef,
+    mode: u8,
+    offset: usize,
+};

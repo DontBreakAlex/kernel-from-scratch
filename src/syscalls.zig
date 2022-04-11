@@ -100,6 +100,7 @@ export fn syscallHandlerInKS(regs_ptr: *Regs, u_cr3: *[1024]PageEntry, us_esp: u
         },
         3 => read(regs.ebx, regs.ecx, regs.edx),
         4 => write(regs.ebx, regs.ecx, regs.edx),
+        5 => open(regs.ebx, regs.ecx),
         6 => close(regs.ebx),
         7 => waitpid(),
         9 => mmap(regs.ebx),
@@ -330,4 +331,13 @@ noinline fn chdir(buff: usize, size: usize) isize {
     var path = scheduler.runningProcess.pd.vBufferToPhy(size, buff) catch return -1;
     scheduler.runningProcess.cwd = scheduler.runningProcess.cwd.resolve(path) catch return -1;
     return 0;
+}
+
+noinline fn open(buff: usize, size: usize) isize {
+    var path = scheduler.runningProcess.pd.vBufferToPhy(buff, size) catch return -1;
+    var file = scheduler.runningProcess.cwd.resolve(path) catch return -1;
+    switch (file.e_type) {
+        else => return -1,
+    }
+    unreachable;
 }

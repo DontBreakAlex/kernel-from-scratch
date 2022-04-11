@@ -204,6 +204,8 @@ const SYMLINK: u16 = 0xA000;
 const SOCKET: u16 = 0xC000;
 
 pub const Inode = struct {
+    const Self = @This();
+
     fs: *Ext2FS,
     id: usize,
     mode: u16,
@@ -213,7 +215,7 @@ pub const Inode = struct {
     t_block: u32,
     size: u32,
 
-    pub fn read(self: *const Inode, dst: []u8, offset: u32) !void {
+    pub fn read(self: *const Self, dst: []u8, offset: u32) !void {
         if (dst.len + offset > self.size)
             return error.BufferTooLong;
         // TODO: Check block device
@@ -232,18 +234,33 @@ pub const Inode = struct {
         std.debug.assert(to_read == 0);
     }
 
-    fn getNthBlock(self: *const Inode, n: u32) u32 {
+    fn getNthBlock(self: *const Self, n: u32) u32 {
         return switch (n) {
             0...11 => self.blocks[n],
             else => @panic("Unimplemented"),
         };
     }
 
-    pub fn readDir(self: *const Inode) !DiskDirentIterator {
+    pub fn populateChildren(self: *const Self, dentry: *DirEnt) !void {
         var data = try mem.allocator.alloc(u8, self.size);
-
+        defer mem.allocator.free(data);
         try self.read(data, 0);
-        return DiskDirentIterator.init(data);
+
+        var iter = DiskDirentIterator.init(data);
+        dentry.children = dirent.Childrens{};
+        while (iter.next()) |entry| {
+            var child = try mem.allocator.create(dirent.Child);
+            child.data = DirEnt{
+                .inode = .{ .ext = try cache.getOrReadInode(self.fs, entry.inode) },
+                .parent = dentry,
+                .e_type = try dirent.Type.fromTypeIndicator(entry.type_indicator),
+                .children = null,
+                .namelen = entry.name_length,
+                .name = undefined,
+            };
+            std.mem.copy(u8, &child.data.name, entry.getName());
+            dentry.children.?.append(child);
+        }
     }
 };
 
@@ -254,8 +271,10 @@ const mem = @import("../memory/mem.zig");
 const log = @import("../log.zig");
 const utils = @import("../utils.zig");
 const std = @import("std");
+const dirent = @import("dirent.zig");
 
 const AtaDevice = ata.AtaDevice;
+const DirEnt = dirent.DirEnt;
 
 pub const Ext2FS = struct {
     drive: *AtaDevice,

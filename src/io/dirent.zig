@@ -8,8 +8,8 @@ const serial = @import("../serial.zig");
 const MAX_NESTED = 256;
 const Inode = ext.Inode;
 
-const Childrens = std.TailQueue(DirEnt);
-const Child = Childrens.Node;
+pub const Childrens = std.TailQueue(DirEnt);
+pub const Child = Childrens.Node;
 pub const Type = enum {
     Unknown,
     Regular,
@@ -35,8 +35,28 @@ pub const Type = enum {
     }
 };
 
+pub const InodeRef = union(enum) {
+    const Self = @This();
+
+    ext: *ext.Inode,
+
+    pub fn populateChildren(self: Self, dirent: *DirEnt) !void {
+        switch (self) {
+            .ext => try self.ext.populateChildren(dirent),
+        }
+    }
+
+    pub fn compare(lhs: Self, rhs: Self) bool {
+        if (@enumToInt(lhs) != @enumToInt(rhs))
+            return false;
+        return switch (lhs) {
+            .ext => lhs.ext == rhs.ext,
+        };
+    }
+};
+
 pub const DirEnt = struct {
-    inode: *Inode,
+    inode: InodeRef,
     parent: ?*DirEnt,
     e_type: Type,
     /// If childrens is null for a directory, it means that it hasn't been read yet
@@ -85,7 +105,7 @@ pub const DirEnt = struct {
         var iterator: Iterator = std.mem.tokenize(u8, path, "/");
         while (iterator.next()) |name| {
             var next = try cursor.findChildren(name);
-            if (next.inode == cursor.inode) {} else if (cursor.parent != null and next.inode == cursor.parent.?.inode) {
+            if (InodeRef.compare(next.inode, cursor.inode)) {} else if (cursor.parent != null and InodeRef.compare(next.inode, cursor.parent.?.inode)) {
                 cursor = cursor.parent.?;
             } else {
                 cursor = next;
@@ -98,32 +118,12 @@ pub const DirEnt = struct {
         if (self.e_type != .Directory)
             return error.NotADirectory;
         if (self.children == null)
-            try self.readChildren();
+            try self.inode.populateChildren(self);
         var it = self.children.?.first;
         while (it) |node| : (it = node.next) {
             if (std.mem.eql(u8, node.data.getName(), name))
                 return &node.data;
         }
         return error.NotFound;
-    }
-
-    fn readChildren(self: *DirEnt) !void {
-        var iter = try self.inode.readDir();
-        defer iter.deinit();
-
-        self.children = Childrens{};
-        while (iter.next()) |entry| {
-            var child = try mem.allocator.create(Child);
-            child.data = DirEnt{
-                .inode = try cache.getOrReadInode(self.inode.fs, entry.inode),
-                .parent = self,
-                .e_type = try Type.fromTypeIndicator(entry.type_indicator),
-                .children = null,
-                .namelen = entry.name_length,
-                .name = undefined,
-            };
-            std.mem.copy(u8, &child.data.name, entry.getName());
-            self.children.?.append(child);
-        }
     }
 };
