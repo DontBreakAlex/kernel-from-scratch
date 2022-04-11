@@ -262,6 +262,10 @@ pub const Inode = struct {
             dentry.children.?.append(child);
         }
     }
+
+    pub fn currentSize(self: *const Self) usize {
+        return self.size;
+    }
 };
 
 const cache = @import("cache.zig");

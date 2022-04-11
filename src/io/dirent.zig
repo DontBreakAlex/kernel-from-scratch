@@ -1,5 +1,6 @@
 const std = @import("std");
 const ext = @import("ext2.zig");
+const fake = @import("fakefs.zig");
 const fs = @import("fs.zig");
 const mem = @import("../memory/mem.zig");
 const cache = @import("cache.zig");
@@ -39,10 +40,12 @@ pub const InodeRef = union(enum) {
     const Self = @This();
 
     ext: *ext.Inode,
+    fake: *fake.Inode,
 
     pub fn populateChildren(self: Self, dirent: *DirEnt) !void {
         switch (self) {
             .ext => try self.ext.populateChildren(dirent),
+            .fake => try self.fake.populateChildren(dirent),
         }
     }
 
@@ -51,6 +54,14 @@ pub const InodeRef = union(enum) {
             return false;
         return switch (lhs) {
             .ext => lhs.ext == rhs.ext,
+            .fake => lhs.fake == lfs.fake,
+        };
+    }
+
+    pub fn currentSize(self: *const Self) usize {
+        return switch (self) {
+            .ext => self.ext.currentSize(),
+            .fake => self.fake.currentSize(),
         };
     }
 };
