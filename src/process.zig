@@ -186,8 +186,9 @@ pub const Process = struct {
         self.signals.deinit();
         self.pd.deinit();
         mem.freeKstack(self.kstack, KERNEL_STACK_SIZE);
-        for (self.fd) |*fd|
-            fd.close();
+        for (self.fd) |fd|
+            if (fd) |file|
+                file.close();
         allocator.destroy(self);
     }
 

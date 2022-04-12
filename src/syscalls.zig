@@ -8,6 +8,7 @@ const mem = @import("memory/mem.zig");
 const serial = @import("serial.zig");
 const proc = @import("process.zig");
 const fakefs = @import("io/fakefs.zig");
+const fs = @import("io/fs.zig");
 
 const PageDirectory = paging.PageDirectory;
 const PageEntry = paging.PageEntry;
@@ -284,23 +285,25 @@ noinline fn sigwait() isize {
 
 noinline fn pipe(us_fds: usize) !isize {
     const new_pipe: *fakefs.Inode = try fakefs.Inode.create();
+    defer new_pipe.release();
     const ks_fds = try scheduler.runningProcess.pd.vPtrToPhy([2]usize, @intToPtr(*[2]usize, us_fds));
     const fd_out = try scheduler.runningProcess.getAvailableFd();
-    fd_out.fd.* = .{ .PipeOut = new_pipe };
-    errdefer fd_out.fd.* = .Closed;
+    scheduler.runningProcess.fd[fd_out] = try fs.File.create(.{ .fake = new_pipe }, fs.READ);
+    errdefer scheduler.runningProcess.fd[fd_out].?.close();
     const fd_in = try scheduler.runningProcess.getAvailableFd();
-    fd_in.fd.* = .{ .PipeIn = new_pipe };
-    errdefer fd_in.fd.* = .Closed;
-    new_pipe.* = Pipe{ .refcount = 2 };
-    ks_fds[0] = fd_out.i;
-    ks_fds[1] = fd_in.i;
+    scheduler.runningProcess.fd[fd_in] = try fs.File.create(.{ .fake = new_pipe }, fs.WRITE);
+    errdefer scheduler.runningProcess.fd[fd_in].?.close();
+    ks_fds[0] = fd_out;
+    ks_fds[1] = fd_in;
     return 0;
 }
 
 noinline fn close(fd: usize) isize {
-    const descriptor = &scheduler.runningProcess.fd[fd];
-    descriptor.close();
-    return 0;
+    if (scheduler.runningProcess.fd[fd]) |file| {
+        file.close();
+        return 0;
+    }
+    return -1;
 }
 
 noinline fn command(cmd: usize) isize {

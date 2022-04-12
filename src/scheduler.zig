@@ -57,7 +57,8 @@ pub fn startProcess(func: Fn) !void {
     process.vmem = vmem.VMemManager{};
     process.vmem.init();
     process.fd = .{ null } ** proc.FD_COUNT;
-    process.fd[0] = fs.File.create(.{ .fake = &keyboard.inode }, fs.READ);
+    process.fd[0] = try fs.File.create(.{ .fake = &keyboard.inode }, fs.READ);
+    errdefer process.fd[0].?.close();
     process.parent = null;
 
     var i: usize = 0;
@@ -152,7 +153,7 @@ pub fn readWithEvent(inode: InodeRef, dst: []u8, offset: usize) !usize {
 }
 
 pub fn waitForEvent(event: Event) !void {
-    try queueEvent(event, scheduler.runningProcess);
+    try queueEvent(event, runningProcess);
     runningProcess.status = .Sleeping;
     canSwitch = true;
     asm volatile ("int $0x81");

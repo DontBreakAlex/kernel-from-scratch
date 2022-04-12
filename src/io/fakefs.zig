@@ -43,15 +43,16 @@ pub const Inode = struct {
         return self.buffer.read(buff);
     }
 
-    pub fn write(self: *Self, buff: []const u8) !usize {
-        return scheduler.writeWithEvent(.{ .inode = self }, buff, undefined);
+    pub fn write(self: *Self, buff: []const u8) !void {
+        return scheduler.writeWithEvent(.{ .fake = self }, buff, undefined);
     }
 
-    pub fn rawWrite(self: *Self, buff: []const u8) !usize {
+    pub fn rawWrite(self: *Self, buff: []const u8) !void {
         return self.buffer.write(buff);
     }
 
     pub fn populateChildren(self: *const Self, dentry: *DirEnt) !void {
+        _ = self;
         dentry.children = dirent.Child{};
     }
 

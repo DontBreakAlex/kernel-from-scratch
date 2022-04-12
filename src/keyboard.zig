@@ -11,6 +11,7 @@ const paging = @import("memory/paging.zig");
 const fakefs = @import("io/fakefs.zig");
 const fs = @import("io/fs.zig");
 
+const Buffer = utils.Buffer;
 pub const Key = kbm.Key;
 
 pub const KeyPress = packed struct {
