@@ -4,8 +4,8 @@ const vmem = @import("memory/vmem.zig");
 const serial = @import("serial.zig");
 const paging = @import("memory/paging.zig");
 const scheduler = @import("scheduler.zig");
-const file_descriptor = @import("file_descriptor.zig");
 const dirent = @import("io/dirent.zig");
+const fs = @import("io/fs.zig");
 
 pub const FD_COUNT = 4;
 pub const US_STACK_BASE = 0x1000000;
@@ -23,8 +23,8 @@ pub const Child = Children.Node;
 pub const Children = std.SinglyLinkedList(*Process);
 pub const SignalQueue = std.fifo.LinearFifo(Signal, .Dynamic); // TODO: Use fixed size
 const PageDirectory = paging.PageDirectory;
-const FileDescriptor = file_descriptor.FileDescriptor;
 const DirEnt = dirent.DirEnt;
+const File = fs.File;
 
 pub const Process = struct {
     pid: u16,
@@ -39,7 +39,7 @@ pub const Process = struct {
     pd: PageDirectory,
     owner_id: u16,
     vmem: vmem.VMemManager,
-    fd: [FD_COUNT]FileDescriptor,
+    fd: [FD_COUNT]?*File,
     cwd: *DirEnt,
 
     pub fn queueSignal(self: *Process, sig: Signal) !void {
@@ -158,11 +158,13 @@ pub const Process = struct {
         new_process.signals = SignalQueue.init(allocator);
         new_process.cwd = self.cwd;
         std.mem.copy(usize, &new_process.handlers, &self.handlers);
-        std.mem.copy(FileDescriptor, &new_process.fd, &self.fd);
-        for (self.fd) |*fd|
-            fd.dup();
-        errdefer for (new_process.fd) |*fd|
-            fd.close();
+        std.mem.copy(?*File, &new_process.fd, &self.fd);
+        for (self.fd) |fd|
+            if (fd) |file|
+                file.dup();
+        errdefer for (new_process.fd) |fd|
+            if (fd) |file|
+                file.close();
         new_process.pd = try self.pd.dup();
         errdefer new_process.pd.deinit();
         new_process.state = State{ .SavedState = ProcessState{ .cr3 = @ptrToInt(new_process.pd.cr3), .esp = undefined, .regs = undefined } };
@@ -189,15 +191,10 @@ pub const Process = struct {
         allocator.destroy(self);
     }
 
-    pub const FileDescriptorAndIndex = struct {
-        fd: *FileDescriptor,
-        i: u8,
-    };
-
-    pub fn getAvailableFd(self: *Process) !FileDescriptorAndIndex {
-        for (self.fd) |*descriptor, i| {
-            if (descriptor.* == .Closed) {
-                return FileDescriptorAndIndex{ .fd = descriptor, .i = @intCast(u8, i) };
+    pub fn getAvailableFd(self: *Process) !usize {
+        for (self.fd) |fd, i| {
+            if (fd == null) {
+                return i;
             }
         }
         return error.NoFd;

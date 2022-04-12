@@ -47,9 +47,63 @@ pub fn init() !void {
     };
 }
 
-const File = struct {
+pub const READ: u8 = 0x1;
+pub const WRITE: u8 = 0x2;
+pub const RW: u8 = 0x3;
+
+pub const File = struct {
+    const Self = @This();
+
     refcount: usize,
     inode: InodeRef,
     mode: u8,
     offset: usize,
+
+    pub fn create(inode: InodeRef, mode: u8) !*Self {
+        var self = try mem.allocator.create(Self);
+        inode.take();
+        self.* = .{
+            .refcount = 1,
+            .inode = inode,
+            .mode = mode,
+            .offset = 0,
+        };
+        return self;
+    }
+
+    pub fn dup(self: *Self) void {
+        self.refcount += 1;
+    }
+
+    pub fn close(self: *Self) void {
+        self.refcount -= 1;
+        if (self.refcount == 0) {
+            self.inode.release();
+            mem.allocator.destroy(self);
+        }
+    }
+
+    pub fn read(self: *Self, buff: []u8) !usize {
+        if (self.mode & READ == 0)
+            return error.NotReadable;
+        if (self.inode.hasOffset()) {
+            const ret = try self.inode.read(buff, self.offset);
+            self.offset += ret;
+            return ret;
+        } else {
+            return self.inode.read(buff, undefined);
+        }
+    }
+
+    pub fn write(self: *Self, buff: []const u8) !usize {
+        if (self.mode & WRITE == 0)
+            return error.NotWritable;
+        if (self.inode.hasOffset()) {
+            const ret = try self.inode.write(buff, self.offset);
+            self.offset += ret;
+            return ret;
+        } else {
+            return self.inode.write(buff, undefined);
+        }
+    }
 };

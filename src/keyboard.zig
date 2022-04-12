@@ -8,6 +8,8 @@ const mem = @import("memory/mem.zig");
 const serial = @import("serial.zig");
 const scheduler = @import("scheduler.zig");
 const paging = @import("memory/paging.zig");
+const fakefs = @import("io/fakefs.zig");
+const fs = @import("io/fs.zig");
 
 pub const Key = kbm.Key;
 
@@ -23,7 +25,10 @@ pub const KeyPress = packed struct {
 const KEYBOARD_STATUS: u8 = 0x64;
 const KEYBOARD_DATA: u8 = 0x60;
 
-pub var queue: utils.Buffer = utils.Buffer.init();
+pub var inode: fakefs.Inode = .{
+    .refcount = 1,
+    .buffer = Buffer.init(),
+};
 
 pub fn init() void {
     idt.setInterruptHandler(pic.PIC1_OFFSET + 1, handleKeyboardInterrupt, .{ .save_fpu = false });
@@ -54,7 +59,7 @@ fn handleScancode(scan_code: u8) void {
             .key = key,
             .uppercase = state.uppercase,
         };
-        scheduler.writeWithEvent(.{ .SimpleReadable = &queue }, std.mem.asBytes(&key_press)) catch vga.putStr("Could not handle keypress\n");
+        inode.write(std.mem.asBytes(&key_press)) catch vga.putStr("Could not handle keypress\n");
     }
     if (state.special) state.special = false;
 }

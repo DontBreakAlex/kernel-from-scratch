@@ -7,6 +7,7 @@ const proc = @import("process.zig");
 const utils = @import("utils.zig");
 const serial = @import("serial.zig");
 const paging = @import("memory/paging.zig");
+const dirent = @import("io/dirent.zig");
 const keyboard = @import("keyboard.zig");
 
 const Process = proc.Process;
@@ -14,7 +15,7 @@ const PageDirectory = paging.PageDirectory;
 const allocator = mem.allocator;
 const US_STACK_BASE = proc.US_STACK_BASE;
 const KERNEL_STACK_SIZE = proc.KERNEL_STACK_SIZE;
-const FileDescriptor = @import("file_descriptor.zig").FileDescriptor;
+const InodeRef = dirent.InodeRef;
 
 pub var wantsToSwitch: bool = false;
 pub var canSwitch: bool = true;
@@ -25,7 +26,8 @@ const EventList = std.ArrayListUnmanaged(*Process);
 const Events = std.AutoHashMap(Event, EventList);
 const Fn = fn () void;
 pub const Event = union(enum) {
-    IO: FileDescriptor,
+    IO_READ: InodeRef,
+    IO_WRITE: InodeRef,
     CHILD,
 };
 
@@ -54,8 +56,8 @@ pub fn startProcess(func: Fn) !void {
     process.owner_id = 0;
     process.vmem = vmem.VMemManager{};
     process.vmem.init();
-    process.fd = .{.Closed} ** proc.FD_COUNT;
-    process.fd[0] = FileDescriptor{ .SimpleReadable = &keyboard.queue };
+    process.fd = .{ null } ** proc.FD_COUNT;
+    process.fd[0] = fs.File.create(.{ .fake = &keyboard.inode }, fs.READ);
     process.parent = null;
 
     var i: usize = 0;
@@ -125,26 +127,34 @@ pub fn queueEvent(key: Event, val: *Process) !void {
     try array.append(allocator, val);
 }
 
-pub fn writeWithEvent(fd: FileDescriptor, src: []const u8) !void {
-    if (events.getPtr(Event{ .IO = fd })) |array| {
+pub fn writeWithEvent(inode: InodeRef, src: []const u8, offset: usize) !void {
+    if (events.getPtr(Event{ .IO_WRITE = inode })) |array| {
         try queue.ensureUnusedCapacity(array.items.len);
-        try fd.write(src);
+        try inode.rawWrite(src, offset);
         queue.writeAssumeCapacity(array.items);
         array.clearRetainingCapacity();
     } else {
-        try fd.write(src);
+        try inode.rawWrite(src, offset);
     }
 }
 
-pub fn readWithEvent(fd: FileDescriptor, dst: []u8) !usize {
+pub fn readWithEvent(inode: InodeRef, dst: []u8, offset: usize) !usize {
     var ret: usize = undefined;
-    if (events.getPtr(Event{ .IO = fd })) |array| {
+    if (events.getPtr(Event{ .IO_READ = inode })) |array| {
         try queue.ensureUnusedCapacity(array.items.len);
-        ret = fd.read(dst);
+        ret = try inode.rawRead(dst, offset);
         queue.writeAssumeCapacity(array.items);
         array.clearRetainingCapacity();
     } else {
-        ret = fd.read(dst);
+        ret = try inode.rawRead(dst, offset);
     }
     return ret;
+}
+
+pub fn waitForEvent(event: Event) !void {
+    try queueEvent(event, scheduler.runningProcess);
+    runningProcess.status = .Sleeping;
+    canSwitch = true;
+    asm volatile ("int $0x81");
+    canSwitch = false;
 }

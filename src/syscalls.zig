@@ -6,16 +6,14 @@ const utils = @import("utils.zig");
 const vga = @import("vga.zig");
 const mem = @import("memory/mem.zig");
 const serial = @import("serial.zig");
-const file_descriptor = @import("file_descriptor.zig");
 const proc = @import("process.zig");
+const fakefs = @import("io/fakefs.zig");
 
 const PageDirectory = paging.PageDirectory;
 const PageEntry = paging.PageEntry;
 const PageAllocator = @import("memory/page_allocator.zig").PageAllocator;
 const Event = scheduler.Event;
 const Process = scheduler.Process;
-const Pipe = file_descriptor.Pipe;
-const FileDescriptor = file_descriptor.FileDescriptor;
 const Regs = idt.Regs;
 
 pub fn init() void {
@@ -285,7 +283,7 @@ noinline fn sigwait() isize {
 }
 
 noinline fn pipe(us_fds: usize) !isize {
-    const new_pipe: *Pipe = try mem.allocator.create(Pipe);
+    const new_pipe: *fakefs.Inode = try fakefs.Inode.create();
     const ks_fds = try scheduler.runningProcess.pd.vPtrToPhy([2]usize, @intToPtr(*[2]usize, us_fds));
     const fd_out = try scheduler.runningProcess.getAvailableFd();
     fd_out.fd.* = .{ .PipeOut = new_pipe };

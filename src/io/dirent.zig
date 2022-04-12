@@ -64,6 +64,55 @@ pub const InodeRef = union(enum) {
             .fake => self.fake.currentSize(),
         };
     }
+
+    pub fn hasOffset(self: *const Self) bool {
+        return switch (self) {
+            .ext => true,
+            .fake => false,
+        };
+    }
+
+    pub fn read(self: Self, buff: []u8, offset: usize) !usize {
+        return switch (self) {
+            .ext => self.ext.read(buff, offset),
+            .fake => self.fake.read(buff),
+        };
+    }
+
+    pub fn rawRead(self: Self, buff: []u8, offset: usize) !usize {
+        return switch (self) {
+            .ext => unreachable,
+            .fake => self.fake.rawRead(buff),
+        };
+    }
+
+    pub fn write(self: Self, buff: []const u8, offset: usize) !usize {
+        return switch (self) {
+            .ext => unreachable,
+            .fake => self.fake.write(buff),
+        };
+    }
+
+    pub fn write(self: Self, buff: []const u8, offset: usize) !usize {
+        return switch (self) {
+            .ext => unreachable,
+            .fake => self.fake.rawWrite(buff),
+        };
+    }
+
+    pub fn take(self: Self) void {
+        switch (self) {
+            .ext => unreachable,
+            .fake => self.fake.take(),
+        }
+    }
+
+    pub fn release(self: Self) void {
+        switch (self) {
+            .ext => unreachable,
+            .fake => self.fake.release(),
+        }
+    }
 };
 
 pub const DirEnt = struct {
