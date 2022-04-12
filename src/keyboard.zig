@@ -60,7 +60,7 @@ fn handleScancode(scan_code: u8) void {
             .key = key,
             .uppercase = state.uppercase,
         };
-        inode.write(std.mem.asBytes(&key_press)) catch vga.putStr("Could not handle keypress\n");
+        _ = scheduler.writeWithEvent(.{ .fake = &inode }, std.mem.asBytes(&key_press), undefined) catch vga.putStr("Could not handle keypress\n");
     }
     if (state.special) state.special = false;
 }

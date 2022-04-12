@@ -65,7 +65,7 @@ pub const InodeRef = union(enum) {
         };
     }
 
-    pub fn hasOffset(self: *const Self) bool {
+    pub fn hasOffset(self: Self) bool {
         return switch (self) {
             .ext => true,
             .fake => false,
@@ -73,8 +73,9 @@ pub const InodeRef = union(enum) {
     }
 
     pub fn read(self: Self, buff: []u8, offset: usize) !usize {
+        _ = offset;
         return switch (self) {
-            .ext => self.ext.read(buff, offset),
+            .ext => unreachable,
             .fake => self.fake.read(buff),
         };
     }
@@ -87,7 +88,7 @@ pub const InodeRef = union(enum) {
         };
     }
 
-    pub fn write(self: Self, buff: []const u8, offset: usize) !void {
+    pub fn write(self: Self, buff: []const u8, offset: usize) !usize {
         _ = offset;
         return switch (self) {
             .ext => unreachable,
@@ -95,7 +96,7 @@ pub const InodeRef = union(enum) {
         };
     }
 
-    pub fn rawWrite(self: Self, buff: []const u8, offset: usize) !void {
+    pub fn rawWrite(self: Self, buff: []const u8, offset: usize) !usize {
         _ = offset;
         return switch (self) {
             .ext => unreachable,

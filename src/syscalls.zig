@@ -176,19 +176,9 @@ noinline fn signal(sig: usize, handler: usize) isize {
 noinline fn read(fd: usize, buff: usize, count: usize) isize {
     scheduler.canSwitch = false;
     defer scheduler.canSwitch = true;
-    const descriptor = scheduler.runningProcess.fd[fd];
-    if (descriptor != .Closed) {
-        if (!descriptor.isReadable())
-            return -1;
-        while (descriptor.readableLength() == 0) {
-            scheduler.queueEvent(descriptor.event(), scheduler.runningProcess) catch return -1;
-            scheduler.runningProcess.status = .Sleeping;
-            scheduler.canSwitch = true;
-            asm volatile ("int $0x81");
-            scheduler.canSwitch = false;
-        }
+    if (scheduler.runningProcess.fd[fd]) |file| {
         var user_buf = scheduler.runningProcess.pd.vBufferToPhy(count, buff) catch return -1;
-        return @intCast(isize, scheduler.readWithEvent(descriptor, user_buf) catch return -1);
+        return @intCast(isize, file.read(user_buf) catch return -1);
     }
     return -1;
 }
@@ -196,21 +186,9 @@ noinline fn read(fd: usize, buff: usize, count: usize) isize {
 noinline fn write(fd: usize, buff: usize, count: usize) isize {
     scheduler.canSwitch = false;
     defer scheduler.canSwitch = true;
-    const descriptor = scheduler.runningProcess.fd[fd];
-    if (descriptor != .Closed) {
-        if (!descriptor.isWritable())
-            return -1;
-        while (descriptor.writableLength() == 0) {
-            scheduler.queueEvent(descriptor.event(), scheduler.runningProcess) catch return -1;
-            scheduler.runningProcess.status = .Sleeping;
-            scheduler.canSwitch = true;
-            asm volatile ("int $0x81");
-            scheduler.canSwitch = false;
-        }
+    if (scheduler.runningProcess.fd[fd]) |file| {
         var user_buf = scheduler.runningProcess.pd.vBufferToPhy(count, buff) catch return -1;
-        const to_write = std.math.min(descriptor.writableLength(), count);
-        scheduler.writeWithEvent(descriptor, user_buf[0..to_write]) catch return -1;
-        return @intCast(isize, to_write);
+        return @intCast(isize, file.write(user_buf) catch return -1);
     }
     return -1;
 }

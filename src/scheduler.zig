@@ -56,7 +56,7 @@ pub fn startProcess(func: Fn) !void {
     process.owner_id = 0;
     process.vmem = vmem.VMemManager{};
     process.vmem.init();
-    process.fd = .{ null } ** proc.FD_COUNT;
+    process.fd = .{null} ** proc.FD_COUNT;
     process.fd[0] = try fs.File.create(.{ .fake = &keyboard.inode }, fs.READ);
     errdefer process.fd[0].?.close();
     process.parent = null;
@@ -128,14 +128,15 @@ pub fn queueEvent(key: Event, val: *Process) !void {
     try array.append(allocator, val);
 }
 
-pub fn writeWithEvent(inode: InodeRef, src: []const u8, offset: usize) !void {
+pub fn writeWithEvent(inode: InodeRef, src: []const u8, offset: usize) !usize {
     if (events.getPtr(Event{ .IO_WRITE = inode })) |array| {
         try queue.ensureUnusedCapacity(array.items.len);
-        try inode.rawWrite(src, offset);
+        const ret = try inode.rawWrite(src, offset);
         queue.writeAssumeCapacity(array.items);
         array.clearRetainingCapacity();
+        return ret;
     } else {
-        try inode.rawWrite(src, offset);
+        return inode.rawWrite(src, offset);
     }
 }
 

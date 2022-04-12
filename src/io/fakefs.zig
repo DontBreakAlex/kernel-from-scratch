@@ -2,6 +2,7 @@ const utils = @import("../utils.zig");
 const dirent = @import("dirent.zig");
 const scheduler = @import("../scheduler.zig");
 const mem = @import("../memory/mem.zig");
+const std = @import("std");
 
 const Buffer = utils.Buffer;
 const DirEnt = dirent.DirEnt;
@@ -34,7 +35,7 @@ pub const Inode = struct {
 
     pub fn read(self: *Self, buff: []u8) !usize {
         while (self.buffer.readableLength() == 0) {
-            scheduler.waitForEvent(Event{ .IO_WRITE = .{ .fake = self } });
+            try scheduler.waitForEvent(Event{ .IO_WRITE = .{ .fake = self } });
         }
         return scheduler.readWithEvent(.{ .fake = self }, buff, undefined);
     }
@@ -43,17 +44,22 @@ pub const Inode = struct {
         return self.buffer.read(buff);
     }
 
-    pub fn write(self: *Self, buff: []const u8) !void {
-        return scheduler.writeWithEvent(.{ .fake = self }, buff, undefined);
+    pub fn write(self: *Self, buff: []const u8) !usize {
+        while (self.buffer.writableLength() == 0) {
+            try scheduler.waitForEvent(Event{ .IO_READ = .{ .fake = self } });
+        }
+        const to_write = std.math.min(buff.len, self.buffer.writableLength());
+        return scheduler.writeWithEvent(.{ .fake = self }, buff[0..to_write], undefined);
     }
 
-    pub fn rawWrite(self: *Self, buff: []const u8) !void {
-        return self.buffer.write(buff);
+    pub fn rawWrite(self: *Self, buff: []const u8) !usize {
+        try self.buffer.write(buff);
+        return buff.len;
     }
 
     pub fn populateChildren(self: *const Self, dentry: *DirEnt) !void {
         _ = self;
-        dentry.children = dirent.Child{};
+        dentry.children = dirent.Childrens{};
     }
 
     pub fn currentSize(self: *const Self) usize {

@@ -99,9 +99,8 @@ pub const File = struct {
         if (self.mode & WRITE == 0)
             return error.NotWritable;
         if (self.inode.hasOffset()) {
-            const ret = try self.inode.write(buff, self.offset);
-            self.offset += ret;
-            return ret;
+            self.offset += buff.len;
+            return self.inode.write(buff, self.offset);
         } else {
             return self.inode.write(buff, undefined);
         }
