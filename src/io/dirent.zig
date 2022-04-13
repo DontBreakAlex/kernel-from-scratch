@@ -120,13 +120,52 @@ pub const InodeRef = union(enum) {
 };
 
 pub const DirEnt = struct {
+    const Self = @This();
+
+    refcount: usize,
     inode: InodeRef,
-    parent: ?*DirEnt,
+    parent: ?*Self,
     e_type: Type,
     /// If childrens is null for a directory, it means that it hasn't been read yet
     children: ?Childrens,
     namelen: usize,
     name: [256]u8,
+
+    pub fn create(inode: InodeRef, parent: ?*Self, name: []u8, e_type: Type) !*Self {
+        var self = try mem.allocator.create(Self);
+        inode.take();
+        if (parent) |p|
+            p.take();
+        self.* = .{
+            .refcount = 1,
+            .inode = inode,
+            .parent = parent,
+            .e_type = e_type,
+            .children = null,
+            .namelen = name.len,
+            .name = undefined,
+        };
+        std.mem.copy(u8, self.name, name);
+        return self;
+    }
+
+    pub fn take(self: *Self) void {
+        self.refcount += 1;
+    }
+
+    pub fn release(self: *Self) void {
+        self.refcount -= 1;
+        if (self.refcount == 0) {
+            if (self.children) |children| {
+                var iter = children.first;
+                while (iter) |n| : (iter = n.next) {
+                    n.data.release();
+                }
+            }
+            self.inode.release();
+            mem.allocator.destroy(self);
+        }
+    }
 
     pub fn getName(self: *const DirEnt) []const u8 {
         return self.name[0..self.namelen];
