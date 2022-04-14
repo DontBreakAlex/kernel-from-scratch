@@ -35,9 +35,9 @@ pub const Inode = struct {
 
     pub fn read(self: *Self, buff: []u8) !usize {
         while (self.buffer.readableLength() == 0) {
-            try scheduler.waitForEvent(Event{ .IO_WRITE = .{ .fake = self } });
+            try scheduler.waitForEvent(Event{ .IO_WRITE = .{ .pipe = self } });
         }
-        return scheduler.readWithEvent(.{ .fake = self }, buff, undefined);
+        return scheduler.readWithEvent(.{ .pipe = self }, buff, undefined);
     }
 
     pub fn rawRead(self: *Self, buff: []u8) !usize {
@@ -46,10 +46,10 @@ pub const Inode = struct {
 
     pub fn write(self: *Self, buff: []const u8) !usize {
         while (self.buffer.writableLength() == 0) {
-            try scheduler.waitForEvent(Event{ .IO_READ = .{ .fake = self } });
+            try scheduler.waitForEvent(Event{ .IO_READ = .{ .pipe = self } });
         }
         const to_write = std.math.min(buff.len, self.buffer.writableLength());
-        return scheduler.writeWithEvent(.{ .fake = self }, buff[0..to_write], undefined);
+        return scheduler.writeWithEvent(.{ .pipe = self }, buff[0..to_write], undefined);
     }
 
     pub fn rawWrite(self: *Self, buff: []const u8) !usize {

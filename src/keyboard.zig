@@ -8,7 +8,7 @@ const mem = @import("memory/mem.zig");
 const serial = @import("serial.zig");
 const scheduler = @import("scheduler.zig");
 const paging = @import("memory/paging.zig");
-const fakefs = @import("io/fakefs.zig");
+const pipefs = @import("io/pipefs.zig");
 const fs = @import("io/fs.zig");
 
 const Buffer = utils.Buffer;
@@ -26,7 +26,7 @@ pub const KeyPress = packed struct {
 const KEYBOARD_STATUS: u8 = 0x64;
 const KEYBOARD_DATA: u8 = 0x60;
 
-pub var inode: fakefs.Inode = .{
+pub var inode: pipefs.Inode = .{
     .refcount = 1,
     .buffer = Buffer.init(),
 };
@@ -60,7 +60,7 @@ fn handleScancode(scan_code: u8) void {
             .key = key,
             .uppercase = state.uppercase,
         };
-        _ = scheduler.writeWithEvent(.{ .fake = &inode }, std.mem.asBytes(&key_press), undefined) catch vga.putStr("Could not handle keypress\n");
+        _ = scheduler.writeWithEvent(.{ .pipe = &inode }, std.mem.asBytes(&key_press), undefined) catch vga.putStr("Could not handle keypress\n");
     }
     if (state.special) state.special = false;
 }

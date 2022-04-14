@@ -7,8 +7,9 @@ const vga = @import("vga.zig");
 const mem = @import("memory/mem.zig");
 const serial = @import("serial.zig");
 const proc = @import("process.zig");
-const fakefs = @import("io/fakefs.zig");
+const pipefs = @import("io/pipefs.zig");
 const fs = @import("io/fs.zig");
+const pipe_ = @import("pipe.zig");
 
 const PageDirectory = paging.PageDirectory;
 const PageEntry = paging.PageEntry;
@@ -262,14 +263,16 @@ noinline fn sigwait() isize {
 }
 
 noinline fn pipe(us_fds: usize) !isize {
-    const new_pipe: *fakefs.Inode = try fakefs.Inode.create();
+    const new_pipe = try pipe_.createPipe();
     defer new_pipe.release();
     const ks_fds = try scheduler.runningProcess.pd.vPtrToPhy([2]usize, @intToPtr(*[2]usize, us_fds));
     const fd_out = try scheduler.runningProcess.getAvailableFd();
-    scheduler.runningProcess.fd[fd_out] = try fs.File.create(.{ .fake = new_pipe }, fs.READ);
+    scheduler.runningProcess.fd[fd_out] = try fs.File.create(new_pipe, fs.READ);
+    errdefer scheduler.runningProcess.fd[fd_out] = null;
     errdefer scheduler.runningProcess.fd[fd_out].?.close();
     const fd_in = try scheduler.runningProcess.getAvailableFd();
-    scheduler.runningProcess.fd[fd_in] = try fs.File.create(.{ .fake = new_pipe }, fs.WRITE);
+    scheduler.runningProcess.fd[fd_in] = try fs.File.create(new_pipe, fs.WRITE);
+    errdefer scheduler.runningProcess.fd[fd_in] = null;
     errdefer scheduler.runningProcess.fd[fd_in].?.close();
     ks_fds[0] = fd_out;
     ks_fds[1] = fd_in;

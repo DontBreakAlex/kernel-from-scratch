@@ -1,6 +1,6 @@
 const std = @import("std");
 const ext = @import("ext2.zig");
-const fake = @import("fakefs.zig");
+const pipe = @import("pipefs.zig");
 const fs = @import("fs.zig");
 const mem = @import("../memory/mem.zig");
 const cache = @import("cache.zig");
@@ -9,7 +9,7 @@ const serial = @import("../serial.zig");
 const MAX_NESTED = 256;
 const Inode = ext.Inode;
 
-pub const Childrens = std.TailQueue(DirEnt);
+pub const Childrens = std.TailQueue(*DirEnt);
 pub const Child = Childrens.Node;
 pub const Type = enum {
     Unknown,
@@ -40,12 +40,12 @@ pub const InodeRef = union(enum) {
     const Self = @This();
 
     ext: *ext.Inode,
-    fake: *fake.Inode,
+    pipe: *pipe.Inode,
 
     pub fn populateChildren(self: Self, dirent: *DirEnt) !void {
         switch (self) {
             .ext => try self.ext.populateChildren(dirent),
-            .fake => try self.fake.populateChildren(dirent),
+            .pipe => try self.pipe.populateChildren(dirent),
         }
     }
 
@@ -54,21 +54,21 @@ pub const InodeRef = union(enum) {
             return false;
         return switch (lhs) {
             .ext => lhs.ext == rhs.ext,
-            .fake => lhs.fake == rhs.fake,
+            .pipe => lhs.pipe == rhs.pipe,
         };
     }
 
     pub fn currentSize(self: *const Self) usize {
         return switch (self) {
             .ext => self.ext.currentSize(),
-            .fake => self.fake.currentSize(),
+            .pipe => self.pipe.currentSize(),
         };
     }
 
     pub fn hasOffset(self: Self) bool {
         return switch (self) {
             .ext => true,
-            .fake => false,
+            .pipe => false,
         };
     }
 
@@ -76,7 +76,7 @@ pub const InodeRef = union(enum) {
         _ = offset;
         return switch (self) {
             .ext => unreachable,
-            .fake => self.fake.read(buff),
+            .pipe => self.pipe.read(buff),
         };
     }
 
@@ -84,7 +84,7 @@ pub const InodeRef = union(enum) {
         _ = offset;
         return switch (self) {
             .ext => unreachable,
-            .fake => self.fake.rawRead(buff),
+            .pipe => self.pipe.rawRead(buff),
         };
     }
 
@@ -92,7 +92,7 @@ pub const InodeRef = union(enum) {
         _ = offset;
         return switch (self) {
             .ext => unreachable,
-            .fake => self.fake.write(buff),
+            .pipe => self.pipe.write(buff),
         };
     }
 
@@ -100,21 +100,21 @@ pub const InodeRef = union(enum) {
         _ = offset;
         return switch (self) {
             .ext => unreachable,
-            .fake => self.fake.rawWrite(buff),
+            .pipe => self.pipe.rawWrite(buff),
         };
     }
 
     pub fn take(self: Self) void {
         switch (self) {
-            .ext => unreachable,
-            .fake => self.fake.take(),
+            .ext => self.ext.take(),
+            .pipe => self.pipe.take(),
         }
     }
 
     pub fn release(self: Self) void {
         switch (self) {
-            .ext => unreachable,
-            .fake => self.fake.release(),
+            .ext => self.ext.release(),
+            .pipe => self.pipe.release(),
         }
     }
 };
@@ -145,7 +145,7 @@ pub const DirEnt = struct {
             .namelen = name.len,
             .name = undefined,
         };
-        std.mem.copy(u8, self.name, name);
+        std.mem.copy(u8, &self.name, name);
         return self;
     }
 
@@ -225,7 +225,7 @@ pub const DirEnt = struct {
         var it = self.children.?.first;
         while (it) |node| : (it = node.next) {
             if (std.mem.eql(u8, node.data.getName(), name))
-                return &node.data;
+                return node.data;
         }
         return error.NotFound;
     }

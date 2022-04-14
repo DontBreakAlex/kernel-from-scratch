@@ -57,7 +57,9 @@ pub fn startProcess(func: Fn) !void {
     process.vmem = vmem.VMemManager{};
     process.vmem.init();
     process.fd = .{null} ** proc.FD_COUNT;
-    process.fd[0] = try fs.File.create(.{ .fake = &keyboard.inode }, fs.READ);
+    var dentry = try dirent.DirEnt.create(.{ .pipe = &keyboard.inode }, null, &.{}, dirent.Type.CharDev);
+    process.fd[0] = try fs.File.create(dentry, fs.READ);
+    dentry.release();
     errdefer process.fd[0].?.close();
     process.parent = null;
 

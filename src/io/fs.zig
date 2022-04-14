@@ -38,7 +38,8 @@ pub fn init() !void {
     };
 
     root_dirent = DirEnt{
-        .inode = .{ .ext = try cache.getOrReadInode(root_fs, 2) },
+        .refcount = 1,
+        .inode = .{ .ext = try ext.Inode.create(root_fs, 2) },
         .parent = null,
         .name = undefined,
         .namelen = 0,
@@ -55,16 +56,16 @@ pub const File = struct {
     const Self = @This();
 
     refcount: usize,
-    inode: InodeRef,
+    dentry: *DirEnt,
     mode: u8,
     offset: usize,
 
-    pub fn create(inode: InodeRef, mode: u8) !*Self {
+    pub fn create(dentry: *DirEnt, mode: u8) !*Self {
         var self = try mem.allocator.create(Self);
-        inode.take();
+        dentry.take();
         self.* = .{
             .refcount = 1,
-            .inode = inode,
+            .dentry = dentry,
             .mode = mode,
             .offset = 0,
         };
@@ -78,7 +79,7 @@ pub const File = struct {
     pub fn close(self: *Self) void {
         self.refcount -= 1;
         if (self.refcount == 0) {
-            self.inode.release();
+            self.dentry.release();
             mem.allocator.destroy(self);
         }
     }
@@ -86,23 +87,23 @@ pub const File = struct {
     pub fn read(self: *Self, buff: []u8) !usize {
         if (self.mode & READ == 0)
             return error.NotReadable;
-        if (self.inode.hasOffset()) {
-            const ret = try self.inode.read(buff, self.offset);
+        if (self.dentry.inode.hasOffset()) {
+            const ret = try self.dentry.inode.read(buff, self.offset);
             self.offset += ret;
             return ret;
         } else {
-            return self.inode.read(buff, undefined);
+            return self.dentry.inode.read(buff, undefined);
         }
     }
 
     pub fn write(self: *Self, buff: []const u8) !usize {
         if (self.mode & WRITE == 0)
             return error.NotWritable;
-        if (self.inode.hasOffset()) {
+        if (self.dentry.inode.hasOffset()) {
             self.offset += buff.len;
-            return self.inode.write(buff, self.offset);
+            return self.dentry.inode.write(buff, self.offset);
         } else {
-            return self.inode.write(buff, undefined);
+            return self.dentry.inode.write(buff, undefined);
         }
     }
 };

@@ -25,7 +25,7 @@ const BufferMap = std.AutoHashMap(BufferHeader, *Buffer);
 
 pub const Buffer = BufferList.Node;
 
-const InodeHeader = struct {
+pub const InodeHeader = struct {
     fs: *Ext2FS,
     id: usize,
 };
@@ -83,16 +83,4 @@ pub fn releaseBuffer(buffer: *Buffer) void {
     bufferList.append(buffer);
 }
 
-var inodeMap = InodeMap.init(mem.allocator);
-
-pub fn getOrReadInode(fs: *Ext2FS, inode: usize) !*Inode {
-    const header = InodeHeader{ .fs = fs, .id = inode };
-    if (inodeMap.get(header)) |node| {
-        return node;
-    }
-    var node = try mem.allocator.create(Inode);
-    errdefer mem.allocator.destroy(node);
-    node.* = try fs.readInode(inode);
-    try inodeMap.put(header, node);
-    return node;
-}
+pub var inodeMap = InodeMap.init(mem.allocator);

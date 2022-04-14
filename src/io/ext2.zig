@@ -214,6 +214,7 @@ pub const Inode = struct {
     d_block: u32,
     t_block: u32,
     size: u32,
+    refcount: usize,
 
     pub fn read(self: *const Self, dst: []u8, offset: u32) !void {
         if (dst.len + offset > self.size)
@@ -248,23 +249,42 @@ pub const Inode = struct {
 
         var iter = DiskDirentIterator.init(data);
         dentry.children = dirent.Childrens{};
+        // TODO: Correct free after error
         while (iter.next()) |entry| {
+            var e_type = try dirent.Type.fromTypeIndicator(entry.type_indicator);
             var child = try mem.allocator.create(dirent.Child);
-            child.data = DirEnt{
-                .inode = .{ .ext = try cache.getOrReadInode(self.fs, entry.inode) },
-                .parent = dentry,
-                .e_type = try dirent.Type.fromTypeIndicator(entry.type_indicator),
-                .children = null,
-                .namelen = entry.name_length,
-                .name = undefined,
-            };
-            std.mem.copy(u8, &child.data.name, entry.getName());
+            child.data = try DirEnt.create(.{ .ext = try Inode.create(self.fs, entry.inode) }, dentry, entry.getName(), e_type);
             dentry.children.?.append(child);
         }
     }
 
     pub fn currentSize(self: *const Self) usize {
         return self.size;
+    }
+
+    pub fn create(fs: *Ext2FS, inode: usize) !*Self {
+        const header = cache.InodeHeader{ .fs = fs, .id = inode };
+        if (cache.inodeMap.get(header)) |node| {
+            node.take();
+            return node;
+        }
+        var node = try mem.allocator.create(Inode);
+        errdefer mem.allocator.destroy(node);
+        node.* = try fs.readInode(inode);
+        try cache.inodeMap.put(header, node);
+        return node;
+    }
+
+    pub fn take(self: *Self) void {
+        self.refcount += 1;
+    }
+
+    pub fn release(self: *Self) void {
+        self.refcount -= 1;
+        if (self.refcount == 0) {
+            _ = cache.inodeMap.remove(.{ .fs = self.fs, .id = self.id });
+            mem.allocator.destroy(self);
+        }
     }
 };
 
@@ -306,6 +326,7 @@ pub const Ext2FS = struct {
             .d_block = node.d_block,
             .t_block = node.t_block,
             .size = node.size,
+            .refcount = 1,
         };
     }
 };
