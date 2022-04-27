@@ -9,7 +9,7 @@ pub const CommandFn = fn (args: ArgsIterator) u8;
 pub const Command = struct { name: []const u8, cmd: CommandFn };
 extern const stack_bottom: u8;
 
-pub const commands: [14]Command = .{
+pub const commands: [15]Command = .{
     .{ .name = "echo", .cmd = echo },
     // .{ .name = "pstack", .cmd = printStack },
     // .{ .name = "ptrace", .cmd = printTrace },
@@ -26,6 +26,7 @@ pub const commands: [14]Command = .{
     .{ .name = "ps", .cmd = printProcesses },
     .{ .name = "pwd", .cmd = getcwd },
     .{ .name = "cd", .cmd = cd },
+    .{ .name = "cat", .cmd = cat },
 };
 
 pub fn find(name: []const u8) ?CommandFn {
@@ -191,5 +192,24 @@ fn cd(args: ArgsIterator) u8 {
         return 0;
     }
     vga.putStr("Error: no directory specified\n");
+    return 1;
+}
+
+fn cat(args: ArgsIterator) u8 {
+    if (args.next()) |arg| {
+        const fd = lib.open(arg, lib.READ);
+        if (fd == -1) {
+            vga.putStr("Error: failed to open file\n");
+        } else {
+            var data: [1024]u8 = undefined;
+            var ret = lib.read(fd, &data, 1024);
+            while (ret > 0) {
+                vga.putStr(data[0..@intCast(usize, ret)]);
+                ret = lib.read(fd, &data, 1024);
+            }
+            _ = lib.close(fd);
+            return 0;
+        }
+    }
     return 1;
 }

@@ -216,22 +216,24 @@ pub const Inode = struct {
     size: u32,
     refcount: usize,
 
-    pub fn read(self: *const Self, dst: []u8, offset: u32) !void {
+    pub fn rawRead(self: *const Self, dst: []u8, offset: u32) !void {
         if (dst.len + offset > self.size)
             return error.BufferTooLong;
-        // TODO: Check block device
         var dst_cursor = @as(u32, 0);
         var to_read = dst.len;
         var src_cursor = offset;
-        var block_index = src_cursor / cache.BLOCK_SIZE;
-        var index_within_block = src_cursor % cache.BLOCK_SIZE;
-        var block = try cache.getOrReadBlock(self.fs.drive, self.getNthBlock(block_index));
-        defer cache.releaseBuffer(block);
-        var will_read = std.math.min(to_read, cache.BLOCK_SIZE - index_within_block);
-        std.mem.copy(u8, dst[dst_cursor..will_read], block.data.slice[index_within_block..will_read]);
-        to_read -= will_read;
-        src_cursor += will_read;
-        dst_cursor += will_read;
+
+        while (to_read != 0) {
+            const block_index = src_cursor / cache.BLOCK_SIZE;
+            const index_within_block = src_cursor % cache.BLOCK_SIZE;
+            var block = try cache.getOrReadBlock(self.fs.drive, self.getNthBlock(block_index));
+            const will_read = std.math.min(to_read, cache.BLOCK_SIZE - index_within_block);
+            std.mem.copy(u8, dst[dst_cursor..will_read], block.data.slice[index_within_block..will_read]);
+            defer cache.releaseBuffer(block);
+            to_read -= will_read;
+            src_cursor += will_read;
+            dst_cursor += will_read;
+        }
         std.debug.assert(to_read == 0);
     }
 
@@ -242,10 +244,18 @@ pub const Inode = struct {
         };
     }
 
+    pub fn read(self: *Self, buff: []u8, offset: usize) !usize {
+        if (offset >= self.size)
+            return 0;
+        const to_read = std.math.min(buff.len, self.size - offset);
+        try self.rawRead(buff[0..to_read], offset);
+        return to_read;
+    }
+
     pub fn populateChildren(self: *const Self, dentry: *DirEnt) !void {
         var data = try mem.allocator.alloc(u8, self.size);
         defer mem.allocator.free(data);
-        try self.read(data, 0);
+        try self.rawRead(data, 0);
 
         var iter = DiskDirentIterator.init(data);
         dentry.children = dirent.Childrens{};
@@ -316,7 +326,7 @@ pub const Ext2FS = struct {
         const inodes_per_block = self.superblock.getBlockSize() / self.superblock.inode_size;
         const inodes = @ptrCast([*]DiskInode, inode_buffer.data.slice)[0..inodes_per_block];
         const node = inodes[offset_in_group % inodes_per_block];
-        serial.format("{}\n", .{node.size});
+        // serial.format("{}\n", .{node.size});
         return Inode{
             .fs = self,
             .id = inode,

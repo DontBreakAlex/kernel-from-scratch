@@ -100,7 +100,7 @@ export fn syscallHandlerInKS(regs_ptr: *Regs, u_cr3: *[1024]PageEntry, us_esp: u
         },
         3 => read(regs.ebx, regs.ecx, regs.edx),
         4 => write(regs.ebx, regs.ecx, regs.edx),
-        5 => open(regs.ebx, regs.ecx),
+        5 => open(regs.ebx, regs.ecx, regs.edx),
         6 => close(regs.ebx),
         7 => waitpid(),
         9 => mmap(regs.ebx),
@@ -315,12 +315,12 @@ noinline fn chdir(buff: usize, size: usize) isize {
     return 0;
 }
 
-noinline fn open(buff: usize, size: usize, mode: u8) isize {
-    var path = scheduler.runningProcess.pd.vBufferToPhy(buff, size) catch return -1;
+noinline fn open(buff: usize, size: usize, mode: usize) isize {
+    var path = scheduler.runningProcess.pd.vBufferToPhy(size, buff) catch return -1;
     var dentry = scheduler.runningProcess.cwd.resolve(path) catch return -1;
     const fd = scheduler.runningProcess.getAvailableFd() catch return -1;
     var file: *fs.File = switch (dentry.e_type) {
-        .Regular => fs.File.create(dentry, mode) catch return -1,
+        .Regular => fs.File.create(dentry, @intCast(u8, mode)) catch return -1,
         else => return -1,
     };
     scheduler.runningProcess.fd[fd] = file;

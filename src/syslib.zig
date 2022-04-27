@@ -8,7 +8,7 @@ const pageAllocator = Allocator{ .ptr = undefined, .vtable = &PageAllocator.vtab
 var generalPurposeAllocator = GeneralPurposeAllocator(.{ .safety = false, .stack_trace_frames = 0 }){ .backing_allocator = pageAllocator };
 pub var userAllocator = generalPurposeAllocator.allocator();
 
-pub fn read(fd: usize, buffer: []u8, count: usize) isize {
+pub fn read(fd: isize, buffer: []u8, count: usize) isize {
     return asm volatile (
         \\mov $3, %%eax
         \\int $0x80
@@ -19,7 +19,7 @@ pub fn read(fd: usize, buffer: []u8, count: usize) isize {
     );
 }
 
-pub fn write(fd: usize, buffer: []const u8, count: usize) isize {
+pub fn write(fd: isize, buffer: []const u8, count: usize) isize {
     return asm volatile (
         \\mov $4, %%eax
         \\int $0x80
@@ -142,7 +142,7 @@ pub fn sigwait() isize {
     );
 }
 
-pub fn pipe(fds: [2]usize) isize {
+pub fn pipe(fds: [2]isize) isize {
     return asm volatile (
         \\mov $42, %%eax
         \\int $0x80
@@ -151,7 +151,7 @@ pub fn pipe(fds: [2]usize) isize {
     );
 }
 
-pub fn close(fd: usize) isize {
+pub fn close(fd: isize) isize {
     return asm volatile (
         \\mov $6, %%eax
         \\int $0x80
@@ -187,6 +187,22 @@ pub fn chdir(buf: []const u8) isize {
         : [ret] "=&{eax}" (-> isize),
         : [addr] "{ebx}" (buf.ptr),
           [len] "{ecx}" (buf.len),
+        : "eax", "memory"
+    );
+}
+
+const fs = @import("io/fs.zig");
+pub const READ = fs.READ;
+pub const WRITE = fs.WRITE;
+pub const RW = fs.RW;
+pub fn open(path: []const u8, mode: u8) isize {
+    return asm volatile (
+        \\mov $5, %%eax
+        \\int $0x80
+        : [ret] "=&{eax}" (-> isize),
+        : [addr] "{ebx}" (path.ptr),
+          [len] "{ecx}" (path.len),
+          [mode] "{edx}" (mode),
         : "eax", "memory"
     );
 }

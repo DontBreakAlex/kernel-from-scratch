@@ -4,7 +4,7 @@ const lib = @import("../syslib.zig");
 const utils = @import("../utils.zig");
 
 pub noinline fn testPipe() void {
-    var pipe = [2]usize{ 0, 0 };
+    var pipe = [2]isize{ 0, 0 };
     if (lib.pipe(pipe) != 0)
         return vga.putStr("Pipe failure\n");
     const pid = lib.fork();

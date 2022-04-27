@@ -73,9 +73,8 @@ pub const InodeRef = union(enum) {
     }
 
     pub fn read(self: Self, buff: []u8, offset: usize) !usize {
-        _ = offset;
-        return switch (self) {
-            .ext => unreachable,
+        return try switch (self) {
+            .ext => self.ext.read(buff, offset),
             .pipe => self.pipe.read(buff),
         };
     }
