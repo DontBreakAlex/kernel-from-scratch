@@ -17,7 +17,7 @@ $(ASM_OBJ): obj/%.o : src/%.s
 
 grub.iso: $(NAME)
 	cp $(NAME) iso/boot/kernel
-	grub-mkrescue -o grub.iso iso || docker run --rm -v $(PWD):/mount kfs-build grub-mkrescue -o grub.iso iso
+	grub-mkrescue -o grub.iso iso || docker run --rm -v $(PWD):/mount ghcr.io/dontbreakalex/kfs-build grub-mkrescue -o grub.iso iso
 
 clean:
 	rm -rf src/zig-cache

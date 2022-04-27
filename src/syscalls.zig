@@ -315,11 +315,14 @@ noinline fn chdir(buff: usize, size: usize) isize {
     return 0;
 }
 
-noinline fn open(buff: usize, size: usize) isize {
+noinline fn open(buff: usize, size: usize, mode: u8) isize {
     var path = scheduler.runningProcess.pd.vBufferToPhy(buff, size) catch return -1;
-    var file = scheduler.runningProcess.cwd.resolve(path) catch return -1;
-    switch (file.e_type) {
+    var dentry = scheduler.runningProcess.cwd.resolve(path) catch return -1;
+    const fd = scheduler.runningProcess.getAvailableFd() catch return -1;
+    var file: *fs.File = switch (dentry.e_type) {
+        .Regular => fs.File.create(dentry, mode) catch return -1,
         else => return -1,
-    }
-    unreachable;
+    };
+    scheduler.runningProcess.fd[fd] = file;
+    return @intCast(isize, fd);
 }
