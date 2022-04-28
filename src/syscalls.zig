@@ -320,9 +320,14 @@ noinline fn open(buff: usize, size: usize, mode: usize) isize {
     var dentry = scheduler.runningProcess.cwd.resolve(path) catch return -1;
     const fd = scheduler.runningProcess.getAvailableFd() catch return -1;
     var file: *fs.File = switch (dentry.e_type) {
+        .Directory => if (mode & fs.DIRECTORY == 0) return -1 else fs.File.create(dentry, @intCast(u8, mode)) catch return -1,
         .Regular => fs.File.create(dentry, @intCast(u8, mode)) catch return -1,
         else => return -1,
     };
     scheduler.runningProcess.fd[fd] = file;
     return @intCast(isize, fd);
+}
+
+noinline fn getdents(buff: usize, size: usize) isize {
+
 }

@@ -51,6 +51,7 @@ pub fn init() !void {
 pub const READ: u8 = 0x1;
 pub const WRITE: u8 = 0x2;
 pub const RW: u8 = 0x3;
+pub const DIRECTORY: u8 = 0x4;
 
 pub const File = struct {
     const Self = @This();
