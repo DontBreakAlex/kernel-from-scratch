@@ -8,6 +8,7 @@ const dirent = @import("dirent.zig");
 const Fs = ext.Ext2FS;
 const DirEnt = dirent.DirEnt;
 const InodeRef = dirent.InodeRef;
+const Dentry = dirent.Dentry;
 
 var root_fs: *Fs = undefined;
 pub var root_dirent: DirEnt = undefined;
@@ -101,10 +102,19 @@ pub const File = struct {
         if (self.mode & WRITE == 0)
             return error.NotWritable;
         if (self.dentry.inode.hasOffset()) {
-            self.offset += buff.len;
-            return self.dentry.inode.write(buff, self.offset);
+            const ret = try self.dentry.inode.write(buff, self.offset);
+            self.offset += ret;
+            return ret;
         } else {
             return self.dentry.inode.write(buff, undefined);
         }
+    }
+
+    pub fn getDents(self: *Self, ptr: [*]Dentry, cnt: *usize) !usize {
+        if (self.mode & DIRECTORY == 0)
+            return error.NotADirectory;
+        const ret = try self.dentry.inode.getDents(ptr, cnt, self.offset);
+        self.offset += ret;
+        return ret;
     }
 };

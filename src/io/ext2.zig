@@ -268,6 +268,35 @@ pub const Inode = struct {
         }
     }
 
+    /// Returns the number of bytes read
+    pub fn getDents(self: *const Self, ptr: [*]Dentry, cnt: *usize, offset: usize) !usize {
+        if (offset >= self.size) {
+            cnt.* = 0;
+            return 0;
+        }
+        const to_read = cache.BLOCK_SIZE - offset % cache.BLOCK_SIZE;
+        var data = try mem.allocator.alloc(u8, to_read);
+        defer mem.allocator.free(data);
+        try self.rawRead(data, offset);
+
+        var iter = DiskDirentIterator.init(data);
+
+        var i: usize = 0;
+        var acctually_read: usize = 0;
+        var dst = ptr[0..cnt.*];
+        while (iter.next()) |entry| {
+            if (i >= dst.len)
+                break;
+            dst[i].inode = entry.inode;
+            dst[i].namelen = entry.name_length;
+            std.mem.copy(u8, &dst[i].name, entry.getName());
+            i += 1;
+            acctually_read += entry.size;
+        }
+        cnt.* = i;
+        return acctually_read;
+    }
+
     pub fn currentSize(self: *const Self) usize {
         return self.size;
     }
@@ -309,6 +338,7 @@ const dirent = @import("dirent.zig");
 
 const AtaDevice = ata.AtaDevice;
 const DirEnt = dirent.DirEnt;
+const Dentry = dirent.Dentry;
 
 pub const Ext2FS = struct {
     drive: *AtaDevice,

@@ -10,6 +10,7 @@ const proc = @import("process.zig");
 const pipefs = @import("io/pipefs.zig");
 const fs = @import("io/fs.zig");
 const pipe_ = @import("pipe.zig");
+const dirent = @import("io/dirent.zig");
 
 const PageDirectory = paging.PageDirectory;
 const PageEntry = paging.PageEntry;
@@ -17,6 +18,7 @@ const PageAllocator = @import("memory/page_allocator.zig").PageAllocator;
 const Event = scheduler.Event;
 const Process = scheduler.Process;
 const Regs = idt.Regs;
+const Dentry = dirent.Dentry;
 
 pub fn init() void {
     idt.setIdtEntry(0x80, @ptrToInt(syscall_handler));
@@ -109,6 +111,7 @@ export fn syscallHandlerInKS(regs_ptr: *Regs, u_cr3: *[1024]PageEntry, us_esp: u
         37 => kill(regs.ebx, regs.ecx),
         42 => pipe(regs.ebx) catch -1,
         48 => signal(regs.ebx, regs.ecx),
+        78 => getdents(regs.ebx, regs.ecx, regs.edx),
         79 => getcwd(regs.ebx, regs.ecx),
         80 => chdir(regs.ebx, regs.ecx),
         102 => getuid(),
@@ -328,6 +331,11 @@ noinline fn open(buff: usize, size: usize, mode: usize) isize {
     return @intCast(isize, fd);
 }
 
-noinline fn getdents(buff: usize, size: usize) isize {
-
+noinline fn getdents(fd: usize, buff: usize, size: usize) isize {
+    if (fd >= proc.FD_COUNT) return -1;
+    var ptr = @intToPtr([*]Dentry, scheduler.runningProcess.pd.virtToPhy(buff) orelse return -1);
+    var cnt = size;
+    var file = scheduler.runningProcess.fd[fd] orelse return -1;
+    _ = file.getDents(ptr, &cnt) catch return -1;
+    return @intCast(isize, cnt);
 }

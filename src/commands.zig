@@ -9,7 +9,7 @@ pub const CommandFn = fn (args: ArgsIterator) u8;
 pub const Command = struct { name: []const u8, cmd: CommandFn };
 extern const stack_bottom: u8;
 
-pub const commands: [15]Command = .{
+pub const commands: [16]Command = .{
     .{ .name = "echo", .cmd = echo },
     // .{ .name = "pstack", .cmd = printStack },
     // .{ .name = "ptrace", .cmd = printTrace },
@@ -27,6 +27,7 @@ pub const commands: [15]Command = .{
     .{ .name = "pwd", .cmd = getcwd },
     .{ .name = "cd", .cmd = cd },
     .{ .name = "cat", .cmd = cat },
+    .{ .name = "ls", .cmd = ls },
 };
 
 pub fn find(name: []const u8) ?CommandFn {
@@ -212,4 +213,27 @@ fn cat(args: ArgsIterator) u8 {
         }
     }
     return 1;
+}
+
+fn ls(args: ArgsIterator) u8 {
+    const path = args.next() orelse ".";
+    const fd = lib.open(path, lib.DIRECTORY);
+    if (fd < 0) {
+        vga.format("Error: failed to open directory {s}\n", .{path});
+        return 1;
+    }
+    defer _ = lib.close(fd);
+    var dirs: [8]lib.Dentry = undefined;
+    var ret = lib.getdents(fd, &dirs);
+    while (ret != 0) {
+        if (ret < 0) {
+            vga.putStr("Error: getdents failure\n");
+            return 1;
+        }
+        for (dirs[0..@intCast(usize, ret)]) |dir| {
+            vga.format("{s}\n", .{dir.name[0..dir.namelen]});
+        }
+        ret = lib.getdents(fd, &dirs);
+    }
+    return 0;
 }

@@ -195,6 +195,7 @@ const fs = @import("io/fs.zig");
 pub const READ = fs.READ;
 pub const WRITE = fs.WRITE;
 pub const RW = fs.RW;
+pub const DIRECTORY = fs.DIRECTORY;
 pub fn open(path: []const u8, mode: u8) isize {
     return asm volatile (
         \\mov $5, %%eax
@@ -204,6 +205,19 @@ pub fn open(path: []const u8, mode: u8) isize {
           [len] "{ecx}" (path.len),
           [mode] "{edx}" (mode),
         : "eax", "memory"
+    );
+}
+
+const dirent = @import("io/dirent.zig");
+pub const Dentry = dirent.Dentry;
+pub fn getdents(fd: isize, buffer: []Dentry) isize {
+    return asm volatile (
+        \\mov $78, %%eax
+        \\int $0x80
+        : [ret] "=&{eax}" (-> isize),
+        : [fd] "{ebx}" (fd),
+          [buf] "{ecx}" (buffer.ptr),
+          [cnt] "{edx}" (buffer.len),
     );
 }
 

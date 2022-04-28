@@ -36,6 +36,12 @@ pub const Type = enum {
     }
 };
 
+pub const Dentry = packed struct {
+    inode: u32,
+    namelen: usize,
+    name: [256]u8,
+};
+
 pub const InodeRef = union(enum) {
     const Self = @This();
 
@@ -100,6 +106,13 @@ pub const InodeRef = union(enum) {
         return switch (self) {
             .ext => unreachable,
             .pipe => self.pipe.rawWrite(buff),
+        };
+    }
+
+    pub fn getDents(self: Self, ptr: [*]Dentry, cnt: *usize, offset: usize) !usize {
+        return switch (self) {
+            .ext => self.ext.getDents(ptr, cnt, offset),
+            .pipe => unreachable,
         };
     }
 
