@@ -229,7 +229,7 @@ pub const Inode = struct {
             var block = try cache.getOrReadBlock(self.fs.drive, self.getNthBlock(block_index));
             const will_read = std.math.min(to_read, cache.BLOCK_SIZE - index_within_block);
             std.mem.copy(u8, dst[dst_cursor..will_read], block.data.slice[index_within_block..will_read]);
-            defer cache.releaseBuffer(block);
+            defer cache.releaseBlock(block);
             to_read -= will_read;
             src_cursor += will_read;
             dst_cursor += will_read;
@@ -352,7 +352,7 @@ pub const Ext2FS = struct {
         const group_descriptor = &self.block_group_descriptor_table[group];
         const inode_block = group_descriptor.inode_table + offset_in_group * self.superblock.inode_size / self.superblock.getBlockSize();
         const inode_buffer = try cache.getOrReadBlock(self.drive, inode_block);
-        defer cache.releaseBuffer(inode_buffer);
+        defer cache.releaseBlock(inode_buffer);
         const inodes_per_block = self.superblock.getBlockSize() / self.superblock.inode_size;
         const inodes = @ptrCast([*]DiskInode, inode_buffer.data.slice)[0..inodes_per_block];
         const node = inodes[offset_in_group % inodes_per_block];
@@ -373,7 +373,7 @@ pub const Ext2FS = struct {
 
 pub fn create(drive: *AtaDevice) !*Ext2FS {
     const sblock_buffer = try cache.getOrReadBlock(drive, 1);
-    errdefer cache.releaseBuffer(sblock_buffer);
+    errdefer cache.releaseBlock(sblock_buffer);
 
     var fs: *Ext2FS = try mem.allocator.create(Ext2FS);
     errdefer mem.allocator.destroy(fs);

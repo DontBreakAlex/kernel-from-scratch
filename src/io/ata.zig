@@ -27,6 +27,8 @@ const ENABLE_LBA: u8 = 0b01000000;
 const DISABLE_IRQ: u8 = 0b10;
 
 const CMD_READ: u8 = 0x20;
+const CMD_WRITE: u8 = 0x30;
+const CMD_FLUSH: u8 = 0xE7;
 
 const AtaStatus = packed struct {
     err: u1,
@@ -94,6 +96,37 @@ pub const AtaDevice = struct {
                 dst[index + 1] = @truncate(u8, data >> 8);
             }
         }
+    }
+
+    pub fn write(self: AtaDevice, src: []u8, offset: u28) !void {
+        std.debug.assert(src.len % 512 == 0);
+        std.debug.assert(src.len / 512 + 1 < 256);
+        const drive = self.getSelector() | ENABLE_LBA | @truncate(u8, offset >> 24);
+        const lba_high = @truncate(u8, offset >> 16);
+        const lba_mid = @truncate(u8, offset >> 8);
+        const lba_low = @truncate(u8, offset);
+        const count: u8 = @intCast(u8, src.len / 512);
+
+        utils.out(self.getIoPort(DRIVE_REG_OFFSET), drive);
+        utils.out(self.getIoPort(SEC_CNT_REG_OFFSET), count);
+        utils.out(self.getIoPort(LBA_LOW_OFFSET), lba_low);
+        utils.out(self.getIoPort(LBA_MID_OFFSET), lba_mid);
+        utils.out(self.getIoPort(LBA_HIGH_OFFSET), lba_high);
+        utils.out(self.getIoPort(CMD_REG_OFFSET), CMD_WRITE);
+
+        var i: usize = 0;
+        while (i < count) : (i += 1) {
+            _ = try self.io_wait();
+            // TODO: Check for errors
+            var j: usize = 0;
+            while (j < 256) : (j += 1) {
+                var index: usize = i * 512 + j * 2;
+                var data: u16 = @as(u16, src[index + 1]) << 8 | src[index];
+                utils.out(self.getIoPort(DATA_REG_OFFSET), data);
+            }
+        }
+
+        utils.out(self.getIoPort(CMD_REG_OFFSET), CMD_FLUSH);
     }
 
     fn io_wait(self: AtaDevice) !AtaStatus {

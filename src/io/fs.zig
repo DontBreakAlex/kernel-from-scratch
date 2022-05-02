@@ -47,6 +47,11 @@ pub fn init() !void {
         .e_type = .Directory,
         .children = null,
     };
+
+    var block = try cache.getOrReadBlock(&ata.disk3, 219);
+    block.data.slice[0] = 'T';
+    block.data.status.Locked.dirty = true;
+    cache.releaseBlock(block);
 }
 
 pub const READ: u8 = 0x1;

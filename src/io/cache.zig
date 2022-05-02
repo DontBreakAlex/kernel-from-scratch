@@ -15,7 +15,8 @@ const BufferHeader = struct {
     lba: u28,
     drive: AtaDevice,
 };
-const Status = union(enum) { Empty, Unlocked: BufferHeader, Locked: BufferHeader };
+const BufferStatus = struct { header: BufferHeader, dirty: bool };
+const Status = union(enum) { Empty, Unlocked: BufferStatus, Locked: BufferStatus };
 const BufferData = struct {
     slice: *[BLOCK_SIZE]u8,
     status: Status,
@@ -49,7 +50,7 @@ pub fn getBuffer() ?*Buffer {
     // TODO: Remove from hashmap if necessary
     var buffer = bufferList.popFirst() orelse return null;
     if (buffer.data.status == .Unlocked) {
-        _ = hashMap.remove(buffer.data.status.Unlocked);
+        _ = hashMap.remove(buffer.data.status.Unlocked.header);
     }
     return buffer;
 }
@@ -59,7 +60,8 @@ pub fn getOrReadBlock(disk: *AtaDevice, block: usize) !*Buffer {
     if (hashMap.get(BufferHeader{ .drive = disk.*, .lba = lba })) |buffer| {
         // Try to lock the block
         if (buffer.data.status == .Unlocked) {
-            buffer.data.status = Status{ .Locked = .{ .drive = disk.*, .lba = lba } };
+            const status = Status{ .Locked = buffer.data.status.Unlocked };
+            buffer.data.status = status;
             return buffer;
         } else {
             @panic("Attemp to read locked buffer");
@@ -71,14 +73,17 @@ pub fn getOrReadBlock(disk: *AtaDevice, block: usize) !*Buffer {
         try hashMap.put(buffer_header, buffer);
         // Assumes that the disk is selected
         try disk.read(buffer.data.slice, lba);
-        buffer.data.status = Status{ .Locked = buffer_header };
+        buffer.data.status = Status{ .Locked = .{ .header = buffer_header, .dirty = false } };
         return buffer;
     }
 }
 
-/// TODO: Put buffer back in free list
-pub fn releaseBuffer(buffer: *Buffer) void {
-    const status = Status{ .Unlocked = buffer.data.status.Locked };
+pub fn releaseBlock(buffer: *Buffer) void {
+    var status = Status{ .Unlocked = buffer.data.status.Locked };
+    if (status.Unlocked.dirty) {
+        status.Unlocked.header.drive.write(buffer.data.slice, status.Unlocked.header.lba) catch @panic("Failed to write buffer back to disk\n");
+        status.Unlocked.dirty = false;
+    }
     buffer.data.status = status;
     bufferList.append(buffer);
 }
