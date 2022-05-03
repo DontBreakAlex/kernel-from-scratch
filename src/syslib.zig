@@ -221,6 +221,14 @@ pub fn getdents(fd: isize, buffer: []Dentry) isize {
     );
 }
 
+pub fn sync() isize {
+    return asm volatile (
+        \\mov $36, %%eax
+        \\int $0x80
+        : [ret] "=&{eax}" (-> isize),
+    );
+}
+
 const PageAllocator = struct {
     const vtable = Allocator.VTable{
         .alloc = alloc,

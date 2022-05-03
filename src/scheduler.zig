@@ -9,6 +9,7 @@ const serial = @import("serial.zig");
 const paging = @import("memory/paging.zig");
 const dirent = @import("io/dirent.zig");
 const keyboard = @import("keyboard.zig");
+const cache = @import("io/cache.zig");
 
 const Process = proc.Process;
 const PageDirectory = paging.PageDirectory;
@@ -88,11 +89,11 @@ pub export fn schedule(esp: usize, regs: usize, cr3: usize) callconv(.C) void {
     canSwitch = false;
     switch (runningProcess.status) {
         .Sleeping => {
-            while (queue.count == 0)
-                asm volatile (
-                    \\sti
-                    \\hlt
-                );
+            if (queue.count == 0) {
+                var last_call = cache.syncInit();
+                while (queue.count == 0)
+                    last_call = idle(last_call);
+            }
             runningProcess.save(esp, regs, cr3);
             runningProcess = queue.readItem() orelse @panic("Scheduler failed");
         },
@@ -105,13 +106,12 @@ pub export fn schedule(esp: usize, regs: usize, cr3: usize) callconv(.C) void {
             }
         },
         .Zombie => {
-            while (queue.count == 0) {
+            if (queue.count == 0) {
                 if (events.count() == 0)
                     @panic("Attempt to kill last process !");
-                asm volatile (
-                    \\sti
-                    \\hlt
-                );
+                var last_call = cache.syncInit();
+                while (queue.count == 0)
+                    last_call = idle(last_call);
             }
             runningProcess = queue.readItem() orelse @panic("Scheduler failed");
         },
@@ -120,6 +120,16 @@ pub export fn schedule(esp: usize, regs: usize, cr3: usize) callconv(.C) void {
     runningProcess.status = .Running;
     canSwitch = true;
     runningProcess.restore();
+}
+
+const Buffer = cache.Buffer;
+fn idle(begin_at: ?*Buffer) ?*Buffer {
+    asm volatile ("sti");
+    if (begin_at) |at|
+        if (cache.syncOne(at)) |ret|
+            return ret;
+    asm volatile ("hlt");
+    return null;
 }
 
 pub fn queueEvent(key: Event, val: *Process) !void {

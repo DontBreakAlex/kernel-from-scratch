@@ -47,9 +47,9 @@ var bufferList = BufferList{};
 var hashMap = BufferMap.init(mem.allocator);
 
 pub fn getBuffer() ?*Buffer {
-    // TODO: Remove from hashmap if necessary
-    var buffer = bufferList.popFirst() orelse return null;
+    var buffer = bufferList.pop() orelse return null;
     if (buffer.data.status == .Unlocked) {
+        // TODO: Write buffer to disk
         _ = hashMap.remove(buffer.data.status.Unlocked.header);
     }
     return buffer;
@@ -60,6 +60,7 @@ pub fn getOrReadBlock(disk: *AtaDevice, block: usize) !*Buffer {
     if (hashMap.get(BufferHeader{ .drive = disk.*, .lba = lba })) |buffer| {
         // Try to lock the block
         if (buffer.data.status == .Unlocked) {
+            bufferList.remove(buffer);
             const status = Status{ .Locked = buffer.data.status.Unlocked };
             buffer.data.status = status;
             return buffer;
@@ -80,12 +81,43 @@ pub fn getOrReadBlock(disk: *AtaDevice, block: usize) !*Buffer {
 
 pub fn releaseBlock(buffer: *Buffer) void {
     var status = Status{ .Unlocked = buffer.data.status.Locked };
-    if (status.Unlocked.dirty) {
-        status.Unlocked.header.drive.write(buffer.data.slice, status.Unlocked.header.lba) catch @panic("Failed to write buffer back to disk\n");
-        status.Unlocked.dirty = false;
-    }
     buffer.data.status = status;
-    bufferList.append(buffer);
+    bufferList.prepend(buffer);
+}
+
+/// Buffer must be unlocked
+fn writeBuffer(buffer: *Buffer) !void {
+    std.debug.assert(buffer.data.status == .Unlocked);
+    const header = buffer.data.status.Unlocked.header;
+    try header.drive.write(buffer.data.slice, header.lba);
+    buffer.data.status.Unlocked.dirty = false;
+}
+
+/// Returns the argument to be passed to the first call of syncOne
+pub inline fn syncInit() ?*Buffer {
+    return bufferList.last;
+}
+
+/// Should be recalled with its return value until it returns null to sync all buffers
+pub fn syncOne(begin_at: *Buffer) ?*Buffer {
+    var current: ?*Buffer = begin_at;
+    while (current) |c| {
+        if (c.data.status == .Unlocked)
+            if (c.data.status.Unlocked.dirty)
+                break;
+        current = c.prev;
+    }
+    if (current) |buffer| {
+        writeBuffer(buffer) catch @panic("Failed to write buffer back to disk\n");
+        return buffer.prev;
+    }
+    return null;
+}
+
+pub fn syncAll() void {
+    var last_call = syncInit();
+    while (last_call) |call|
+        last_call = syncOne(call);
 }
 
 pub var inodeMap = InodeMap.init(mem.allocator);

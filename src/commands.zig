@@ -2,6 +2,7 @@ const vga = @import("vga.zig");
 const std = @import("std");
 const utils = @import("utils.zig");
 const lib = @import("syslib.zig");
+const log = @import("log.zig");
 
 const ArgsIterator = *std.mem.TokenIterator(u8);
 
@@ -90,13 +91,19 @@ fn printTrace(_: ArgsIterator) u8 {
 }
 
 fn reboot(_: ArgsIterator) u8 {
+    log.format("Syncing disks...\n", .{});
+    _ = lib.sync();
+    log.format("Done !\n", .{});
     utils.out(0xCF9, @as(u8, 6));
     return 0;
 }
 
 fn halt(_: ArgsIterator) u8 {
     vga.clear();
-    vga.putStr("System halted.");
+    log.format("Syncing disks...\n", .{});
+    _ = lib.sync();
+    log.format("Done !\n", .{});
+    log.format("System halted.\n", .{});
     asm volatile (
         \\cli
         \\hlt
@@ -106,6 +113,9 @@ fn halt(_: ArgsIterator) u8 {
 
 // Only works on emulators
 pub fn poweroff(_: ArgsIterator) noreturn {
+    log.format("Syncing disks...\n", .{});
+    _ = lib.sync();
+    log.format("Done !\n", .{});
     utils.out(0xB004, @as(u16, 0x2000));
     utils.out(0x604, @as(u16, 0x2000));
     utils.out(0x4004, @as(u16, 0x3400));

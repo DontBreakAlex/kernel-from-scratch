@@ -11,6 +11,7 @@ const pipefs = @import("io/pipefs.zig");
 const fs = @import("io/fs.zig");
 const pipe_ = @import("pipe.zig");
 const dirent = @import("io/dirent.zig");
+const cache = @import("io/cache.zig");
 
 const PageDirectory = paging.PageDirectory;
 const PageEntry = paging.PageEntry;
@@ -108,6 +109,7 @@ export fn syscallHandlerInKS(regs_ptr: *Regs, u_cr3: *[1024]PageEntry, us_esp: u
         9 => mmap(regs.ebx),
         11 => munmap(regs.ebx, regs.ecx),
         20 => getpid(),
+        36 => sync(),
         37 => kill(regs.ebx, regs.ecx),
         42 => pipe(regs.ebx) catch -1,
         48 => signal(regs.ebx, regs.ecx),
@@ -338,4 +340,9 @@ noinline fn getdents(fd: usize, buff: usize, size: usize) isize {
     var file = scheduler.runningProcess.fd[fd] orelse return -1;
     _ = file.getDents(ptr, &cnt) catch return -1;
     return @intCast(isize, cnt);
+}
+
+noinline fn sync() isize {
+    cache.syncAll();
+    return 0;
 }
