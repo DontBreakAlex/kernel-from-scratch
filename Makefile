@@ -19,6 +19,9 @@ grub.iso: $(NAME)
 	cp $(NAME) iso/boot/kernel
 	grub-mkrescue -o grub.iso iso || docker run --rm -v $(PWD):/mount ghcr.io/dontbreakalex/kfs-build grub-mkrescue -o grub.iso iso
 
+qemu: grub.iso
+	qemu-system-i386 -s -drive file=grub.iso,format=raw -serial stdio -drive file=ext.img,format=raw
+
 clean:
 	rm -rf src/zig-cache
 	rm -f *.o obj/*.o
@@ -31,4 +34,4 @@ re:		fclean all
 fmt:
 	zig fmt $(ZIG_SRC)
 
-.PHONY:	all clean fclean fmt
+.PHONY:	all clean fclean fmt qemu
