@@ -369,6 +369,18 @@ pub const Ext2FS = struct {
             .refcount = 1,
         };
     }
+
+    pub fn allocInode(self: *Ext2FS) !void {
+        log.format("{}\n", .{self.superblock.first_ino});
+        for (self.block_group_descriptor_table) |descriptor| {
+            if (descriptor.free_inodes_count != 0) {
+                const bitmap_blk = try cache.getOrReadBlock(self.drive, descriptor.inode_bitmap);
+                defer cache.releaseBlock(bitmap_blk);
+                log.format("{*}\n", .{ bitmap_blk.data.slice });
+                break;
+            }
+        }
+    }
 };
 
 pub fn create(drive: *AtaDevice) !*Ext2FS {
