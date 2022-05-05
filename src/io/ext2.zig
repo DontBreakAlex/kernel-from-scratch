@@ -356,7 +356,6 @@ pub const Ext2FS = struct {
         const inodes_per_block = self.superblock.getBlockSize() / self.superblock.inode_size;
         const inodes = @ptrCast([*]DiskInode, inode_buffer.data.slice)[0..inodes_per_block];
         const node = inodes[offset_in_group % inodes_per_block];
-        // serial.format("{}\n", .{node.size});
         return Inode{
             .fs = self,
             .id = inode,
@@ -370,16 +369,58 @@ pub const Ext2FS = struct {
         };
     }
 
-    pub fn allocInode(self: *Ext2FS) !void {
-        log.format("{}\n", .{self.superblock.first_ino});
-        for (self.block_group_descriptor_table) |descriptor| {
+    pub fn allocInode(self: *Ext2FS) !Inode {
+        for (self.block_group_descriptor_table) |descriptor, d| {
             if (descriptor.free_inodes_count != 0) {
                 const bitmap_blk = try cache.getOrReadBlock(self.drive, descriptor.inode_bitmap);
                 defer cache.releaseBlock(bitmap_blk);
-                log.format("{*}\n", .{ bitmap_blk.data.slice });
-                break;
+                const bitmap = bitmap_blk.data.slice;
+                std.debug.assert(bitmap.len >= self.superblock.inodes_per_group / 8);
+                var i: usize = 0;
+                while (i < self.superblock.inodes_per_group / 8) : (i += 1) {
+                    if (bitmap[i] != 255) {
+                        var o: u3 = 0;
+                        while (o < 8) : (o += 1) {
+                            const mask = @as(u8, 1) << o;
+                            if (bitmap[i] & mask == 0) {
+                                bitmap[i] &= mask;
+                                bitmap_blk.data.status.Locked.dirty = true;
+                                const id = d * self.superblock.inodes_per_group + i * 8 + o + 1;
+                                return self.readInode(id);
+                            }
+                        }
+                    }
+                }
             }
         }
+        return error.OufOfSpace;
+    }
+
+    pub fn allocBlock(self: *Ext2FS) !usize {
+        for (self.block_group_descriptor_table) |descriptor, d| {
+            if (descriptor.free_block_count != 0) {
+                const bitmap_blk = try cache.getOrReadBlock(self.drive, descriptor.block_bitmap);
+                defer cache.releaseBlock(bitmap_blk);
+                const bitmap = bitmap_blk.data.slice;
+                std.debug.assert(bitmap.len >= self.superblock.blocks_per_group / 8);
+                var i: usize = 0;
+                while (i < self.superblock.blocks_per_group) : (i += 1) {
+                    if (bitmap[i] != 255) {
+                        var o: u3 = 0;
+                        while (o < 8) : (o += 1) {
+                            const mask = @as(u8, 1) << o;
+                            if (bitmap[i] & mask == 0) {
+                                bitmap[i] &= mask;
+                                bitmap_blk.data.status.Locked.dirty = true;
+                                const id = d * self.superblock.blocks_per_group + i * 8 + o;
+                                return id;
+                            }
+                        }
+                    }
+                }
+            }
+        }
+        return error.OufOfSpace;
     }
 };
 

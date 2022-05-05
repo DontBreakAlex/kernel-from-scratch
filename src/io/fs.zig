@@ -47,8 +47,6 @@ pub fn init() !void {
         .e_type = .Directory,
         .children = null,
     };
-
-    root_fs.allocInode() catch {};
 }
 
 pub const READ: u8 = 0x1;

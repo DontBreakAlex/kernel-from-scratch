@@ -111,3 +111,17 @@ pub fn divCeil(numerator: usize, denomiator: usize) usize {
 }
 
 pub const Buffer = std.fifo.LinearFifo(u8, std.fifo.LinearFifoBufferType{ .Static = 32 });
+
+pub inline fn getNthBit(buff: []const u8, n: usize) u1 {
+    @setRuntimeSafety(false);
+    const index = n / 8;
+    const offset = @intCast(u3, n % 8);
+    return @truncate(u1, buff[index] >> offset);
+}
+
+pub inline fn setNthBit(buff: []u8, n: usize) void {
+    @setRuntimeSafety(false);
+    const index = n / 8;
+    const offset = @intCast(u3, n % 8);
+    buff[index] &= 128 >> offset;
+}
