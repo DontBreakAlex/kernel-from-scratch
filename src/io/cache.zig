@@ -55,6 +55,7 @@ pub fn getBuffer() ?*Buffer {
     return buffer;
 }
 
+/// Buffer that are held will not be written to disk even if they are dirty. The owner must write them himself if they need to be written back.
 pub fn getOrReadBlock(disk: *AtaDevice, block: usize) !*Buffer {
     const lba: u28 = @intCast(u28, block * SECTORS_PER_BLOCK);
     if (hashMap.get(BufferHeader{ .drive = disk.*, .lba = lba })) |buffer| {

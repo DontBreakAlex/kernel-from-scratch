@@ -209,12 +209,14 @@ pub const Inode = struct {
     fs: *Ext2FS,
     id: usize,
     mode: u16,
+    links_count: u16,
     blocks: [12]u32,
     i_block: u32,
     d_block: u32,
     t_block: u32,
     size: u32,
     refcount: usize,
+    dirty: bool,
 
     pub fn rawRead(self: *const Self, dst: []u8, offset: u32) !void {
         if (dst.len + offset > self.size)
@@ -328,6 +330,8 @@ pub const Inode = struct {
     pub fn release(self: *Self) void {
         self.refcount -= 1;
         if (self.refcount == 0) {
+            if (self.dirty)
+                self.sync() catch log.format("/!\\ Failed to sync inode !\n", .{});
             _ = cache.inodeMap.remove(.{ .fs = self.fs, .id = self.id });
             mem.allocator.destroy(self);
         }
@@ -336,6 +340,16 @@ pub const Inode = struct {
     pub fn sync(self: *Self) !void {
         var disk_inode: *DiskInode = undefined;
         var buffer = try self.fs.getDiskInode(&disk_inode, self.id);
+        defer cache.releaseBlock(buffer);
+        disk_inode.mode = self.mode;
+        disk_inode.block = self.blocks;
+        disk_inode.i_block = self.i_block;
+        disk_inode.d_block = self.d_block;
+        disk_inode.t_block = self.t_block;
+        disk_inode.size = self.size;
+        disk_inode.links_count = self.links_count;
+        buffer.data.status.Locked.dirty = true;
+        self.dirty = false;
     }
 };
 
@@ -385,7 +399,9 @@ pub const Ext2FS = struct {
             .d_block = node.d_block,
             .t_block = node.t_block,
             .size = node.size,
+            .links_count = node.links_count,
             .refcount = 1,
+            .dirty = false,
         };
     }
 
@@ -432,7 +448,7 @@ pub const Ext2FS = struct {
                             if (bitmap[i] & mask == 0) {
                                 bitmap[i] &= mask;
                                 bitmap_blk.data.status.Locked.dirty = true;
-                                const id = d * self.superblock.blocks_per_group + i * 8 + o;
+                                const id = d * self.superblock.blocks_per_group + i * 8 + o + self.superblock.first_data_block;
                                 return id;
                             }
                         }
