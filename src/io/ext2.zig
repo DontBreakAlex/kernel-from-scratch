@@ -244,6 +244,13 @@ pub const Inode = struct {
         };
     }
 
+    fn setNthBlock(self: *const Self, n: u32, blk: u32) void {
+        switch (n) {
+            0...11 => self.blocks[n] = blk,
+            else => @panic("Unimplemented"),
+        }
+    }
+
     pub fn read(self: *Self, buff: []u8, offset: usize) !usize {
         if (offset >= self.size)
             return 0;
@@ -325,6 +332,11 @@ pub const Inode = struct {
             mem.allocator.destroy(self);
         }
     }
+
+    pub fn sync(self: *Self) !void {
+        var disk_inode: *DiskInode = undefined;
+        var buffer = try self.fs.getDiskInode(&disk_inode, self.id);
+    }
 };
 
 const cache = @import("cache.zig");
@@ -339,23 +351,31 @@ const dirent = @import("dirent.zig");
 const AtaDevice = ata.AtaDevice;
 const DirEnt = dirent.DirEnt;
 const Dentry = dirent.Dentry;
+const Buffer = cache.Buffer;
 
 pub const Ext2FS = struct {
     drive: *AtaDevice,
     superblock: *Ext2Header,
     block_group_descriptor_table: []BlockGroupDescriptor,
 
-    pub fn readInode(self: *Ext2FS, inode: usize) !Inode {
+    /// Finds a disk inode. The pointer has the same lifetime as the returned buffer. The buffer must be released by the caller.
+    fn getDiskInode(self: *Ext2FS, ptr: **DiskInode, inode: usize) !*Buffer {
         const index = inode - 1;
         const group = index / self.superblock.inodes_per_group;
         const offset_in_group = index % self.superblock.inodes_per_group;
         const group_descriptor = &self.block_group_descriptor_table[group];
         const inode_block = group_descriptor.inode_table + offset_in_group * self.superblock.inode_size / self.superblock.getBlockSize();
         const inode_buffer = try cache.getOrReadBlock(self.drive, inode_block);
-        defer cache.releaseBlock(inode_buffer);
         const inodes_per_block = self.superblock.getBlockSize() / self.superblock.inode_size;
         const inodes = @ptrCast([*]DiskInode, inode_buffer.data.slice)[0..inodes_per_block];
-        const node = inodes[offset_in_group % inodes_per_block];
+        ptr.* = &inodes[offset_in_group % inodes_per_block];
+        return inode_buffer;
+    }
+
+    pub fn readInode(self: *Ext2FS, inode: usize) !Inode {
+        var node: *DiskInode = undefined;
+        const buffer = try self.getDiskInode(&node, inode);
+        defer cache.releaseBlock(buffer);
         return Inode{
             .fs = self,
             .id = inode,
