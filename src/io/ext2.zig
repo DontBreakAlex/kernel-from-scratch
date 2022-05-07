@@ -371,6 +371,8 @@ pub const Ext2FS = struct {
     drive: *AtaDevice,
     superblock: *Ext2Header,
     block_group_descriptor_table: []BlockGroupDescriptor,
+    sblock_buffer: *Buffer,
+    bgd_buffer: *Buffer,
 
     /// Finds a disk inode. The pointer has the same lifetime as the returned buffer. The buffer must be released by the caller.
     fn getDiskInode(self: *Ext2FS, ptr: **DiskInode, inode: usize) !*Buffer {
@@ -458,6 +460,52 @@ pub const Ext2FS = struct {
         }
         return error.OufOfSpace;
     }
+
+    pub fn sync(self: *Ext2FS) !void {
+        if (!self.sblock_buffer.data.status.Locked.dirty and !self.bgd_buffer.data.status.Locked.dirty)
+            return;
+        if (self.sblock_buffer.data.status.Locked.dirty) {
+            const header = self.sblock_buffer.data.status.Locked.header;
+            try header.drive.write(self.sblock_buffer.data.slice, header.lba);
+        }
+        if (self.bgd_buffer.data.status.Locked.dirty) {
+            const header = self.bgd_buffer.data.status.Locked.header;
+            try header.drive.write(self.bgd_buffer.data.slice, header.lba);
+        }
+        if (self.block_group_descriptor_table.len > 1) {
+            try self.saveToBlockGroup(1);
+        }
+        var i: usize = 3;
+        while (i < self.block_group_descriptor_table.len) : (i *= 3) {
+            try self.saveToBlockGroup(i);
+        }
+        i = 5;
+        while (i < self.block_group_descriptor_table.len) : (i *= 5) {
+            try self.saveToBlockGroup(i);
+        }
+        i = 7;
+        while (i < self.block_group_descriptor_table.len) : (i *= 7) {
+            try self.saveToBlockGroup(i);
+        }
+    }
+
+    fn saveToBlockGroup(self: *Ext2FS, id: usize) !void {
+        const sblock_buffer = try cache.getOrReadBlock(self.drive, self.superblock.first_data_block + id * self.superblock.blocks_per_group);
+        defer cache.releaseBlock(sblock_buffer);
+        const superblock = @ptrCast(*Ext2Header, sblock_buffer.data.slice);
+        // Sanity-check: are we writing the correct block ?
+        std.debug.assert(superblock.magic == 0xEF53);
+        superblock.* = self.superblock.*;
+        sblock_buffer.data.status.Locked.dirty = true;
+
+        const bgd_buffer = try cache.getOrReadBlock(self.drive, self.superblock.first_data_block + id * self.superblock.blocks_per_group + 1);
+        defer cache.releaseBlock(bgd_buffer);
+        const bgd = @ptrCast([*]BlockGroupDescriptor, bgd_buffer.data.slice)[0..self.block_group_descriptor_table.len];
+        // Same
+        std.debug.assert(bgd[0].block_bitmap == self.block_group_descriptor_table[0].block_bitmap);
+        std.mem.copy(BlockGroupDescriptor, bgd, self.block_group_descriptor_table);
+        bgd_buffer.data.status.Locked.dirty = true;
+    }
 };
 
 pub fn create(drive: *AtaDevice) !*Ext2FS {
@@ -468,6 +516,7 @@ pub fn create(drive: *AtaDevice) !*Ext2FS {
     errdefer mem.allocator.destroy(fs);
 
     fs.drive = drive;
+    fs.sblock_buffer = sblock_buffer;
     fs.superblock = @ptrCast(*Ext2Header, sblock_buffer.data.slice);
     if (fs.superblock.magic != EXT2MAGIC)
         return error.NotExt2;
@@ -494,8 +543,8 @@ pub fn create(drive: *AtaDevice) !*Ext2FS {
         return error.ToManyBlockGroups;
     }
 
-    const bgd_talbe_offset: u28 = if (blk_size == 1024) 2 else 1;
-    const bgd_buffer = try cache.getOrReadBlock(drive, bgd_talbe_offset);
+    const bgd_buffer = try cache.getOrReadBlock(drive, fs.superblock.first_data_block + 1);
+    fs.bgd_buffer = bgd_buffer;
     fs.block_group_descriptor_table = @ptrCast([*]BlockGroupDescriptor, bgd_buffer.data.slice)[0..blkgrp_cnt1];
 
     return fs;

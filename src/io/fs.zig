@@ -10,7 +10,7 @@ const DirEnt = dirent.DirEnt;
 const InodeRef = dirent.InodeRef;
 const Dentry = dirent.Dentry;
 
-var root_fs: *Fs = undefined;
+pub var root_fs: *Fs = undefined;
 pub var root_dirent: DirEnt = undefined;
 
 pub fn init() !void {
