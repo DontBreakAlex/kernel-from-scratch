@@ -205,6 +205,7 @@ const SOCKET: u16 = 0xC000;
 
 pub const Inode = struct {
     const Self = @This();
+    const Type = dirent.Type;
 
     fs: *Ext2FS,
     id: usize,
@@ -351,6 +352,40 @@ pub const Inode = struct {
         buffer.data.status.Locked.dirty = true;
         self.dirty = false;
     }
+
+    pub fn addChildren(self: *Self, name: []const u8, inode: usize, indicator: Type) !void {
+        const last_used_blk_index = self.size / self.fs.superblock.getBlockSize() - 1;
+        const blk = try cache.getOrReadBlock(self.fs.drive, self.getNthBlock(last_used_blk_index));
+        defer cache.releaseBlock(blk);
+        var current = @ptrCast(*DiskDirent, blk.data.slice);
+        while (@ptrToInt(current) + current.size != @ptrToInt(blk.data.slice) + blk.data.slice.len)
+            current = current.getNext();
+        log.format("{s}\n", .{current});
+        const real_size = std.mem.alignForward(@sizeOf(DiskDirent) + current.name_length, 4);
+        const available_size = current.size - real_size;
+        const required_size = std.mem.alignForward(@sizeOf(DiskDirent) + name.len, 4);
+        log.format("{} {}\n", .{ available_size, required_size });
+        if (available_size >= required_size) {
+            current.size = @intCast(u16, real_size);
+            var new = current.getNext();
+            log.format("{s}\n", .{new});
+            new.inode = inode;
+            new.name_length = @intCast(u8, name.len);
+            new.size = @intCast(u16, available_size);
+            new.type_indicator = indicator.toTypeIndicator();
+            std.mem.copy(u8, new.getName(), name);
+        } else {
+            const new_blk_id = try self.fs.allocBlock();
+            const new_blk = try cache.getOrReadBlock(self.fs.drive, new_blk_id);
+            defer cache.releaseBlock(new_blk);
+            var new = @ptrCast(*DiskDirent, blk.data.slice);
+            new.inode = inode;
+            new.name_length = @intCast(u8, name.len);
+            new.size = @intCast(u16, available_size);
+            new.type_indicator = indicator.toTypeIndicator();
+            std.mem.copy(u8, new.getName(), name);
+        }
+    }
 };
 
 const cache = @import("cache.zig");
@@ -424,7 +459,9 @@ pub const Ext2FS = struct {
                                 bitmap[i] &= mask;
                                 bitmap_blk.data.status.Locked.dirty = true;
                                 const id = d * self.superblock.inodes_per_group + i * 8 + o + 1;
-                                return self.readInode(id);
+                                var inode = self.readInode(id);
+                                inode.dirty = true;
+                                return inode;
                             }
                         }
                     }
@@ -436,7 +473,7 @@ pub const Ext2FS = struct {
 
     pub fn allocBlock(self: *Ext2FS) !usize {
         for (self.block_group_descriptor_table) |descriptor, d| {
-            if (descriptor.free_block_count != 0) {
+            if (descriptor.free_blocks_count != 0) {
                 const bitmap_blk = try cache.getOrReadBlock(self.drive, descriptor.block_bitmap);
                 defer cache.releaseBlock(bitmap_blk);
                 const bitmap = bitmap_blk.data.slice;

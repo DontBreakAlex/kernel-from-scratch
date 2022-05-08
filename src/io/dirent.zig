@@ -12,6 +12,8 @@ const Inode = ext.Inode;
 pub const Childrens = std.TailQueue(*DirEnt);
 pub const Child = Childrens.Node;
 pub const Type = enum {
+    const Self = @This();
+
     Unknown,
     Regular,
     Directory,
@@ -32,6 +34,19 @@ pub const Type = enum {
             6 => .Socket,
             7 => .Symlink,
             else => return error.WrongTypeIndicator,
+        };
+    }
+
+    pub fn toTypeIndicator(self: Self) u8 {
+        return switch (self) {
+            .Unknown => 0,
+            .Regular => 1,
+            .Directory => 2,
+            .CharDev => 3,
+            .Block => 4,
+            .FIFO => 5,
+            .Socket => 6,
+            .Symlink => 7,
         };
     }
 };
