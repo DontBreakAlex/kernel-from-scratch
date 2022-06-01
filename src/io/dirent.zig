@@ -11,45 +11,7 @@ const Inode = ext.Inode;
 
 pub const Childrens = std.TailQueue(*DirEnt);
 pub const Child = Childrens.Node;
-pub const Type = enum {
-    const Self = @This();
-
-    Unknown,
-    Regular,
-    Directory,
-    CharDev,
-    Block,
-    FIFO,
-    Socket,
-    Symlink,
-
-    pub fn fromTypeIndicator(indicator: u8) !Type {
-        return switch (indicator) {
-            0 => .Unknown,
-            1 => .Regular,
-            2 => .Directory,
-            3 => .CharDev,
-            4 => .Block,
-            5 => .FIFO,
-            6 => .Socket,
-            7 => .Symlink,
-            else => return error.WrongTypeIndicator,
-        };
-    }
-
-    pub fn toTypeIndicator(self: Self) u8 {
-        return switch (self) {
-            .Unknown => 0,
-            .Regular => 1,
-            .Directory => 2,
-            .CharDev => 3,
-            .Block => 4,
-            .FIFO => 5,
-            .Socket => 6,
-            .Symlink => 7,
-        };
-    }
-};
+pub const Type = @import("mode.zig").Type;
 
 pub const Dentry = packed struct {
     inode: u32,
@@ -230,18 +192,34 @@ pub const DirEnt = struct {
     }
 
     const Iterator = std.mem.TokenIterator(u8);
-    pub fn resolve(self: *DirEnt, path: []const u8) !*DirEnt {
+    const ResolveResult = enum {
+        Found,
+        ParentExists,
+    };
+    pub fn resolve(self: *DirEnt, path: []const u8, ptr: **DirEnt) !ResolveResult {
         var cursor: *DirEnt = if (path[0] == '/') &fs.root_dirent else self;
         var iterator: Iterator = std.mem.tokenize(u8, path, "/");
         while (iterator.next()) |name| {
-            var next = try cursor.findChildren(name);
-            if (InodeRef.compare(next.inode, cursor.inode)) {} else if (cursor.parent != null and InodeRef.compare(next.inode, cursor.parent.?.inode)) {
-                cursor = cursor.parent.?;
-            } else {
-                cursor = next;
+            if (cursor.findChildren(name)) |next| {
+                if (InodeRef.compare(next.inode, cursor.inode)) {
+                    // We are accessing `.`, do nothing
+                } else if (cursor.parent != null and InodeRef.compare(next.inode, cursor.parent.?.inode)) {
+                    cursor = cursor.parent.?; // This is `..`
+                } else {
+                    cursor = next;
+                }
+            } else |err| {
+                if (err == error.NotFound) {
+                    if (iterator.next() == null) {
+                        ptr.* = cursor;
+                        return .ParentExists;
+                    }
+                }
+                return err;
             }
         }
-        return cursor;
+        ptr.* = cursor;
+        return .Found;
     }
 
     fn findChildren(self: *DirEnt, name: []const u8) !*DirEnt {
@@ -255,5 +233,15 @@ pub const DirEnt = struct {
                 return node.data;
         }
         return error.NotFound;
+    }
+
+    pub fn createChildren(self: *Self, name: []const u8) !*DirEnt {
+        if (self.e_type != .Directory)
+            return error.NotADirectory;
+        if (self.e_type != .Directory)
+            return error.NotADirectory;
+        var child = try mem.allocator.create(dirent.Child);
+        child.data = try DirEnt.create();
+        dentry.children.?.append(child);
     }
 };

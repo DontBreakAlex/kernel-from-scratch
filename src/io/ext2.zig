@@ -209,7 +209,7 @@ pub const Inode = struct {
 
     fs: *Ext2FS,
     id: usize,
-    mode: u16,
+    mode: Mode,
     links_count: u16,
     blocks: [12]u32,
     i_block: u32,
@@ -353,11 +353,11 @@ pub const Inode = struct {
         self.dirty = false;
     }
 
-    pub fn addChildren(self: *Self, name: []const u8, inode: usize, indicator: Type) !void {
+    pub fn addChild(self: *Self, name: []const u8, inode: usize, indicator: Type) !void {
         const last_used_blk_index = self.size / self.fs.superblock.getBlockSize() - 1;
         const blk = try cache.getOrReadBlock(self.fs.drive, self.getNthBlock(last_used_blk_index));
         defer cache.releaseBlock(blk);
-        var current = @ptrCast(*DiskDirent, blk.data.slice);
+        var current = @ptrCast(*DiskDirent, blk.data.slice); // TODO: Reuse released blocks
         while (@ptrToInt(current) + current.size != @ptrToInt(blk.data.slice) + blk.data.slice.len)
             current = current.getNext();
         log.format("{s}\n", .{current});
@@ -386,6 +386,15 @@ pub const Inode = struct {
             std.mem.copy(u8, new.getName(), name);
         }
     }
+
+    pub fn createChild(self: *Self, mode: Mode, name: []const u8, e_type: Type) !Inode {
+        var inode = self.fs.allocInode();
+        inode.mode = mode;
+        inode.size = 0;
+        inode.links_count = 1;
+        self.addChild(name, inode.id, e_type);
+        return inode;
+    }
 };
 
 const cache = @import("cache.zig");
@@ -401,6 +410,7 @@ const AtaDevice = ata.AtaDevice;
 const DirEnt = dirent.DirEnt;
 const Dentry = dirent.Dentry;
 const Buffer = cache.Buffer;
+const Mode = @import("mode.zig").Mode;
 
 pub const Ext2FS = struct {
     drive: *AtaDevice,
@@ -427,10 +437,11 @@ pub const Ext2FS = struct {
         var node: *DiskInode = undefined;
         const buffer = try self.getDiskInode(&node, inode);
         defer cache.releaseBlock(buffer);
+        
         return Inode{
             .fs = self,
             .id = inode,
-            .mode = node.mode,
+            .mode = std.mem.bytesToValue(Mode, std.mem.asBytes(&node.mode)),
             .blocks = node.block,
             .i_block = node.i_block,
             .d_block = node.d_block,

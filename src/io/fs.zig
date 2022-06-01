@@ -5,6 +5,7 @@ const log = @import("../log.zig");
 const mem = @import("../memory/mem.zig");
 const cache = @import("cache.zig");
 const dirent = @import("dirent.zig");
+const Mode = @import("mode.zig").Mode;
 const Fs = ext.Ext2FS;
 const DirEnt = dirent.DirEnt;
 const InodeRef = dirent.InodeRef;
@@ -47,6 +48,8 @@ pub fn init() !void {
         .e_type = .Directory,
         .children = null,
     };
+
+    // log.format("{s}\n", .{ std.mem.bytesAsValue(Mode, std.mem.asBytes(&root_dirent.inode.ext.mode)) });
 }
 
 pub const READ: u8 = 0x1;
