@@ -106,6 +106,13 @@ pub const InodeRef = union(enum) {
             .pipe => self.pipe.release(),
         }
     }
+
+    pub fn createChild(self: Self, name: []const u8, e_type: Type, mode: Mode) InodeRef {
+        switch (self) {
+            .ext => self.ext.createChild(name, e_type, mode),
+            .pipe => unreachable,
+        }
+    }
 };
 
 pub const DirEnt = struct {
@@ -235,12 +242,13 @@ pub const DirEnt = struct {
         return error.NotFound;
     }
 
-    pub fn createChildren(self: *Self, name: []const u8) !*DirEnt {
+    pub fn createChildren(self: *Self, name: []const u8, e_type: Type, mode: Mode) !*DirEnt {
         if (self.e_type != .Directory)
             return error.NotADirectory;
-        if (self.e_type != .Directory)
-            return error.NotADirectory;
-        var child = try mem.allocator.create(dirent.Child);
+        if (self.children == null)
+            try self.inode.populateChildren(self);
+        var child = try mem.allocator.create(Child);
+        var inode = self.inode.cre;
         child.data = try DirEnt.create();
         dentry.children.?.append(child);
     }

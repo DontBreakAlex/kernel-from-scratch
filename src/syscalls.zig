@@ -103,7 +103,7 @@ export fn syscallHandlerInKS(regs_ptr: *Regs, u_cr3: *[1024]PageEntry, us_esp: u
         },
         3 => read(regs.ebx, regs.ecx, regs.edx),
         4 => write(regs.ebx, regs.ecx, regs.edx),
-        5 => open(regs.ebx, regs.ecx, regs.edx),
+        5 => @import("./syscalls/open.zig").open(regs.ebx, regs.ecx, regs.edx),
         6 => close(regs.ebx),
         7 => waitpid(),
         9 => mmap(regs.ebx),
@@ -318,22 +318,6 @@ noinline fn chdir(buff: usize, size: usize) isize {
     var path = scheduler.runningProcess.pd.vBufferToPhy(size, buff) catch return -1;
     const result = scheduler.runningProcess.cwd.resolve(path, &scheduler.runningProcess.cwd) catch return -1;
     return if (result == .Found) 0 else -1;
-}
-
-noinline fn open(buff: usize, size: usize, flags: usize) isize {
-    var path = scheduler.runningProcess.pd.vBufferToPhy(size, buff) catch return -1;
-    var dentry: *dirent.DirEnt= undefined;
-    var result = scheduler.runningProcess.cwd.resolve(path, &dentry) catch return -1;
-    _ = result;
-    // if (result == .ParentExists and )
-    const fd = scheduler.runningProcess.getAvailableFd() catch return -1;
-    var file: *fs.File = switch (dentry.e_type) {
-        .Directory => if (flags & fs.DIRECTORY == 0) return -1 else fs.File.create(dentry, @intCast(u8, flags)) catch return -1,
-        .Regular => fs.File.create(dentry, @intCast(u8, flags)) catch return -1,
-        else => return -1,
-    };
-    scheduler.runningProcess.fd[fd] = file;
-    return @intCast(isize, fd);
 }
 
 noinline fn getdents(fd: usize, buff: usize, size: usize) isize {

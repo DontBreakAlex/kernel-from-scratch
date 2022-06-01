@@ -311,6 +311,7 @@ pub const Inode = struct {
         return self.size;
     }
 
+    /// Caller is responsible to call release() on the inode
     pub fn create(fs: *Ext2FS, inode: usize) !*Self {
         const header = cache.InodeHeader{ .fs = fs, .id = inode };
         if (cache.inodeMap.get(header)) |node| {
@@ -387,7 +388,8 @@ pub const Inode = struct {
         }
     }
 
-    pub fn createChild(self: *Self, mode: Mode, name: []const u8, e_type: Type) !Inode {
+    /// Caller is responsible to call release() on the inode
+    pub fn createChild(self: *Self, name: []const u8, e_type: Type, mode: Mode) !*Inode {
         var inode = self.fs.allocInode();
         inode.mode = mode;
         inode.size = 0;
@@ -433,7 +435,7 @@ pub const Ext2FS = struct {
         return inode_buffer;
     }
 
-    pub fn readInode(self: *Ext2FS, inode: usize) !Inode {
+    fn readInode(self: *Ext2FS, inode: usize) !Inode {
         var node: *DiskInode = undefined;
         const buffer = try self.getDiskInode(&node, inode);
         defer cache.releaseBlock(buffer);
@@ -453,7 +455,8 @@ pub const Ext2FS = struct {
         };
     }
 
-    pub fn allocInode(self: *Ext2FS) !Inode {
+    /// Caller is responsible to call release() on the inode
+    pub fn allocInode(self: *Ext2FS) !*Inode {
         for (self.block_group_descriptor_table) |descriptor, d| {
             if (descriptor.free_inodes_count != 0) {
                 const bitmap_blk = try cache.getOrReadBlock(self.drive, descriptor.inode_bitmap);
@@ -470,7 +473,7 @@ pub const Ext2FS = struct {
                                 bitmap[i] &= mask;
                                 bitmap_blk.data.status.Locked.dirty = true;
                                 const id = d * self.superblock.inodes_per_group + i * 8 + o + 1;
-                                var inode = self.readInode(id);
+                                var inode = Inode.create(self, id);
                                 inode.dirty = true;
                                 return inode;
                             }
