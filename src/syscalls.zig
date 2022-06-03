@@ -103,7 +103,7 @@ export fn syscallHandlerInKS(regs_ptr: *Regs, u_cr3: *[1024]PageEntry, us_esp: u
         },
         3 => read(regs.ebx, regs.ecx, regs.edx),
         4 => write(regs.ebx, regs.ecx, regs.edx),
-        5 => @import("./syscalls/open.zig").open(regs.ebx, regs.ecx, regs.edx),
+        5 => @import("./syscalls/open.zig").open(regs.ebx, regs.ecx, regs.edx, @truncate(u16, regs.esi)),
         6 => close(regs.ebx),
         7 => waitpid(),
         9 => mmap(regs.ebx),

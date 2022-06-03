@@ -343,7 +343,7 @@ pub const Inode = struct {
         var disk_inode: *DiskInode = undefined;
         var buffer = try self.fs.getDiskInode(&disk_inode, self.id);
         defer cache.releaseBlock(buffer);
-        disk_inode.mode = self.mode;
+        disk_inode.mode = self.mode.toU16();
         disk_inode.block = self.blocks;
         disk_inode.i_block = self.i_block;
         disk_inode.d_block = self.d_block;
@@ -439,7 +439,7 @@ pub const Ext2FS = struct {
         var node: *DiskInode = undefined;
         const buffer = try self.getDiskInode(&node, inode);
         defer cache.releaseBlock(buffer);
-        
+
         return Inode{
             .fs = self,
             .id = inode,

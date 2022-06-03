@@ -24,6 +24,11 @@ pub const Mode = packed struct {
     setguid: bool,
     setuid: bool,
     format: Format,
+
+    pub fn toU16(self: *const Mode) u16 {
+        const bytes = std.mem.asBytes(self);
+        return bytes[1] | @intCast(u16, bytes[0]) << 8;
+    }
 };
 
 comptime {

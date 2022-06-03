@@ -12,6 +12,7 @@ const Inode = ext.Inode;
 pub const Childrens = std.TailQueue(*DirEnt);
 pub const Child = Childrens.Node;
 pub const Type = @import("mode.zig").Type;
+const Mode = @import("mode.zig").Mode;
 
 pub const Dentry = packed struct {
     inode: u32,
@@ -107,9 +108,9 @@ pub const InodeRef = union(enum) {
         }
     }
 
-    pub fn createChild(self: Self, name: []const u8, e_type: Type, mode: Mode) InodeRef {
+    pub fn createChild(self: Self, name: []const u8, e_type: Type, mode: Mode) !InodeRef {
         switch (self) {
-            .ext => self.ext.createChild(name, e_type, mode),
+            .ext => InodeRef{ .ext = try self.ext.createChild(name, e_type, mode) },
             .pipe => unreachable,
         }
     }
@@ -242,14 +243,15 @@ pub const DirEnt = struct {
         return error.NotFound;
     }
 
-    pub fn createChildren(self: *Self, name: []const u8, e_type: Type, mode: Mode) !*DirEnt {
+    pub fn createChild(self: *Self, name: []const u8, e_type: Type, mode: Mode) !*DirEnt {
         if (self.e_type != .Directory)
             return error.NotADirectory;
         if (self.children == null)
             try self.inode.populateChildren(self);
         var child = try mem.allocator.create(Child);
-        var inode = self.inode.cre;
-        child.data = try DirEnt.create();
-        dentry.children.?.append(child);
+        var inode = try self.inode.createChild(name, e_type, mode);
+        child.data = try DirEnt.create(inode, self, name, e_type);
+        inode.release();
+        self.children.?.append(child);
     }
 };
