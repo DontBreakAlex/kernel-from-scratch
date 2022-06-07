@@ -240,6 +240,31 @@ pub const Inode = struct {
         std.debug.assert(to_read == 0);
     }
 
+    pub fn rawWrite(self: *Self, src: []const u8, offset: u32) !void {
+        var slice_cursor = @as(u32, 0);
+        var to_write = src.len;
+        var disk_cursor = offset;
+
+        while (to_write != 0) {
+            const block_index = disk_cursor / cache.BLOCK_SIZE;
+            const index_within_block = disk_cursor % cache.BLOCK_SIZE;
+            var block_id = self.getNthBlock(block_index);
+            if (block_id == 0) {
+                block_id = try self.fs.allocBlock();
+                self.setNthBlock(block_index, block_id);
+            }
+            var block = try cache.getOrReadBlock(self.fs.drive, block_id);
+            const will_write = std.math.min(to_write, cache.BLOCK_SIZE - index_within_block);
+            std.mem.copy(u8, block.data.slice[index_within_block..will_write], src[slice_cursor..will_write]);
+            defer cache.releaseBlock(block);
+            to_write -= will_write;
+            disk_cursor += will_write;
+            slice_cursor += will_write;
+            self.size = disk_cursor;
+        }
+        std.debug.assert(to_write == 0);
+    }
+
     fn getNthBlock(self: *const Self, n: u32) u32 {
         return switch (n) {
             0...11 => self.blocks[n],
@@ -247,7 +272,7 @@ pub const Inode = struct {
         };
     }
 
-    fn setNthBlock(self: *const Self, n: u32, blk: u32) void {
+    fn setNthBlock(self: *Self, n: u32, blk: u32) void {
         switch (n) {
             0...11 => self.blocks[n] = blk,
             else => @panic("Unimplemented"),
@@ -260,6 +285,11 @@ pub const Inode = struct {
         const to_read = std.math.min(buff.len, self.size - offset);
         try self.rawRead(buff[0..to_read], offset);
         return to_read;
+    }
+
+    pub fn write(self: *Self, buff: []const u8, offset: usize) !usize {
+        try self.rawWrite(buff, offset);
+        return buff.len;
     }
 
     pub fn populateChildren(self: *const Self, dentry: *DirEnt) !void {
@@ -361,15 +391,15 @@ pub const Inode = struct {
         var current = @ptrCast(*DiskDirent, blk.data.slice); // TODO: Reuse released blocks
         while (@ptrToInt(current) + current.size != @ptrToInt(blk.data.slice) + blk.data.slice.len)
             current = current.getNext();
-        log.format("{s}\n", .{current});
+        // log.format("{s}\n", .{current});
         const real_size = std.mem.alignForward(@sizeOf(DiskDirent) + current.name_length, 4);
         const available_size = current.size - real_size;
         const required_size = std.mem.alignForward(@sizeOf(DiskDirent) + name.len, 4);
-        log.format("{} {}\n", .{ available_size, required_size });
+        // log.format("{} {}\n", .{ available_size, required_size });
         if (available_size >= required_size) {
             current.size = @intCast(u16, real_size);
             var new = current.getNext();
-            log.format("{s}\n", .{new});
+            // log.format("{s}\n", .{new});
             new.inode = inode;
             new.name_length = @intCast(u8, name.len);
             new.size = @intCast(u16, available_size);
@@ -458,6 +488,7 @@ pub const Ext2FS = struct {
 
     /// Caller is responsible to call release() on the inode
     pub fn allocInode(self: *Ext2FS) !*Inode {
+        // TODO update superblock
         for (self.block_group_descriptor_table) |descriptor, d| {
             if (descriptor.free_inodes_count != 0) {
                 const bitmap_blk = try cache.getOrReadBlock(self.drive, descriptor.inode_bitmap);
@@ -486,7 +517,8 @@ pub const Ext2FS = struct {
         return error.OufOfSpace;
     }
 
-    pub fn allocBlock(self: *Ext2FS) !usize {
+    pub fn allocBlock(self: *Ext2FS) !u32 {
+        // TODO update superblock
         for (self.block_group_descriptor_table) |descriptor, d| {
             if (descriptor.free_blocks_count != 0) {
                 const bitmap_blk = try cache.getOrReadBlock(self.drive, descriptor.block_bitmap);

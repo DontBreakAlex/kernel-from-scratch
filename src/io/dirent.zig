@@ -74,8 +74,8 @@ pub const InodeRef = union(enum) {
     pub fn write(self: Self, buff: []const u8, offset: usize) !usize {
         _ = offset;
         return switch (self) {
-            .ext => unreachable,
-            .pipe => self.pipe.write(buff),
+            .ext => try self.ext.write(buff, offset),
+            .pipe => try self.pipe.write(buff),
         };
     }
 

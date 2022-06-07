@@ -3,6 +3,7 @@ const utils = @import("../utils.zig");
 const serial = @import("../serial.zig");
 const ext = @import("ext2.zig");
 const cache = @import("cache.zig");
+const log = @import("../log.zig");
 
 const PRIMARY_IO_BASE: u16 = 0x1F0;
 const PRIMARY_CONTROL_BASE: u16 = 0x3F6;
@@ -99,6 +100,7 @@ pub const AtaDevice = struct {
     }
 
     pub fn write(self: AtaDevice, src: []u8, offset: u28) !void {
+        log.format("Writting buffer at offset {}...\n", .{ offset });
         std.debug.assert(src.len % 512 == 0);
         std.debug.assert(src.len / 512 + 1 < 256);
         const drive = self.getSelector() | ENABLE_LBA | @truncate(u8, offset >> 24);
@@ -127,6 +129,7 @@ pub const AtaDevice = struct {
         }
 
         utils.out(self.getIoPort(CMD_REG_OFFSET), CMD_FLUSH);
+        log.format("Done !\n", .{});
     }
 
     fn io_wait(self: AtaDevice) !AtaStatus {

@@ -12,8 +12,12 @@ pub noinline fn open(buff: usize, size: usize, flags: usize, raw_mode: u16) isiz
     var dentry: *DirEnt = undefined;
     var result = scheduler.runningProcess.cwd.resolve(path, &dentry) catch return -1;
     if (result == .ParentExists) {
-        if (flags & f.O_CREAT == f.O_CREAT and flags & f.O_DIRECTORY == 0) {
-            const name = path[std.mem.lastIndexOf(u8, path, "/") orelse return -1..path.len];
+        const a = flags & f.O_CREAT;
+        const b = flags & f.O_DIRECTORY;
+        if (a == f.O_CREAT and b == 0) {
+            const start = (std.mem.lastIndexOf(u8, path, "/") orelse return -1) + 1;
+            const name = path[start..path.len];
+            log.format("{s}\n", .{ name });
 
             dentry = dentry.createChild(name, .Regular, Mode.fromU16(raw_mode)) catch return -1;
         } else {
@@ -27,7 +31,7 @@ pub noinline fn open(buff: usize, size: usize, flags: usize, raw_mode: u16) isiz
         .Regular => File.create(dentry, @truncate(u16, flags & f.O_ACCMODE)) catch return -1,
         else => return -1,
     };
-    log.format("{s}\n", .{ file.dentry.inode.ext.mode });
+    // log.format("{s}\n", .{ file.dentry.inode.ext.mode });
     scheduler.runningProcess.fd[fd] = file;
     return @intCast(isize, fd);
 }
