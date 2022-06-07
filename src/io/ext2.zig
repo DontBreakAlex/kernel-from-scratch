@@ -390,11 +390,12 @@ pub const Inode = struct {
 
     /// Caller is responsible to call release() on the inode
     pub fn createChild(self: *Self, name: []const u8, e_type: Type, mode: Mode) !*Inode {
-        var inode = self.fs.allocInode();
+        var inode = try self.fs.allocInode();
+        // TODO: Delete on failure
         inode.mode = mode;
         inode.size = 0;
         inode.links_count = 1;
-        self.addChild(name, inode.id, e_type);
+        try self.addChild(name, inode.id, e_type);
         return inode;
     }
 };
@@ -473,7 +474,7 @@ pub const Ext2FS = struct {
                                 bitmap[i] &= mask;
                                 bitmap_blk.data.status.Locked.dirty = true;
                                 const id = d * self.superblock.inodes_per_group + i * 8 + o + 1;
-                                var inode = Inode.create(self, id);
+                                var inode = try Inode.create(self, id);
                                 inode.dirty = true;
                                 return inode;
                             }

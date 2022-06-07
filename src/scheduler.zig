@@ -10,6 +10,7 @@ const paging = @import("memory/paging.zig");
 const dirent = @import("io/dirent.zig");
 const keyboard = @import("keyboard.zig");
 const cache = @import("io/cache.zig");
+const fcntl = @import("io/fcntl.zig");
 
 const Process = proc.Process;
 const PageDirectory = paging.PageDirectory;
@@ -59,7 +60,7 @@ pub fn startProcess(func: Fn) !void {
     process.vmem.init();
     process.fd = .{null} ** proc.FD_COUNT;
     var dentry = try dirent.DirEnt.create(.{ .pipe = &keyboard.inode }, null, &.{}, dirent.Type.CharDev);
-    process.fd[0] = try fs.File.create(dentry, fs.READ);
+    process.fd[0] = try fs.File.create(dentry, fcntl.O_RDONLY);
     dentry.release();
     errdefer process.fd[0].?.close();
     process.parent = null;

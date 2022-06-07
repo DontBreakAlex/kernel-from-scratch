@@ -10,7 +10,7 @@ pub const CommandFn = fn (args: ArgsIterator) u8;
 pub const Command = struct { name: []const u8, cmd: CommandFn };
 extern const stack_bottom: u8;
 
-pub const commands: [16]Command = .{
+pub const commands: [17]Command = .{
     .{ .name = "echo", .cmd = echo },
     // .{ .name = "pstack", .cmd = printStack },
     // .{ .name = "ptrace", .cmd = printTrace },
@@ -29,6 +29,7 @@ pub const commands: [16]Command = .{
     .{ .name = "cd", .cmd = cd },
     .{ .name = "cat", .cmd = cat },
     .{ .name = "ls", .cmd = ls },
+    .{ .name = "write", .cmd = write },
 };
 
 pub fn find(name: []const u8) ?CommandFn {
@@ -208,7 +209,7 @@ fn cd(args: ArgsIterator) u8 {
 
 fn cat(args: ArgsIterator) u8 {
     if (args.next()) |arg| {
-        const fd = lib.open(arg, lib.READ);
+        const fd = lib.open(arg, lib.O_RDONLY, undefined);
         if (fd == -1) {
             vga.putStr("Error: failed to open file\n");
         } else {
@@ -227,7 +228,7 @@ fn cat(args: ArgsIterator) u8 {
 
 fn ls(args: ArgsIterator) u8 {
     const path = args.next() orelse ".";
-    const fd = lib.open(path, lib.DIRECTORY);
+    const fd = lib.open(path, lib.O_DIRECTORY, undefined);
     if (fd < 0) {
         vga.format("Error: failed to open directory {s}\n", .{path});
         return 1;
@@ -244,6 +245,23 @@ fn ls(args: ArgsIterator) u8 {
             vga.format("{s}\n", .{dir.name[0..dir.namelen]});
         }
         ret = lib.getdents(fd, &dirs);
+    }
+    return 0;
+}
+
+fn write(args: ArgsIterator) u8 {
+    const path = args.next() orelse return 1;
+    const data = args.next() orelse return 1;
+    const fd = lib.open(path, lib.O_CREAT | lib.O_WRONLY, lib.RegularMode);
+    if (fd < 0) {
+        vga.format("Error: failed to open file {s}\n", .{ path });
+        return 1;
+    }
+    defer _ = lib.close(fd);
+    var ret = lib.write(fd, data);
+    if (ret != data.len) {
+        vga.putStr("Error: write failed\n");
+        return 1;
     }
     return 0;
 }

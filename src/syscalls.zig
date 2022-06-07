@@ -103,7 +103,7 @@ export fn syscallHandlerInKS(regs_ptr: *Regs, u_cr3: *[1024]PageEntry, us_esp: u
         },
         3 => read(regs.ebx, regs.ecx, regs.edx),
         4 => write(regs.ebx, regs.ecx, regs.edx),
-        5 => @import("./syscalls/open.zig").open(regs.ebx, regs.ecx, regs.edx, @truncate(u16, regs.esi)),
+        5 => @import("syscalls/open.zig").open(regs.ebx, regs.ecx, regs.edx, @truncate(u16, regs.esi)),
         6 => close(regs.ebx),
         7 => waitpid(),
         9 => mmap(regs.ebx),
@@ -111,7 +111,7 @@ export fn syscallHandlerInKS(regs_ptr: *Regs, u_cr3: *[1024]PageEntry, us_esp: u
         20 => getpid(),
         36 => sync(),
         37 => kill(regs.ebx, regs.ecx),
-        42 => pipe(regs.ebx) catch -1,
+        42 => @import("syscalls/pipe.zig").pipe(regs.ebx) catch -1,
         48 => signal(regs.ebx, regs.ecx),
         78 => getdents(regs.ebx, regs.ecx, regs.edx),
         79 => getcwd(regs.ebx, regs.ecx),
@@ -264,23 +264,6 @@ noinline fn sigwait() isize {
         unreachable;
     scheduler.runningProcess.status = .Sleeping;
     scheduler.wantsToSwitch = true;
-    return 0;
-}
-
-noinline fn pipe(us_fds: usize) !isize {
-    const new_pipe = try pipe_.createPipe();
-    defer new_pipe.release();
-    const ks_fds = try scheduler.runningProcess.pd.vPtrToPhy([2]usize, @intToPtr(*[2]usize, us_fds));
-    const fd_out = try scheduler.runningProcess.getAvailableFd();
-    scheduler.runningProcess.fd[fd_out] = try fs.File.create(new_pipe, fs.READ);
-    errdefer scheduler.runningProcess.fd[fd_out] = null;
-    errdefer scheduler.runningProcess.fd[fd_out].?.close();
-    const fd_in = try scheduler.runningProcess.getAvailableFd();
-    scheduler.runningProcess.fd[fd_in] = try fs.File.create(new_pipe, fs.WRITE);
-    errdefer scheduler.runningProcess.fd[fd_in] = null;
-    errdefer scheduler.runningProcess.fd[fd_in].?.close();
-    ks_fds[0] = fd_out;
-    ks_fds[1] = fd_in;
     return 0;
 }
 

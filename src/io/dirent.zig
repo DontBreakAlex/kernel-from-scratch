@@ -109,10 +109,10 @@ pub const InodeRef = union(enum) {
     }
 
     pub fn createChild(self: Self, name: []const u8, e_type: Type, mode: Mode) !InodeRef {
-        switch (self) {
+        return switch (self) {
             .ext => InodeRef{ .ext = try self.ext.createChild(name, e_type, mode) },
             .pipe => unreachable,
-        }
+        };
     }
 };
 
@@ -128,7 +128,7 @@ pub const DirEnt = struct {
     namelen: usize,
     name: [256]u8,
 
-    pub fn create(inode: InodeRef, parent: ?*Self, name: []u8, e_type: Type) !*Self {
+    pub fn create(inode: InodeRef, parent: ?*Self, name: []const u8, e_type: Type) !*Self {
         var self = try mem.allocator.create(Self);
         inode.take();
         if (parent) |p|
@@ -253,5 +253,7 @@ pub const DirEnt = struct {
         child.data = try DirEnt.create(inode, self, name, e_type);
         inode.release();
         self.children.?.append(child);
+        child.data.take();
+        return child.data;
     }
 };

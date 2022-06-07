@@ -29,6 +29,10 @@ pub const Mode = packed struct {
         const bytes = std.mem.asBytes(self);
         return bytes[1] | @intCast(u16, bytes[0]) << 8;
     }
+
+    pub fn fromU16(raw_mode: u16) Mode {
+        return std.mem.bytesToValue(Mode, std.mem.asBytes(&raw_mode));
+    }
 };
 
 comptime {

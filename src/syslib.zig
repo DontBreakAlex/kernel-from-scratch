@@ -19,14 +19,14 @@ pub fn read(fd: isize, buffer: []u8, count: usize) isize {
     );
 }
 
-pub fn write(fd: isize, buffer: []const u8, count: usize) isize {
+pub fn write(fd: isize, buffer: []const u8) isize {
     return asm volatile (
         \\mov $4, %%eax
         \\int $0x80
         : [ret] "=&{eax}" (-> isize),
         : [fd] "{ebx}" (fd),
           [buf] "{ecx}" (buffer.ptr),
-          [cnt] "{edx}" (count),
+          [cnt] "{edx}" (buffer.len),
     );
 }
 
@@ -192,18 +192,27 @@ pub fn chdir(buf: []const u8) isize {
 }
 
 const fs = @import("io/fs.zig");
-pub const READ = fs.READ;
-pub const WRITE = fs.WRITE;
-pub const RW = fs.RW;
-pub const DIRECTORY = fs.DIRECTORY;
-pub fn open(path: []const u8, mode: u8) isize {
+pub usingnamespace @import("io/fcntl.zig");
+const Mode = @import("io/mode.zig").Mode;
+pub const RegularMode = Mode{
+    .others = .{ .read = false, .write = false, .execute = true },
+    .group = .{ .read = false, .write = false, .execute = true },
+    .user = .{ .read = false, .write = true, .execute = true },
+    .sticky = false,
+    .setguid = false,
+    .setuid = false,
+    .format = .Regular,
+};
+
+pub fn open(path: []const u8, flags: usize, mode: Mode) isize {
     return asm volatile (
         \\mov $5, %%eax
         \\int $0x80
         : [ret] "=&{eax}" (-> isize),
         : [addr] "{ebx}" (path.ptr),
           [len] "{ecx}" (path.len),
-          [mode] "{edx}" (mode),
+          [flags] "{edx}" (flags),
+          [mode] "{esi}" (mode.toU16()),
         : "eax", "memory"
     );
 }
