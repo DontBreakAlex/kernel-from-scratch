@@ -17,7 +17,6 @@ pub noinline fn open(buff: usize, size: usize, flags: usize, raw_mode: u16) isiz
         if (a == f.O_CREAT and b == 0) {
             const start = (std.mem.lastIndexOf(u8, path, "/") orelse return -1) + 1;
             const name = path[start..path.len];
-            log.format("{s}\n", .{ name });
 
             dentry = dentry.createChild(name, .Regular, Mode.fromU16(raw_mode)) catch return -1;
         } else {

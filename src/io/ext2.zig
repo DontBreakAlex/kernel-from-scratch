@@ -244,6 +244,7 @@ pub const Inode = struct {
         var slice_cursor = @as(u32, 0);
         var to_write = src.len;
         var disk_cursor = offset;
+        self.dirty = true;
 
         while (to_write != 0) {
             const block_index = disk_cursor / cache.BLOCK_SIZE;
@@ -405,9 +406,11 @@ pub const Inode = struct {
             new.size = @intCast(u16, available_size);
             new.type_indicator = indicator.toTypeIndicator();
             std.mem.copy(u8, new.getName(), name);
+            blk.data.status.Locked.dirty = true;
         } else {
             const new_blk_id = try self.fs.allocBlock();
             const new_blk = try cache.getOrReadBlock(self.fs.drive, new_blk_id);
+            new_blk.data.status.Locked.dirty = true;
             defer cache.releaseBlock(new_blk);
             var new = @ptrCast(*DiskDirent, blk.data.slice);
             new.inode = inode;

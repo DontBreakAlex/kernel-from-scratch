@@ -91,7 +91,7 @@ pub export fn schedule(esp: usize, regs: usize, cr3: usize) callconv(.C) void {
     switch (runningProcess.status) {
         .Sleeping => {
             if (queue.count == 0) {
-                var last_call = cache.syncInit();
+                var last_call = cache.syncBuffersInit();
                 while (queue.count == 0)
                     last_call = idle(last_call);
             }
@@ -110,7 +110,7 @@ pub export fn schedule(esp: usize, regs: usize, cr3: usize) callconv(.C) void {
             if (queue.count == 0) {
                 if (events.count() == 0)
                     @panic("Attempt to kill last process !");
-                var last_call = cache.syncInit();
+                var last_call = cache.syncBuffersInit();
                 while (queue.count == 0)
                     last_call = idle(last_call);
             }
@@ -127,7 +127,7 @@ const Buffer = cache.Buffer;
 fn idle(begin_at: ?*Buffer) ?*Buffer {
     asm volatile ("sti");
     if (begin_at) |at|
-        if (cache.syncOne(at)) |ret|
+        if (cache.syncOneBuffer(at)) |ret|
             return ret;
     asm volatile ("hlt");
     return null;

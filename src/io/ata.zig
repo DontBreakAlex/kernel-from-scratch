@@ -78,6 +78,7 @@ pub const AtaDevice = struct {
         const lba_low = @truncate(u8, offset);
         const count: u8 = @intCast(u8, dst.len / 512);
 
+        _ = self.wait_ready();
         utils.out(self.getIoPort(DRIVE_REG_OFFSET), drive);
         utils.out(self.getIoPort(SEC_CNT_REG_OFFSET), count);
         utils.out(self.getIoPort(LBA_LOW_OFFSET), lba_low);
@@ -109,6 +110,7 @@ pub const AtaDevice = struct {
         const lba_low = @truncate(u8, offset);
         const count: u8 = @intCast(u8, src.len / 512);
 
+        _ = self.wait_ready();
         utils.out(self.getIoPort(DRIVE_REG_OFFSET), drive);
         utils.out(self.getIoPort(SEC_CNT_REG_OFFSET), count);
         utils.out(self.getIoPort(LBA_LOW_OFFSET), lba_low);
@@ -137,6 +139,20 @@ pub const AtaDevice = struct {
             const status = self.readStatus();
 
             if (status.bsy == 0 and status.drq == 1) {
+                return status;
+            }
+
+            if (status.err == 1 or status.df == 1) {
+                return error.DriveError;
+            }
+        }
+    }
+
+    fn wait_ready(self: AtaDevice) !AtaStatus {
+        while (true) {
+            const status = self.readStatus();
+
+            if (status.rdy == 1) {
                 return status;
             }
 

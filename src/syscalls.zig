@@ -313,7 +313,7 @@ noinline fn getdents(fd: usize, buff: usize, size: usize) isize {
 }
 
 noinline fn sync() isize {
-    cache.syncAll();
+    cache.syncAllBuffers();
     fs.root_fs.sync() catch {};
     return 0;
 }

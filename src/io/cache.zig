@@ -95,12 +95,12 @@ fn writeBuffer(buffer: *Buffer) !void {
 }
 
 /// Returns the argument to be passed to the first call of syncOne
-pub inline fn syncInit() ?*Buffer {
+pub inline fn syncBuffersInit() ?*Buffer {
     return bufferList.last;
 }
 
 /// Should be recalled with its return value until it returns null to sync all buffers
-pub fn syncOne(begin_at: *Buffer) ?*Buffer {
+pub fn syncOneBuffer(begin_at: *Buffer) ?*Buffer {
     var current: ?*Buffer = begin_at;
     while (current) |c| {
         if (c.data.status == .Unlocked)
@@ -115,10 +115,10 @@ pub fn syncOne(begin_at: *Buffer) ?*Buffer {
     return null;
 }
 
-pub fn syncAll() void {
-    var last_call = syncInit();
+pub fn syncAllBuffers() void {
+    var last_call = syncBuffersInit();
     while (last_call) |call|
-        last_call = syncOne(call);
+        last_call = syncOneBuffer(call);
 }
 
 pub var inodeMap = InodeMap.init(mem.allocator);
