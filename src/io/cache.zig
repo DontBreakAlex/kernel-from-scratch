@@ -122,3 +122,11 @@ pub fn syncAllBuffers() void {
 }
 
 pub var inodeMap = InodeMap.init(mem.allocator);
+
+pub fn syncAllInodes() !void {
+    var iter = inodeMap.iterator();
+    while (iter.next()) |inode| {
+        if (inode.value_ptr.*.dirty)
+            try inode.value_ptr.*.sync();
+    }
+}
