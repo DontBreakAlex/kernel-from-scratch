@@ -50,6 +50,8 @@ pub fn getBuffer() ?*Buffer {
     var buffer = bufferList.pop() orelse return null;
     if (buffer.data.status == .Unlocked) {
         // TODO: Write buffer to disk
+        if (buffer.data.status.Unlocked.dirty == true)
+            @panic("Buffer cache full !!!");
         _ = hashMap.remove(buffer.data.status.Unlocked.header);
     }
     return buffer;

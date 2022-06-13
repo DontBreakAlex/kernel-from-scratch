@@ -111,6 +111,7 @@ pub const AtaDevice = struct {
         const count: u8 = @intCast(u8, src.len / 512);
 
         _ = try self.wait_ready();
+        log.format("Ready\n", .{});
         utils.out(self.getIoPort(DRIVE_REG_OFFSET), drive);
         utils.out(self.getIoPort(SEC_CNT_REG_OFFSET), count);
         utils.out(self.getIoPort(LBA_LOW_OFFSET), lba_low);
@@ -150,7 +151,10 @@ pub const AtaDevice = struct {
 
     fn wait_ready(self: AtaDevice) !AtaStatus {
         while (true) {
+            // TODO: Timeout
             const status = self.readStatus();
+            if (status.bsy == 1)
+                continue;
 
             if (status.rdy == 1) {
                 return status;
