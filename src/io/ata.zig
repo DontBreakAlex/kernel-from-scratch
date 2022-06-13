@@ -3,6 +3,7 @@ const utils = @import("../utils.zig");
 const serial = @import("../serial.zig");
 const ext = @import("ext2.zig");
 const cache = @import("cache.zig");
+const log = @import("../log.zig");
 
 const PRIMARY_IO_BASE: u16 = 0x1F0;
 const PRIMARY_CONTROL_BASE: u16 = 0x3F6;
@@ -77,6 +78,7 @@ pub const AtaDevice = struct {
         const lba_low = @truncate(u8, offset);
         const count: u8 = @intCast(u8, dst.len / 512);
 
+        _ = try self.wait_ready();
         utils.out(self.getIoPort(DRIVE_REG_OFFSET), drive);
         utils.out(self.getIoPort(SEC_CNT_REG_OFFSET), count);
         utils.out(self.getIoPort(LBA_LOW_OFFSET), lba_low);
@@ -99,6 +101,7 @@ pub const AtaDevice = struct {
     }
 
     pub fn write(self: AtaDevice, src: []u8, offset: u28) !void {
+        log.format("Writting buffer at offset {}...\n", .{ offset });
         std.debug.assert(src.len % 512 == 0);
         std.debug.assert(src.len / 512 + 1 < 256);
         const drive = self.getSelector() | ENABLE_LBA | @truncate(u8, offset >> 24);
@@ -107,6 +110,8 @@ pub const AtaDevice = struct {
         const lba_low = @truncate(u8, offset);
         const count: u8 = @intCast(u8, src.len / 512);
 
+        _ = try self.wait_ready();
+        log.format("Ready\n", .{});
         utils.out(self.getIoPort(DRIVE_REG_OFFSET), drive);
         utils.out(self.getIoPort(SEC_CNT_REG_OFFSET), count);
         utils.out(self.getIoPort(LBA_LOW_OFFSET), lba_low);
@@ -127,6 +132,7 @@ pub const AtaDevice = struct {
         }
 
         utils.out(self.getIoPort(CMD_REG_OFFSET), CMD_FLUSH);
+        log.format("Done !\n", .{});
     }
 
     fn io_wait(self: AtaDevice) !AtaStatus {
@@ -134,6 +140,23 @@ pub const AtaDevice = struct {
             const status = self.readStatus();
 
             if (status.bsy == 0 and status.drq == 1) {
+                return status;
+            }
+
+            if (status.err == 1 or status.df == 1) {
+                return error.DriveError;
+            }
+        }
+    }
+
+    fn wait_ready(self: AtaDevice) !AtaStatus {
+        while (true) {
+            // TODO: Timeout
+            const status = self.readStatus();
+            if (status.bsy == 1)
+                continue;
+
+            if (status.rdy == 1) {
                 return status;
             }
 

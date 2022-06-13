@@ -5,6 +5,7 @@ const log = @import("../log.zig");
 const mem = @import("../memory/mem.zig");
 const cache = @import("cache.zig");
 const dirent = @import("dirent.zig");
+const Mode = @import("mode.zig").Mode;
 const Fs = ext.Ext2FS;
 const DirEnt = dirent.DirEnt;
 const InodeRef = dirent.InodeRef;
@@ -47,22 +48,21 @@ pub fn init() !void {
         .e_type = .Directory,
         .children = null,
     };
+
+    // log.format("{s}\n", .{ std.mem.bytesAsValue(Mode, std.mem.asBytes(&root_dirent.inode.ext.mode)) });
 }
 
-pub const READ: u8 = 0x1;
-pub const WRITE: u8 = 0x2;
-pub const RW: u8 = 0x3;
-pub const DIRECTORY: u8 = 0x4;
+const fcntl = @import("fcntl.zig");
 
 pub const File = struct {
     const Self = @This();
 
     refcount: usize,
     dentry: *DirEnt,
-    mode: u8,
+    mode: u16,
     offset: usize,
 
-    pub fn create(dentry: *DirEnt, mode: u8) !*Self {
+    pub fn create(dentry: *DirEnt, mode: u16) !*Self {
         var self = try mem.allocator.create(Self);
         dentry.take();
         self.* = .{
@@ -87,7 +87,7 @@ pub const File = struct {
     }
 
     pub fn read(self: *Self, buff: []u8) !usize {
-        if (self.mode & READ == 0)
+        if (!(self.mode == fcntl.O_RDONLY or self.mode == fcntl.O_RDWR))
             return error.NotReadable;
         if (self.dentry.inode.hasOffset()) {
             const ret = try self.dentry.inode.read(buff, self.offset);
@@ -99,7 +99,7 @@ pub const File = struct {
     }
 
     pub fn write(self: *Self, buff: []const u8) !usize {
-        if (self.mode & WRITE == 0)
+        if (!(self.mode == fcntl.O_WRONLY or self.mode == fcntl.O_RDWR))
             return error.NotWritable;
         if (self.dentry.inode.hasOffset()) {
             const ret = try self.dentry.inode.write(buff, self.offset);
@@ -111,7 +111,7 @@ pub const File = struct {
     }
 
     pub fn getDents(self: *Self, ptr: [*]Dentry, cnt: *usize) !usize {
-        if (self.mode & DIRECTORY == 0)
+        if (self.dentry.e_type != .Directory)
             return error.NotADirectory;
         const ret = try self.dentry.inode.getDents(ptr, cnt, self.offset);
         self.offset += ret;

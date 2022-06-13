@@ -10,6 +10,8 @@ const paging = @import("memory/paging.zig");
 const dirent = @import("io/dirent.zig");
 const keyboard = @import("keyboard.zig");
 const cache = @import("io/cache.zig");
+const fcntl = @import("io/fcntl.zig");
+const log = @import("log.zig");
 
 const Process = proc.Process;
 const PageDirectory = paging.PageDirectory;
@@ -59,7 +61,7 @@ pub fn startProcess(func: Fn) !void {
     process.vmem.init();
     process.fd = .{null} ** proc.FD_COUNT;
     var dentry = try dirent.DirEnt.create(.{ .pipe = &keyboard.inode }, null, &.{}, dirent.Type.CharDev);
-    process.fd[0] = try fs.File.create(dentry, fs.READ);
+    process.fd[0] = try fs.File.create(dentry, fcntl.O_RDONLY);
     dentry.release();
     errdefer process.fd[0].?.close();
     process.parent = null;
@@ -90,9 +92,9 @@ pub export fn schedule(esp: usize, regs: usize, cr3: usize) callconv(.C) void {
     switch (runningProcess.status) {
         .Sleeping => {
             if (queue.count == 0) {
-                var last_call = cache.syncInit();
+                idleInit();
                 while (queue.count == 0)
-                    last_call = idle(last_call);
+                    idle();
             }
             runningProcess.save(esp, regs, cr3);
             runningProcess = queue.readItem() orelse @panic("Scheduler failed");
@@ -109,9 +111,9 @@ pub export fn schedule(esp: usize, regs: usize, cr3: usize) callconv(.C) void {
             if (queue.count == 0) {
                 if (events.count() == 0)
                     @panic("Attempt to kill last process !");
-                var last_call = cache.syncInit();
+                idleInit();
                 while (queue.count == 0)
-                    last_call = idle(last_call);
+                    idle();
             }
             runningProcess = queue.readItem() orelse @panic("Scheduler failed");
         },
@@ -123,13 +125,23 @@ pub export fn schedule(esp: usize, regs: usize, cr3: usize) callconv(.C) void {
 }
 
 const Buffer = cache.Buffer;
-fn idle(begin_at: ?*Buffer) ?*Buffer {
+const idleData = struct {
+    var begin_at: ?*Buffer = null;
+};
+fn idleInit() void {
+    cache.syncAllInodes() catch log.format("/!\\ Failed to sync inodes !", .{});
+    idleData.begin_at = cache.syncBuffersInit();
+}
+
+fn idle() void {
     asm volatile ("sti");
-    if (begin_at) |at|
-        if (cache.syncOne(at)) |ret|
-            return ret;
+    if (idleData.begin_at) |at|
+        if (cache.syncOneBuffer(at)) |ret| {
+            idleData.begin_at = ret;
+            return;
+        };
     asm volatile ("hlt");
-    return null;
+    return;
 }
 
 pub fn queueEvent(key: Event, val: *Process) !void {

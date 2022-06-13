@@ -103,7 +103,7 @@ export fn syscallHandlerInKS(regs_ptr: *Regs, u_cr3: *[1024]PageEntry, us_esp: u
         },
         3 => read(regs.ebx, regs.ecx, regs.edx),
         4 => write(regs.ebx, regs.ecx, regs.edx),
-        5 => open(regs.ebx, regs.ecx, regs.edx),
+        5 => @import("syscalls/open.zig").open(regs.ebx, regs.ecx, regs.edx, @truncate(u16, regs.esi)),
         6 => close(regs.ebx),
         7 => waitpid(),
         9 => mmap(regs.ebx),
@@ -111,7 +111,7 @@ export fn syscallHandlerInKS(regs_ptr: *Regs, u_cr3: *[1024]PageEntry, us_esp: u
         20 => getpid(),
         36 => sync(),
         37 => kill(regs.ebx, regs.ecx),
-        42 => pipe(regs.ebx) catch -1,
+        42 => @import("syscalls/pipe.zig").pipe(regs.ebx) catch -1,
         48 => signal(regs.ebx, regs.ecx),
         78 => getdents(regs.ebx, regs.ecx, regs.edx),
         79 => getcwd(regs.ebx, regs.ecx),
@@ -267,23 +267,6 @@ noinline fn sigwait() isize {
     return 0;
 }
 
-noinline fn pipe(us_fds: usize) !isize {
-    const new_pipe = try pipe_.createPipe();
-    defer new_pipe.release();
-    const ks_fds = try scheduler.runningProcess.pd.vPtrToPhy([2]usize, @intToPtr(*[2]usize, us_fds));
-    const fd_out = try scheduler.runningProcess.getAvailableFd();
-    scheduler.runningProcess.fd[fd_out] = try fs.File.create(new_pipe, fs.READ);
-    errdefer scheduler.runningProcess.fd[fd_out] = null;
-    errdefer scheduler.runningProcess.fd[fd_out].?.close();
-    const fd_in = try scheduler.runningProcess.getAvailableFd();
-    scheduler.runningProcess.fd[fd_in] = try fs.File.create(new_pipe, fs.WRITE);
-    errdefer scheduler.runningProcess.fd[fd_in] = null;
-    errdefer scheduler.runningProcess.fd[fd_in].?.close();
-    ks_fds[0] = fd_out;
-    ks_fds[1] = fd_in;
-    return 0;
-}
-
 noinline fn close(fd: usize) isize {
     if (scheduler.runningProcess.fd[fd]) |file| {
         file.close();
@@ -316,21 +299,8 @@ noinline fn getcwd(buff: usize, size: usize) isize {
 
 noinline fn chdir(buff: usize, size: usize) isize {
     var path = scheduler.runningProcess.pd.vBufferToPhy(size, buff) catch return -1;
-    scheduler.runningProcess.cwd = scheduler.runningProcess.cwd.resolve(path) catch return -1;
-    return 0;
-}
-
-noinline fn open(buff: usize, size: usize, mode: usize) isize {
-    var path = scheduler.runningProcess.pd.vBufferToPhy(size, buff) catch return -1;
-    var dentry = scheduler.runningProcess.cwd.resolve(path) catch return -1;
-    const fd = scheduler.runningProcess.getAvailableFd() catch return -1;
-    var file: *fs.File = switch (dentry.e_type) {
-        .Directory => if (mode & fs.DIRECTORY == 0) return -1 else fs.File.create(dentry, @intCast(u8, mode)) catch return -1,
-        .Regular => fs.File.create(dentry, @intCast(u8, mode)) catch return -1,
-        else => return -1,
-    };
-    scheduler.runningProcess.fd[fd] = file;
-    return @intCast(isize, fd);
+    const result = scheduler.runningProcess.cwd.resolve(path, &scheduler.runningProcess.cwd) catch return -1;
+    return if (result == .Found) 0 else -1;
 }
 
 noinline fn getdents(fd: usize, buff: usize, size: usize) isize {
@@ -343,7 +313,7 @@ noinline fn getdents(fd: usize, buff: usize, size: usize) isize {
 }
 
 noinline fn sync() isize {
-    cache.syncAll();
+    cache.syncAllBuffers();
     fs.root_fs.sync() catch {};
     return 0;
 }

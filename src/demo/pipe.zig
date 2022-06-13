@@ -13,7 +13,7 @@ pub noinline fn testPipe() void {
     if (pid == 0) {
         // Child
         vga.putStr("Hello from child\n");
-        if (lib.write(pipe[1], &.{ 1, 2, 3 }, 3) != 3)
+        if (lib.write(pipe[1], &.{ 1, 2, 3 }) != 3)
             return vga.putStr("Write failure");
         vga.putStr("Child exiting\n");
         lib.exit(0);
