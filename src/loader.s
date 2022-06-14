@@ -49,7 +49,6 @@ _start:
 	mov es, ax
 	mov fs, ax
 	mov gs, ax
-	mov ax, 0x18
 	mov ss, ax
 
 	; xchg bx, bx
@@ -105,13 +104,6 @@ k_data:
 	db 10010010b	; Flag set 1 and 2
 	db 11001111b	; 2nd flags and limit bits 16-19
 	db 0x00		; Base bits 24-31
-k_stack:
-	dw 0xffff
-	dw 0x0000
-	db 0x00
-	db 10010010b
-	db 11001111b
-	db 0x00
 u_code:
 	dw 0xffff
 	dw 0x0000
@@ -120,13 +112,6 @@ u_code:
 	db 11001111b
 	db 0x00
 u_data:
-	dw 0xffff
-	dw 0x0000
-	db 0x00
-	db 11110010b
-	db 11001111b
-	db 0x00
-u_stack:
 	dw 0xffff
 	dw 0x0000
 	db 0x00
