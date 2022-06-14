@@ -23,7 +23,6 @@ const NUMBER_OF_ENTRIES: u16 = 256;
 // The total size of all the IDT entries (-1 for the same reason as the GDT).
 const TABLE_SIZE: u16 = @sizeOf(IdtEntry) * NUMBER_OF_ENTRIES - 1;
 const ISR_GATE_TYPE = 0xE; // 80386 32-bit interrupt gate
-const KERN_CODE = 0x08;
 
 var idt_ptr: IdtPtr = IdtPtr{
     .limit = TABLE_SIZE,

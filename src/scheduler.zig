@@ -13,6 +13,7 @@ const cache = @import("io/cache.zig");
 const fcntl = @import("io/fcntl.zig");
 const log = @import("log.zig");
 const tty = @import("tty.zig");
+const gdt = @import("gdt.zig");
 
 const Process = proc.Process;
 const PageDirectory = paging.PageDirectory;
@@ -81,10 +82,14 @@ pub fn startProcess(func: Fn) !void {
     var esp = try paging.pageAllocator.alloc();
     try process.pd.mapVirtToPhy(process.state.SavedState.esp - paging.PAGE_SIZE, esp, paging.WRITE);
     process.state.SavedState.esp -= 16;
-    esp += 4088;
+    esp = process.kstack;
+    @intToPtr(*usize, esp).* = process.state.SavedState.esp; // Iret will restore this to esp
+    esp -= 4;
+    @intToPtr(*usize, esp).* = gdt.USER_DATA | 3; // ss = data selector | target ring
+    esp -= 4;
     @intToPtr(*usize, esp).* = 0x202; // eflags
     esp -= 4;
-    @intToPtr(*usize, esp).* = 0x8; // cs
+    @intToPtr(*usize, esp).* = gdt.USER_CODE | 3 ; // cs
     esp -= 4;
     @intToPtr(*usize, esp).* = @ptrToInt(func); // eip
     // utils.boch_break();
