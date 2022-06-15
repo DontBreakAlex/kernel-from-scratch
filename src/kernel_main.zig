@@ -40,6 +40,7 @@ export fn kernel_main() void {
     utl.enable_int();
     ata.init() catch log.format("Failed to init cache\n", .{});
     fs.init() catch @panic("Failed to init filesystem !");
+    sch.init();
     sch.startProcess(shl.run) catch {};
 }
 

@@ -44,6 +44,19 @@ pub var runningProcess: *Process = undefined;
 const Children = proc.Children;
 const SignalQueue = proc.SignalQueue;
 const ProcessState = proc.ProcessState;
+
+const TSS = packed struct {
+    ununsed: u32,
+    esp0: u32,
+    ss0: u32,
+};
+
+extern var tss: TSS;
+
+pub fn init() void {
+    tss.ss0 = gdt.KERN_DATA;
+}
+
 pub fn startProcess(func: Fn) !void {
     const process: *Process = try allocator.create(Process);
     process.pid = proc.getNewPid();
@@ -95,6 +108,7 @@ pub fn startProcess(func: Fn) !void {
     @intToPtr(*usize, esp).* = @ptrToInt(func); // eip
     // utils.boch_break();
     try processes.put(process.pid, process);
+    tss.esp0 = process.kstack;
     process.start();
 }
 

@@ -115,7 +115,6 @@ pub const Process = struct {
     pub fn start(self: *Process) void {
         scheduler.runningProcess = self;
         asm volatile (
-            \\xchg %%bx, %%bx
             \\mov %[pd], %%cr3
             \\mov %[new_esp], %%esp
             \\mov %[data], %%ds
