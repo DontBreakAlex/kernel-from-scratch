@@ -77,18 +77,18 @@ pub const PageDirectory = struct {
         return PageDirectory{ .cr3 = cr3 };
     }
 
-    pub fn mapOneToOne(self: *PageDirectory, addr: usize, flags: u12) MapError!void {
+    pub fn mapOneToOne(self: *const PageDirectory, addr: usize, flags: u12) MapError!void {
         return self.mapVirtToPhy(addr, addr, flags);
     }
 
-    pub fn mapVirtToPhy(self: *PageDirectory, v_addr: usize, p_addr: usize, flags: u12) MapError!void {
+    pub fn mapVirtToPhy(self: *const PageDirectory, v_addr: usize, p_addr: usize, flags: u12) MapError!void {
         const dir_offset = @truncate(u10, (v_addr & 0b11111111110000000000000000000000) >> 22);
         const table_offset = @truncate(u10, (v_addr & 0b00000000001111111111100000000000) >> 12);
         const page_table = &self.cr3[dir_offset];
         if ((page_table.flags & PRESENT) == 0) {
             const allocated = try pageAllocator.alloc();
             initEmpty(@intToPtr(*[1024]PageEntry, allocated));
-            page_table.flags = PRESENT | WRITE;
+            page_table.flags = PRESENT | WRITE | USER;
             page_table.phy_addr = @truncate(u20, allocated >> 12);
         }
         const page_table_entry = &@intToPtr(*[1024]PageEntry, @intCast(usize, page_table.phy_addr) << 12)[table_offset];
@@ -109,7 +109,25 @@ pub const PageDirectory = struct {
         );
     }
 
-    pub fn unMap(self: *PageDirectory, v_addr: usize) MapError!usize {
+    pub fn setFlags(self: *const PageDirectory, v_addr: usize, flags: u12) !void {
+        const dir_offset = @truncate(u10, (v_addr & 0b11111111110000000000000000000000) >> 22);
+        const table_offset = @truncate(u10, (v_addr & 0b00000000001111111111100000000000) >> 12);
+        const page_table = &self.cr3[dir_offset];
+        if ((page_table.flags & PRESENT) == 0) {
+            return error.NotMapped;
+        }
+        const page_table_entry = &@intToPtr(*[1024]PageEntry, @intCast(usize, page_table.phy_addr) << 12)[table_offset];
+        if ((page_table_entry.flags & PRESENT) == 1) {
+            page_table_entry.flags = PRESENT | flags;
+        }
+        asm volatile ("invlpg (%[addr])"
+            :
+            : [addr] "r" (v_addr),
+            : "memory"
+        );
+    }
+
+    pub fn unMap(self: *const PageDirectory, v_addr: usize) MapError!usize {
         const dir_offset = @truncate(u10, (v_addr & 0b11111111110000000000000000000000) >> 22);
         const table_offset = @truncate(u10, (v_addr & 0b00000000001111111111000000000000) >> 12);
         const page_table = &self.cr3[dir_offset];
@@ -129,17 +147,17 @@ pub const PageDirectory = struct {
         return ret;
     }
 
-    pub fn allocVirt(self: *PageDirectory, v_addr: usize, flags: u12) !void {
+    pub fn allocVirt(self: *const PageDirectory, v_addr: usize, flags: u12) !void {
         const allocated = try pageAllocator.alloc();
         try self.mapVirtToPhy(v_addr, allocated, flags);
     }
 
-    pub fn freeVirt(self: *PageDirectory, v_addr: usize) !void {
+    pub fn freeVirt(self: *const PageDirectory, v_addr: usize) !void {
         const phy = try self.unMap(v_addr);
         pageAllocator.free(phy);
     }
 
-    pub fn allocPhy(self: *PageDirectory, flags: u12) !usize {
+    pub fn allocPhy(self: *const PageDirectory, flags: u12) !usize {
         const allocated = try pageAllocator.alloc();
         try self.mapOneToOne(allocated, flags);
         return allocated;
@@ -165,7 +183,7 @@ pub const PageDirectory = struct {
         return @intCast(usize, page_table_entry.phy_addr) << 12 | (v_addr & 0b111111111111);
     }
 
-    pub fn dup(self: *PageDirectory) !PageDirectory {
+    pub fn dup(self: *const PageDirectory) !PageDirectory {
         var new: PageDirectory = try PageDirectory.init();
         for (self.cr3) |*page_table, dir_offset| {
             if (page_table.flags & PRESENT == 1) {
