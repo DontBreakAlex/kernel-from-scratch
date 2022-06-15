@@ -74,15 +74,16 @@ pub fn startProcess(func: Fn) !void {
 
     var i: usize = 0;
     while (i < 256) : (i += 1) {
-        try process.pd.mapOneToOne(paging.PAGE_SIZE * i);
+        try process.pd.mapOneToOne(paging.PAGE_SIZE * i, 0);
     }
     serial.format("Shell has PD at 0x{x:0>8}\n", .{@ptrToInt(process.pd.cr3)});
     process.kstack = try mem.allocKstack(2);
+    try process.pd.mapOneToOne(process.kstack - paging.PAGE_SIZE, paging.PRESENT);
     serial.format("Kernel stack bottom: 0x{x:0>8}\n", .{process.kstack});
     var esp = try paging.pageAllocator.alloc();
-    try process.pd.mapVirtToPhy(process.state.SavedState.esp - paging.PAGE_SIZE, esp, paging.WRITE);
-    process.state.SavedState.esp -= 16;
-    esp = process.kstack;
+    try process.pd.mapVirtToPhy(process.state.SavedState.esp - paging.PAGE_SIZE, esp, paging.WRITE | paging.USER);
+    process.state.SavedState.esp -= 4;
+    esp = process.kstack - 4;
     @intToPtr(*usize, esp).* = process.state.SavedState.esp; // Iret will restore this to esp
     esp -= 4;
     @intToPtr(*usize, esp).* = gdt.USER_DATA | 3; // ss = data selector | target ring

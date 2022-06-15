@@ -30,7 +30,7 @@ pub const PageAllocator = struct {
     pub fn map(base: usize, page_count: usize) !void {
         var i: usize = 0;
         while (i < page_count) : (i += 1) {
-            try paging.kernelPageDirectory.mapOneToOne(base + i * PAGE_SIZE);
+            try paging.kernelPageDirectory.mapOneToOne(base + i * PAGE_SIZE, paging.WRITE);
         }
     }
 

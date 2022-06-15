@@ -111,14 +111,14 @@ pub const Process = struct {
         );
     }
 
-    pub fn start(self: *Process, target_esp: usize) void {
+    pub fn start(self: *Process) void {
         scheduler.runningProcess = self;
         asm volatile (
             \\mov %[pd], %%cr3
             \\mov %[new_esp], %%esp
             \\iret
             :
-            : [new_esp] "r" (target_esp),
+            : [new_esp] "r" (self.kstack - 20),
               [pd] "r" (self.state.SavedState.cr3),
             : "memory"
         );

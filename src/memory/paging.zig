@@ -4,9 +4,14 @@ const PageAllocator = @import("page_allocator.zig").PageAllocator;
 const vga = @import("../vga.zig");
 const serial = @import("../serial.zig");
 
-pub const PRESENT: u12 = 0b1;
-pub const WRITE: u12 = 0b10;
-pub const USER: u12 = 0b100;
+pub const PRESENT: u12 = 1;
+pub const WRITE: u12 = 1 << 1;
+pub const USER: u12 = 1 << 2;
+pub const WRITE_TROUGH: u12 = 1 << 3;
+pub const CACHE_DISABLE: u12 = 1 << 4;
+pub const ACCESSED: u12 = 1 << 5;
+pub const DIRTY: u12 = 1 << 6;
+
 pub const ALLOCATING: u12 = 0b100000000000;
 
 pub const PageEntry = packed struct {
@@ -37,13 +42,13 @@ fn setup(size: usize) !void {
     kernelPageDirectory = PageDirectory{ .cr3 = dir };
     serial.format("Kernel cr3: 0x{x:0>8}\n", .{dir_alloc});
 
-    try kernelPageDirectory.mapOneToOne(dir_alloc);
-    try kernelPageDirectory.mapOneToOne(tab_alloc);
+    try kernelPageDirectory.mapOneToOne(dir_alloc, WRITE);
+    try kernelPageDirectory.mapOneToOne(tab_alloc, WRITE);
 
     // Map first 1M of memory (where the kernel is)
     var i: usize = 0;
     while (i < 256) : (i += 1) {
-        try kernelPageDirectory.mapOneToOne(0x1000 * i);
+        try kernelPageDirectory.mapOneToOne(0x1000 * i, WRITE);
     }
     try PageAllocator.map(0x100000, size);
     // printDirectory(kernelPageDirectory.cr3);
@@ -65,15 +70,15 @@ pub const PageDirectory = struct {
 
     pub fn init() !PageDirectory {
         const allocated = try pageAllocator.alloc();
-        try kernelPageDirectory.mapOneToOne(allocated);
+        try kernelPageDirectory.mapOneToOne(allocated, WRITE);
         const cr3 = @intToPtr(*[1024]PageEntry, allocated);
         initEmpty(cr3);
 
         return PageDirectory{ .cr3 = cr3 };
     }
 
-    pub fn mapOneToOne(self: *PageDirectory, addr: usize) MapError!void {
-        return self.mapVirtToPhy(addr, addr, WRITE);
+    pub fn mapOneToOne(self: *PageDirectory, addr: usize, flags: u12) MapError!void {
+        return self.mapVirtToPhy(addr, addr, flags);
     }
 
     pub fn mapVirtToPhy(self: *PageDirectory, v_addr: usize, p_addr: usize, flags: u12) MapError!void {
@@ -134,9 +139,9 @@ pub const PageDirectory = struct {
         pageAllocator.free(phy);
     }
 
-    pub fn allocPhy(self: *PageDirectory) !usize {
+    pub fn allocPhy(self: *PageDirectory, flags: u12) !usize {
         const allocated = try pageAllocator.alloc();
-        try self.mapOneToOne(allocated);
+        try self.mapOneToOne(allocated, flags);
         return allocated;
     }
 
@@ -162,8 +167,6 @@ pub const PageDirectory = struct {
 
     pub fn dup(self: *PageDirectory) !PageDirectory {
         var new: PageDirectory = try PageDirectory.init();
-        // serial.format("Duping cr3: {x}\n", .{new});
-        // printDirectory(self.cr3);
         for (self.cr3) |*page_table, dir_offset| {
             if (page_table.flags & PRESENT == 1) {
                 for (@intToPtr(*[1024]PageEntry, @intCast(usize, page_table.phy_addr) << 12)) |*entry, table_offset| {
@@ -172,12 +175,12 @@ pub const PageDirectory = struct {
                         const p_addr = @intCast(usize, entry.phy_addr) << 12;
                         if (dir_offset == 0 and table_offset < 256) {
                             std.debug.assert(v_addr == p_addr);
-                            try new.mapOneToOne(v_addr);
+                            try new.mapOneToOne(v_addr, entry.flags);
                         } else {
                             const phy_mem = @intToPtr(*[PAGE_SIZE]u8, p_addr);
                             const new_mem = @intToPtr(*[PAGE_SIZE]u8, try pageAllocator.alloc());
                             std.mem.copy(u8, new_mem, phy_mem);
-                            try new.mapVirtToPhy(v_addr, @ptrToInt(new_mem), WRITE | PRESENT);
+                            try new.mapVirtToPhy(v_addr, @ptrToInt(new_mem), entry.flags);
                         }
                     }
                 }

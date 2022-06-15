@@ -1,4 +1,5 @@
 const vga = @import("vga.zig");
+const gdt = @import("gdt.zig");
 const utils = @import("utils.zig");
 const paging = @import("memory/paging.zig");
 const scheduler = @import("scheduler.zig");
@@ -55,7 +56,7 @@ fn buildEntry(base: usize, selector: u16, gate_type: u4, privilege: u2) IdtEntry
 }
 
 pub fn setIdtEntry(index: u8, handler: usize) void {
-    idt_entries[index] = buildEntry(handler, KERN_CODE, ISR_GATE_TYPE, 0x0);
+    idt_entries[index] = buildEntry(handler, gdt.KERN_CODE, ISR_GATE_TYPE, 0x0);
 }
 
 const InterruptHandler = fn (*Regs) void;
@@ -66,7 +67,7 @@ pub const Config = struct {
 
 pub fn setInterruptHandler(index: u8, comptime handler: InterruptHandler, comptime config: Config) void {
     const isr = @ptrToInt(buildIsr(handler, config));
-    idt_entries[index] = buildEntry(isr, KERN_CODE, ISR_GATE_TYPE, 0x0);
+    idt_entries[index] = buildEntry(isr, gdt.KERN_CODE, ISR_GATE_TYPE, 0x0);
 }
 
 fn buildIsr(comptime handler: InterruptHandler, comptime config: Config) fn () callconv(.Naked) void {
