@@ -3,7 +3,7 @@ NAME	= kernel.bin
 ASM_SRC	= loader.s idt.s
 ASM_OBJ	= $(ASM_SRC:%.s=obj/%.o)
 
-ZIG_SRC := $(shell find src/ -maxdepth 2 -type f -name "*.zig")
+ZIG_SRC := $(shell find src/ -maxdepth 3 -type f -name "*.zig")
 ZIG		= zig
 PWD		= $(shell pwd)
 
