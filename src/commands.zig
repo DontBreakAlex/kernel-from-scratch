@@ -254,7 +254,7 @@ fn write(args: ArgsIterator) u8 {
     const data = args.next() orelse return 1;
     const fd = lib.open(path, lib.O_CREAT | lib.O_WRONLY, lib.RegularMode);
     if (fd < 0) {
-        vga.format("Error: failed to open file {s}\n", .{ path });
+        vga.format("Error: failed to open file {s}\n", .{path});
         return 1;
     }
     defer _ = lib.close(fd);

@@ -127,6 +127,7 @@ pub const DirEnt = struct {
     children: ?Childrens,
     namelen: usize,
     name: [256]u8,
+    mount: ?*Self, // Points to the root dirent of the mounted fs
 
     pub fn create(inode: InodeRef, parent: ?*Self, name: []const u8, e_type: Type) !*Self {
         var self = try mem.allocator.create(Self);
@@ -141,6 +142,7 @@ pub const DirEnt = struct {
             .children = null,
             .namelen = name.len,
             .name = undefined,
+            .mount = null,
         };
         std.mem.copy(u8, &self.name, name);
         return self;
@@ -209,7 +211,9 @@ pub const DirEnt = struct {
         var iterator: Iterator = std.mem.tokenize(u8, path, "/");
         while (iterator.next()) |name| {
             if (cursor.findChildren(name)) |next| {
-                if (InodeRef.compare(next.inode, cursor.inode)) {
+                if (next.mount) |mnt| {
+                    cursor = mnt;
+                } else if (InodeRef.compare(next.inode, cursor.inode)) {
                     // We are accessing `.`, do nothing
                 } else if (cursor.parent != null and InodeRef.compare(next.inode, cursor.parent.?.inode)) {
                     cursor = cursor.parent.?; // This is `..`
@@ -255,5 +259,26 @@ pub const DirEnt = struct {
         self.children.?.append(child);
         child.data.take();
         return child.data;
+    }
+
+    pub fn mount(self: *Self, to_mount: *Self) !void {
+        if (self.e_type != .Directory)
+            return error.NotADirectory;
+        std.debug.assert(to_mount.e_type == .Directory);
+        if (self.mount != null)
+            return error.AlreadyMounted;
+        self.mount = to_mount;
+        to_mount.take();
+    }
+
+    pub fn umount(self: *Self) !void {
+        if (self.e_type != .Directory)
+            return error.NotADirectory;
+        if (self.mount) |mnt| {
+            mnt.release();
+            self.mount = null;
+        } else {
+            return error.NotMounted;
+        }
     }
 };
