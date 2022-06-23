@@ -26,7 +26,7 @@ pub const InodeRef = union(enum) {
 
     pub fn populateChildren(self: Self, dirent: *DirEnt) !void {
         switch (self) {
-            .ext => try self.ext.populateChildren(dirent),
+            .ext => try self.ext.lookupChild(dirent),
             .pipe => try self.pipe.populateChildren(dirent),
         }
     }
@@ -124,13 +124,16 @@ pub const DirEnt = struct {
     namelen: usize,
     name: [256]u8,
     mount: ?*Self, // Points to the root dirent of the mounted fs
+    unused: cache.UnusedNode,
 
     pub fn create(inode: InodeRef, parent: ?*Self, name: []const u8, e_type: Type) !*Self {
         var self = try mem.allocator.create(Self);
         inode.take();
+        errdefer inode.release();
         if (parent) |p| {
             p.take();
-            cache.dirents.put(.{ .parent = p, .name = self.name });
+            errdefer p.release();
+            try cache.dirents.put(.{ .parent = p, .name = &self.name }, self);
         }
         self.* = .{
             .refcount = 1,
@@ -140,21 +143,23 @@ pub const DirEnt = struct {
             .namelen = name.len,
             .name = undefined,
             .mount = null,
+            .unused = undefined,
         };
         std.mem.copy(u8, &self.name, name);
         return self;
     }
 
     pub fn take(self: *Self) void {
+        if (self.refcount == 0) {
+            cache.unusedDirents.remove(&self.unused);
+        }
         self.refcount += 1;
     }
 
     pub fn release(self: *Self) void {
         self.refcount -= 1;
         if (self.refcount == 0) {
-            var node = mem.allocator.create(cache.DirentNode);
-            node.data = self;
-            cache.unusedDirents.append(node);
+            cache.unusedDirents.append(&self.unused);
         }
     }
 
@@ -234,12 +239,8 @@ pub const DirEnt = struct {
     fn findChildren(self: *DirEnt, name: []const u8) !*DirEnt {
         if (self.e_type != .Directory)
             return error.NotADirectory;
-        if (self.children == null)
-            try self.inode.populateChildren(self);
-        var it = self.children.?.first;
-        while (it) |node| : (it = node.next) {
-            if (std.mem.eql(u8, node.data.getName(), name))
-                return node.data;
+        if (cache.dirents.get(.{ .parent = self, .name = &name })) |child| {
+            return child;
         }
         return error.NotFound;
     }
@@ -247,8 +248,6 @@ pub const DirEnt = struct {
     pub fn createChild(self: *Self, name: []const u8, e_type: Type, mode: Mode) !*DirEnt {
         if (self.e_type != .Directory)
             return error.NotADirectory;
-        if (self.children == null)
-            try self.inode.populateChildren(self);
         var inode = try self.inode.createChild(name, e_type, mode);
         var dirent = try DirEnt.create(inode, self, name, e_type);
         inode.release();

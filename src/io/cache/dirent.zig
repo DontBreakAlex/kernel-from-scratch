@@ -18,12 +18,12 @@ const KeyContext = struct {
     }
     pub fn eql(self: @This(), a: Key, b: Key) bool {
         _ = self;
-        return a.parent == b.parent and std.mem.eql(a.name, b.name);
+        return a.parent == b.parent and std.mem.eql(u8, a.name, b.name);
     }
 };
 const DirentMap = std.HashMap(Key, *DirEnt, KeyContext, std.hash_map.default_max_load_percentage);
-pub const dirents = DirentMap.init(mem.allocator);
+pub var dirents = DirentMap.init(mem.allocator);
 
-const UnusedList = std.TailQueue(*DirEnt);
-pub const DirentNode = UnusedList.Node;
-pub const unusedDirents = UnusedList{};
+const UnusedList = std.TailQueue(void);
+pub const UnusedNode = UnusedList.Node;
+pub var unusedDirents = UnusedList{};

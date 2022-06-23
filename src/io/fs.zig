@@ -48,6 +48,7 @@ pub fn init() !void {
         .namelen = 0,
         .e_type = .Directory,
         .mount = null,
+        .unused = undefined,
     };
 
     // log.format("{s}\n", .{ std.mem.bytesAsValue(Mode, std.mem.asBytes(&root_dirent.inode.ext.mode)) });

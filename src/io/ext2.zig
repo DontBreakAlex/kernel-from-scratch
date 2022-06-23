@@ -293,7 +293,7 @@ pub const Inode = struct {
         return buff.len;
     }
 
-    pub fn populateChildren(self: *const Self, dentry: *DirEnt) !void {
+    pub fn lookupChild(self: *const Self, name: []const u8) !*InodeRef {
         var data = try mem.allocator.alloc(u8, self.size);
         defer mem.allocator.free(data);
         try self.rawRead(data, 0);
