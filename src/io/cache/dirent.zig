@@ -1,8 +1,9 @@
 const std = @import("std");
 const mem = @import("../../memory/mem.zig");
+const DirEnt = @import("../dirent.zig").DirEnt;
 
 const Key = struct {
-    parent: *Dentry,
+    parent: *DirEnt,
     name: []const u8,
 };
 const KeyContext = struct {
@@ -20,5 +21,9 @@ const KeyContext = struct {
         return a.parent == b.parent and std.mem.eql(a.name, b.name);
     }
 };
-const DirentMap = std.HashMap(Key, *Dentry, KeyContext, std.hash_map.default_max_load_percentage);
-pub const dirents = DirEnt.init(mem.allocator);
+const DirentMap = std.HashMap(Key, *DirEnt, KeyContext, std.hash_map.default_max_load_percentage);
+pub const dirents = DirentMap.init(mem.allocator);
+
+const UnusedList = std.TailQueue(*DirEnt);
+pub const DirentNode = UnusedList.Node;
+pub const unusedDirents = UnusedList{};

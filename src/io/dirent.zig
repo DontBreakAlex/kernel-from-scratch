@@ -9,8 +9,6 @@ const serial = @import("../serial.zig");
 const MAX_NESTED = 256;
 const Inode = ext.Inode;
 
-pub const Childrens = std.TailQueue(*DirEnt);
-pub const Child = Childrens.Node;
 pub const Type = @import("mode.zig").Type;
 const Mode = @import("mode.zig").Mode;
 
@@ -123,8 +121,6 @@ pub const DirEnt = struct {
     inode: InodeRef,
     parent: ?*Self,
     e_type: Type,
-    /// If childrens is null for a directory, it means that it hasn't been read yet
-    children: ?Childrens,
     namelen: usize,
     name: [256]u8,
     mount: ?*Self, // Points to the root dirent of the mounted fs
@@ -132,14 +128,15 @@ pub const DirEnt = struct {
     pub fn create(inode: InodeRef, parent: ?*Self, name: []const u8, e_type: Type) !*Self {
         var self = try mem.allocator.create(Self);
         inode.take();
-        if (parent) |p|
+        if (parent) |p| {
             p.take();
+            cache.dirents.put(.{ .parent = p, .name = self.name });
+        }
         self.* = .{
             .refcount = 1,
             .inode = inode,
             .parent = parent,
             .e_type = e_type,
-            .children = null,
             .namelen = name.len,
             .name = undefined,
             .mount = null,
@@ -155,15 +152,15 @@ pub const DirEnt = struct {
     pub fn release(self: *Self) void {
         self.refcount -= 1;
         if (self.refcount == 0) {
-            if (self.children) |children| {
-                var iter = children.first;
-                while (iter) |n| : (iter = n.next) {
-                    n.data.release();
-                }
-            }
-            self.inode.release();
-            mem.allocator.destroy(self);
+            var node = mem.allocator.create(cache.DirentNode);
+            node.data = self;
+            cache.unusedDirents.append(node);
         }
+    }
+
+    pub fn delete(self: *Self) void {
+        self.inode.release();
+        mem.allocator.destroy(self);
     }
 
     pub fn getName(self: *const DirEnt) []const u8 {
@@ -252,13 +249,10 @@ pub const DirEnt = struct {
             return error.NotADirectory;
         if (self.children == null)
             try self.inode.populateChildren(self);
-        var child = try mem.allocator.create(Child);
         var inode = try self.inode.createChild(name, e_type, mode);
-        child.data = try DirEnt.create(inode, self, name, e_type);
+        var dirent = try DirEnt.create(inode, self, name, e_type);
         inode.release();
-        self.children.?.append(child);
-        child.data.take();
-        return child.data;
+        return dirent;
     }
 
     pub fn mount(self: *Self, to_mount: *Self) !void {

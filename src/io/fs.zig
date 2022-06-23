@@ -47,7 +47,6 @@ pub fn init() !void {
         .name = undefined,
         .namelen = 0,
         .e_type = .Directory,
-        .children = null,
         .mount = null,
     };
 
