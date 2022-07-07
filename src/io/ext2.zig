@@ -293,15 +293,17 @@ pub const Inode = struct {
         return buff.len;
     }
 
-    pub fn lookupChild(self: *const Self, name: []const u8) !?InodeRef {
+    pub fn lookupChild(self: *const Self, name: []const u8, indicator: *u8) !?InodeRef {
         var data = try mem.allocator.alloc(u8, self.size);
         defer mem.allocator.free(data);
         try self.rawRead(data, 0);
 
         var iter = DiskDirentIterator.init(data);
         while (iter.next()) |entry| {
-            if (std.mem.eql(u8, name, entry.getName()))
+            if (std.mem.eql(u8, name, entry.getName())) {
+                indicator.* = entry.type_indicator;
                 return InodeRef{ .ext = try Inode.create(self.fs, entry.inode) };
+            }
         }
         return null;
     }

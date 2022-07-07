@@ -24,11 +24,11 @@ pub const InodeRef = union(enum) {
     ext: *ext.Inode,
     pipe: *pipe.Inode,
 
-    pub fn lookupChild(self: Self, name: []const u8) !?InodeRef {
-        switch (self) {
-            .ext => try self.ext.lookupChild(name),
-            .pipe => return null,
-        }
+    pub fn lookupChild(self: Self, name: []const u8, indicator: *u8) !?InodeRef {
+        return switch (self) {
+            .ext => try self.ext.lookupChild(name, indicator),
+            .pipe => null,
+        };
     }
 
     pub fn compare(lhs: Self, rhs: Self) bool {
@@ -113,7 +113,6 @@ pub const InodeRef = union(enum) {
         };
     }
 
-    pub fn getType()
 };
 
 pub const DirEnt = struct {
@@ -128,10 +127,10 @@ pub const DirEnt = struct {
     mount: ?*Self, // Points to the root dirent of the mounted fs
     unused: cache.UnusedNode,
 
+    /// Takes ownership of the inode
+    /// Acquires parent ownership
     pub fn create(inode: InodeRef, parent: ?*Self, name: []const u8, e_type: Type) !*Self {
         var self = try mem.allocator.create(Self);
-        inode.take();
-        errdefer inode.release();
         if (parent) |p| {
             p.take();
             errdefer p.release();
@@ -167,6 +166,8 @@ pub const DirEnt = struct {
 
     pub fn delete(self: *Self) void {
         self.inode.release();
+        if (self.parent)
+            self.parent.release();
         mem.allocator.destroy(self);
     }
 
@@ -244,8 +245,9 @@ pub const DirEnt = struct {
         if (cache.dirents.get(.{ .parent = self, .name = name })) |child| {
             return child;
         }
-        if (self.inode.lookupChild(name)) |inode| {
-            return DirEnt.create(inode, self, name);
+        var indicator: u8 = undefined;
+        if (try self.inode.lookupChild(name, &indicator)) |inode| {
+            return DirEnt.create(inode, self, name, try Type.fromTypeIndicator(indicator));
         }
         return error.NotFound;
     }
@@ -255,10 +257,10 @@ pub const DirEnt = struct {
             return error.NotADirectory;
         var inode = try self.inode.createChild(name, e_type, mode);
         var dirent = try DirEnt.create(inode, self, name, e_type);
-        inode.release();
         return dirent;
     }
 
+    /// Acquires ownership of to_mount
     pub fn mount(self: *Self, to_mount: *Self) !void {
         if (self.e_type != .Directory)
             return error.NotADirectory;
