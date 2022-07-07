@@ -293,20 +293,17 @@ pub const Inode = struct {
         return buff.len;
     }
 
-    pub fn lookupChild(self: *const Self, name: []const u8) !*InodeRef {
+    pub fn lookupChild(self: *const Self, name: []const u8) !?InodeRef {
         var data = try mem.allocator.alloc(u8, self.size);
         defer mem.allocator.free(data);
         try self.rawRead(data, 0);
 
         var iter = DiskDirentIterator.init(data);
-        dentry.children = dirent.Childrens{};
-        // TODO: Correct free after error
         while (iter.next()) |entry| {
-            var e_type = try dirent.Type.fromTypeIndicator(entry.type_indicator);
-            var child = try mem.allocator.create(dirent.Child);
-            child.data = try DirEnt.create(.{ .ext = try Inode.create(self.fs, entry.inode) }, dentry, entry.getName(), e_type);
-            dentry.children.?.append(child);
+            if (std.mem.eql(u8, name, entry.getName()))
+                return InodeRef{ .ext = try Inode.create(self.fs, entry.inode) };
         }
+        return null;
     }
 
     /// Returns the number of bytes read
@@ -442,6 +439,7 @@ const dirent = @import("dirent.zig");
 const AtaDevice = ata.AtaDevice;
 const DirEnt = dirent.DirEnt;
 const Dentry = dirent.Dentry;
+const InodeRef = dirent.InodeRef;
 const Buffer = cache.Buffer;
 const Mode = @import("mode.zig").Mode;
 

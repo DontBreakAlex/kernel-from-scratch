@@ -24,10 +24,10 @@ pub const InodeRef = union(enum) {
     ext: *ext.Inode,
     pipe: *pipe.Inode,
 
-    pub fn populateChildren(self: Self, dirent: *DirEnt) !void {
+    pub fn lookupChild(self: Self, name: []const u8) !?InodeRef {
         switch (self) {
-            .ext => try self.ext.lookupChild(dirent),
-            .pipe => try self.pipe.populateChildren(dirent),
+            .ext => try self.ext.lookupChild(name),
+            .pipe => return null,
         }
     }
 
@@ -112,6 +112,8 @@ pub const InodeRef = union(enum) {
             .pipe => unreachable,
         };
     }
+
+    pub fn getType()
 };
 
 pub const DirEnt = struct {
@@ -239,8 +241,11 @@ pub const DirEnt = struct {
     fn findChildren(self: *DirEnt, name: []const u8) !*DirEnt {
         if (self.e_type != .Directory)
             return error.NotADirectory;
-        if (cache.dirents.get(.{ .parent = self, .name = &name })) |child| {
+        if (cache.dirents.get(.{ .parent = self, .name = name })) |child| {
             return child;
+        }
+        if (self.inode.lookupChild(name)) |inode| {
+            return DirEnt.create(inode, self, name);
         }
         return error.NotFound;
     }
