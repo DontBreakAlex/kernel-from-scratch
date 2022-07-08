@@ -23,7 +23,7 @@ pub const Inode = struct {
         return self;
     }
 
-    pub fn take(self: *Self) void {
+    pub fn acquire(self: *Self) void {
         self.refcount += 1;
     }
 

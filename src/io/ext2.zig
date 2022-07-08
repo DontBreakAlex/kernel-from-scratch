@@ -345,7 +345,7 @@ pub const Inode = struct {
     pub fn create(fs: *Ext2FS, inode: usize) !*Self {
         const header = cache.InodeHeader{ .fs = fs, .id = inode };
         if (cache.inodeMap.get(header)) |node| {
-            node.take();
+            node.acquire();
             return node;
         }
         var node = try mem.allocator.create(Inode);
@@ -355,7 +355,7 @@ pub const Inode = struct {
         return node;
     }
 
-    pub fn take(self: *Self) void {
+    pub fn acquire(self: *Self) void {
         self.refcount += 1;
     }
 

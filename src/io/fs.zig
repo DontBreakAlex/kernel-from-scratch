@@ -47,10 +47,12 @@ pub fn init() !void {
         .name = undefined,
         .namelen = 0,
         .e_type = .Directory,
-        .mount = null,
+        .mnt = null,
         .unused = undefined,
     };
 
+    var dev_mnt = try root_dirent.findChildren("dev");
+    try dev_mnt.mount(.{ .kern = try kernfs.Inode.create(.{ .Directory = .{} })});
     // log.format("{s}\n", .{ std.mem.bytesAsValue(Mode, std.mem.asBytes(&root_dirent.inode.ext.mode)) });
 }
 
@@ -66,7 +68,7 @@ pub const File = struct {
 
     pub fn create(dentry: *DirEnt, mode: u16) !*Self {
         var self = try mem.allocator.create(Self);
-        dentry.take();
+        dentry.acquire();
         self.* = .{
             .refcount = 1,
             .dentry = dentry,
@@ -120,3 +122,8 @@ pub const File = struct {
         return ret;
     }
 };
+
+/// HashMap of all mountpoints.
+/// Mounted fs root is the key, the value is where the dir is mounted
+pub const MountPoints = std.AutoHashMap(*DirEnt, *DirEnt);
+pub var mount_points = MountPoints.init(mem.allocator);

@@ -5,6 +5,8 @@ const fs = @import("fs.zig");
 const mem = @import("../memory/mem.zig");
 const cache = @import("cache.zig");
 const serial = @import("../serial.zig");
+const kernfs = @import("./kernfs.zig");
+const log = @import("../log.zig");
 
 const MAX_NESTED = 256;
 const Inode = ext.Inode;
@@ -23,11 +25,13 @@ pub const InodeRef = union(enum) {
 
     ext: *ext.Inode,
     pipe: *pipe.Inode,
+    kern: *kernfs.Inode,
 
     pub fn lookupChild(self: Self, name: []const u8, indicator: *u8) !?InodeRef {
         return switch (self) {
             .ext => try self.ext.lookupChild(name, indicator),
             .pipe => null,
+            .kern => unreachable,
         };
     }
 
@@ -37,6 +41,7 @@ pub const InodeRef = union(enum) {
         return switch (lhs) {
             .ext => lhs.ext == rhs.ext,
             .pipe => lhs.pipe == rhs.pipe,
+            .kern => unreachable,
         };
     }
 
@@ -44,6 +49,7 @@ pub const InodeRef = union(enum) {
         return switch (self) {
             .ext => self.ext.currentSize(),
             .pipe => self.pipe.currentSize(),
+            .kern => unreachable,
         };
     }
 
@@ -51,6 +57,7 @@ pub const InodeRef = union(enum) {
         return switch (self) {
             .ext => true,
             .pipe => false,
+            .kern => unreachable,
         };
     }
 
@@ -58,6 +65,7 @@ pub const InodeRef = union(enum) {
         return try switch (self) {
             .ext => self.ext.read(buff, offset),
             .pipe => self.pipe.read(buff),
+            .kern => unreachable,
         };
     }
 
@@ -66,6 +74,7 @@ pub const InodeRef = union(enum) {
         return switch (self) {
             .ext => unreachable,
             .pipe => self.pipe.rawRead(buff),
+            .kern => unreachable,
         };
     }
 
@@ -74,6 +83,7 @@ pub const InodeRef = union(enum) {
         return switch (self) {
             .ext => try self.ext.write(buff, offset),
             .pipe => try self.pipe.write(buff),
+            .kern => unreachable,
         };
     }
 
@@ -82,6 +92,7 @@ pub const InodeRef = union(enum) {
         return switch (self) {
             .ext => unreachable,
             .pipe => self.pipe.rawWrite(buff),
+            .kern => unreachable,
         };
     }
 
@@ -89,13 +100,15 @@ pub const InodeRef = union(enum) {
         return switch (self) {
             .ext => self.ext.getDents(ptr, cnt, offset),
             .pipe => unreachable,
+            .kern => unreachable,
         };
     }
 
-    pub fn take(self: Self) void {
+    pub fn acquire(self: Self) void {
         switch (self) {
-            .ext => self.ext.take(),
-            .pipe => self.pipe.take(),
+            .ext => self.ext.acquire(),
+            .pipe => self.pipe.acquire(),
+            .kern => unreachable,
         }
     }
 
@@ -103,6 +116,7 @@ pub const InodeRef = union(enum) {
         switch (self) {
             .ext => self.ext.release(),
             .pipe => self.pipe.release(),
+            .kern => unreachable,
         }
     }
 
@@ -110,6 +124,7 @@ pub const InodeRef = union(enum) {
         return switch (self) {
             .ext => InodeRef{ .ext = try self.ext.createChild(name, e_type, mode) },
             .pipe => unreachable,
+            .kern => unreachable,
         };
     }
 
@@ -124,7 +139,7 @@ pub const DirEnt = struct {
     e_type: Type,
     namelen: usize,
     name: [256]u8,
-    mount: ?*Self, // Points to the root dirent of the mounted fs
+    mnt: ?InodeRef, // Backup of this dirent's inode before mount
     unused: cache.UnusedNode,
 
     /// Takes ownership of the inode
@@ -132,9 +147,9 @@ pub const DirEnt = struct {
     pub fn create(inode: InodeRef, parent: ?*Self, name: []const u8, e_type: Type) !*Self {
         var self = try mem.allocator.create(Self);
         if (parent) |p| {
-            p.take();
+            p.acquire();
             errdefer p.release();
-            try cache.dirents.put(.{ .parent = p, .name = &self.name }, self);
+            try cache.dirents.put(.{ .parent = p, .name = p.getName() }, self);
         }
         self.* = .{
             .refcount = 1,
@@ -143,14 +158,14 @@ pub const DirEnt = struct {
             .e_type = e_type,
             .namelen = name.len,
             .name = undefined,
-            .mount = null,
+            .mnt = null,
             .unused = undefined,
         };
         std.mem.copy(u8, &self.name, name);
         return self;
     }
 
-    pub fn take(self: *Self) void {
+    pub fn acquire(self: *Self) void {
         if (self.refcount == 0) {
             cache.unusedDirents.remove(&self.unused);
         }
@@ -216,9 +231,7 @@ pub const DirEnt = struct {
         var iterator: Iterator = std.mem.tokenize(u8, path, "/");
         while (iterator.next()) |name| {
             if (cursor.findChildren(name)) |next| {
-                if (next.mount) |mnt| {
-                    cursor = mnt;
-                } else if (InodeRef.compare(next.inode, cursor.inode)) {
+                if (InodeRef.compare(next.inode, cursor.inode)) {
                     // We are accessing `.`, do nothing
                 } else if (cursor.parent != null and InodeRef.compare(next.inode, cursor.parent.?.inode)) {
                     cursor = cursor.parent.?; // This is `..`
@@ -239,7 +252,7 @@ pub const DirEnt = struct {
         return .Found;
     }
 
-    fn findChildren(self: *DirEnt, name: []const u8) !*DirEnt {
+    pub fn findChildren(self: *DirEnt, name: []const u8) !*DirEnt {
         if (self.e_type != .Directory)
             return error.NotADirectory;
         if (cache.dirents.get(.{ .parent = self, .name = name })) |child| {
@@ -260,23 +273,25 @@ pub const DirEnt = struct {
         return dirent;
     }
 
-    /// Acquires ownership of to_mount
-    pub fn mount(self: *Self, to_mount: *Self) !void {
+    /// Takes ownership of to_mount
+    pub fn mount(self: *Self, to_mount: InodeRef) !void {
         if (self.e_type != .Directory)
             return error.NotADirectory;
-        std.debug.assert(to_mount.e_type == .Directory);
-        if (self.mount != null)
+        // std.debug.assert(to_mount.e_type == .Directory);
+        if (self.mnt != null)
             return error.AlreadyMounted;
-        self.mount = to_mount;
-        to_mount.take();
+        self.mnt = self.inode;
+        self.inode = to_mount;
+        log.format("Mounted {s} on {*}\n", .{ to_mount, self});
     }
 
     pub fn umount(self: *Self) !void {
         if (self.e_type != .Directory)
             return error.NotADirectory;
-        if (self.mount) |mnt| {
-            mnt.release();
-            self.mount = null;
+        if (self.mnt) |mnt| {
+            self.inode.release();
+            self.inode = mnt;
+            self.mnt = null;
         } else {
             return error.NotMounted;
         }
