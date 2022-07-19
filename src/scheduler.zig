@@ -12,6 +12,7 @@ const keyboard = @import("keyboard.zig");
 const cache = @import("io/cache.zig");
 const fcntl = @import("io/fcntl.zig");
 const log = @import("log.zig");
+const tty = @import("tty.zig");
 
 const Process = proc.Process;
 const PageDirectory = paging.PageDirectory;
@@ -60,7 +61,9 @@ pub fn startProcess(func: Fn) !void {
     process.vmem = vmem.VMemManager{};
     process.vmem.init();
     process.fd = .{null} ** proc.FD_COUNT;
-    var dentry = try dirent.DirEnt.create(.{ .pipe = &keyboard.inode }, null, &.{}, dirent.Type.CharDev);
+    var inoderef = InodeRef{ .kern = &tty.inode };
+    var dentry = try dirent.DirEnt.create(inoderef, null, &.{}, dirent.Type.CharDev);
+    inoderef.acquire();
     process.fd[0] = try fs.File.create(dentry, fcntl.O_RDONLY);
     dentry.release();
     errdefer process.fd[0].?.close();
@@ -168,6 +171,8 @@ pub fn readWithEvent(inode: InodeRef, dst: []u8, offset: usize) !usize {
     var ret: usize = undefined;
     if (events.getPtr(Event{ .IO_READ = inode })) |array| {
         try queue.ensureUnusedCapacity(array.items.len);
+        if (array.items.len == 0)
+            @panic("Check");
         ret = try inode.rawRead(dst, offset);
         queue.writeAssumeCapacity(array.items);
         array.clearRetainingCapacity();

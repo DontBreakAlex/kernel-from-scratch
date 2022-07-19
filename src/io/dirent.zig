@@ -73,7 +73,7 @@ pub const InodeRef = union(enum) {
         _ = offset;
         return switch (self) {
             .ext => unreachable,
-            .pipe => self.pipe.rawRead(buff),
+            .pipe => try self.pipe.rawRead(buff),
             .kern => self.kern.rawRead(buff),
         };
     }
@@ -91,7 +91,7 @@ pub const InodeRef = union(enum) {
         _ = offset;
         return switch (self) {
             .ext => unreachable,
-            .pipe => self.pipe.rawWrite(buff),
+            .pipe => try self.pipe.rawWrite(buff),
             .kern => self.kern.rawWrite(buff),
         };
     }
@@ -108,7 +108,7 @@ pub const InodeRef = union(enum) {
         switch (self) {
             .ext => self.ext.acquire(),
             .pipe => self.pipe.acquire(),
-            .kern => unreachable,
+            .kern => self.kern.acquire(),
         }
     }
 
@@ -116,7 +116,7 @@ pub const InodeRef = union(enum) {
         switch (self) {
             .ext => self.ext.release(),
             .pipe => self.pipe.release(),
-            .kern => unreachable,
+            .kern => self.kern.release(),
         }
     }
 

@@ -57,4 +57,15 @@ pub const Inode = struct {
     pub fn rawRead(self: *Self, buff: []u8) usize {
         return self.kind.Device.rawRead(buff);
     }
+
+    pub fn acquire(self: *Self) void {
+        self.refcount += 1;
+    }
+
+    pub fn release(self: *Self) void {
+        self.refcount -= 1;
+        if (self.refcount == 0) {
+            @panic("Released kernfs inode ?!");
+        }
+    }
 };
