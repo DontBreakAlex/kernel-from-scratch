@@ -6,7 +6,13 @@ const mem = @import("../memory/mem.zig");
 const Type = mode.Type;
 const Children = std.TailQueue(*Inode);
 const InodeRef = dirent.InodeRef;
-const Kind = union(enum) { Directory: Children, Symlink: InodeRef };
+const Kind = union(enum) { Directory: Children, Symlink: InodeRef, Device: Fops };
+const Fops = struct {
+    write: fn (buff: []const u8) usize,
+    rawWrite: fn (buff: []const u8) usize,
+    read: fn (buff: []u8) usize,
+    rawRead: fn (buff: []u8) usize,
+};
 
 pub const Inode = struct {
     const Self = @This();
@@ -34,5 +40,21 @@ pub const Inode = struct {
         var node = try mem.allocator.create(Children.Node);
         node.data = child;
         self.kind.Directory.append(node);
+    }
+
+    pub fn write(self: *Self, buff: []const u8) usize {
+        return self.kind.Device.write(buff);
+    }
+
+    pub fn rawWrite(self: *Self, buff: []const u8) usize {
+        return self.kind.Device.rawWrite(buff);
+    }
+
+    pub fn read(self: *Self, buff: []u8) usize {
+        return self.kind.Device.read(buff);
+    }
+
+    pub fn rawRead(self: *Self, buff: []u8) usize {
+        return self.kind.Device.rawRead(buff);
     }
 };

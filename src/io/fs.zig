@@ -6,6 +6,7 @@ const mem = @import("../memory/mem.zig");
 const cache = @import("cache.zig");
 const dirent = @import("dirent.zig");
 const kernfs = @import("kernfs.zig");
+const devfs = @import("devfs.zig");
 const Mode = @import("mode.zig").Mode;
 const Fs = ext.Ext2FS;
 const DirEnt = dirent.DirEnt;
@@ -52,7 +53,7 @@ pub fn init() !void {
     };
 
     var dev_mnt = try root_dirent.findChildren("dev");
-    try dev_mnt.mount(.{ .kern = try kernfs.Inode.create(.{ .Directory = .{} })});
+    try devfs.init(dev_mnt);
     // log.format("{s}\n", .{ std.mem.bytesAsValue(Mode, std.mem.asBytes(&root_dirent.inode.ext.mode)) });
 }
 

@@ -57,7 +57,7 @@ pub const InodeRef = union(enum) {
         return switch (self) {
             .ext => true,
             .pipe => false,
-            .kern => unreachable,
+            .kern => false,
         };
     }
 
@@ -65,7 +65,7 @@ pub const InodeRef = union(enum) {
         return try switch (self) {
             .ext => self.ext.read(buff, offset),
             .pipe => self.pipe.read(buff),
-            .kern => unreachable,
+            .kern => self.kern.read(buff),
         };
     }
 
@@ -74,7 +74,7 @@ pub const InodeRef = union(enum) {
         return switch (self) {
             .ext => unreachable,
             .pipe => self.pipe.rawRead(buff),
-            .kern => unreachable,
+            .kern => self.kern.rawRead(buff),
         };
     }
 
@@ -83,7 +83,7 @@ pub const InodeRef = union(enum) {
         return switch (self) {
             .ext => try self.ext.write(buff, offset),
             .pipe => try self.pipe.write(buff),
-            .kern => unreachable,
+            .kern => self.kern.write(buff),
         };
     }
 
@@ -92,7 +92,7 @@ pub const InodeRef = union(enum) {
         return switch (self) {
             .ext => unreachable,
             .pipe => self.pipe.rawWrite(buff),
-            .kern => unreachable,
+            .kern => self.kern.rawWrite(buff),
         };
     }
 
@@ -127,7 +127,6 @@ pub const InodeRef = union(enum) {
             .kern => unreachable,
         };
     }
-
 };
 
 pub const DirEnt = struct {
@@ -282,7 +281,7 @@ pub const DirEnt = struct {
             return error.AlreadyMounted;
         self.mnt = self.inode;
         self.inode = to_mount;
-        log.format("Mounted {s} on {*}\n", .{ to_mount, self});
+        log.format("Mounted {s} on {*}\n", .{ to_mount, self });
     }
 
     pub fn umount(self: *Self) !void {
