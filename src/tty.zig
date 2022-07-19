@@ -6,6 +6,7 @@ const kernfs = @import("io/kernfs.zig");
 const Buffer = utils.Buffer;
 
 var buffer = Buffer.init();
+// zig fmt: off
 pub var inode = kernfs.Inode{
     .refcount = 1,
     .kind = .{
