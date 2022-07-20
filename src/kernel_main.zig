@@ -14,6 +14,7 @@ const srl = @import("serial.zig");
 const log = @import("log.zig");
 const ata = @import("io/ata.zig");
 const fs = @import("io/fs.zig");
+const tty = @import("tty.zig");
 
 pub fn panic(msg: []const u8, _: ?*std.builtin.StackTrace) noreturn {
     @setCold(true);
@@ -39,6 +40,7 @@ export fn kernel_main() void {
     utl.enable_int();
     ata.init() catch log.format("Failed to init cache\n", .{});
     fs.init() catch @panic("Failed to init filesystem !");
+    _ = tty.write("\x1b[1;31m");
     sch.startProcess(shl.run) catch {};
 }
 
