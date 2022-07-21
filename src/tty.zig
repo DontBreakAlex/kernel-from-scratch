@@ -83,6 +83,33 @@ fn handleEscapeCode(params: []const u8, intermediate: []const u8, final: u8) !vo
                 vga.CURSOR.up();
             vga.CURSOR.update();
         },
+        'B' => {
+            const count = try std.fmt.parseInt(usize, params, 10);
+            while (count) : (count -= 1)
+                vga.CURSOR.down();
+            vga.CURSOR.update();
+        },
+        'C' => {
+            const count = try std.fmt.parseInt(usize, params, 10);
+            while (count) : (count -= 1)
+                vga.CURSOR.left();
+            vga.CURSOR.update();
+        },
+        'D' => {
+            const count = try std.fmt.parseInt(usize, params, 10);
+            while (count) : (count -= 1)
+                vga.CURSOR.rigth();
+            vga.CURSOR.update();
+        },
+        'E' => {
+            const count = try std.fmt.parseInt(usize, params, 10);
+            while (count) : (count -= 1)
+                vga.CURSOR.newline();
+            vga.CURSOR.update();
+        },
+        'H' => {
+            // Set position
+        },
         else =>  {
             return error.UnknownCommand;
         }
