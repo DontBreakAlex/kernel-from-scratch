@@ -10,7 +10,7 @@ pub const Cursor = struct {
     x: usize,
     y: usize,
 
-    fn left(self: *Cursor) void {
+    pub fn left(self: *Cursor) void {
         if (self.x == 0) {
             if (self.up()) {
                 self.x = VGA_WIDTH - 1;
@@ -19,7 +19,7 @@ pub const Cursor = struct {
             self.x -= 1;
         }
     }
-    fn right(self: *Cursor) void {
+    pub fn right(self: *Cursor) void {
         if (self.x + 1 == VGA_WIDTH) {
             self.x = 0;
             self.down();
@@ -27,14 +27,14 @@ pub const Cursor = struct {
             self.x += 1;
         }
     }
-    fn down(self: *Cursor) void {
+    pub fn down(self: *Cursor) void {
         if (self.y + 1 == VGA_HEIGHT) {
             vga.shiftVga();
         } else {
             self.y += 1;
         }
     }
-    fn up(self: *Cursor) bool {
+    pub fn up(self: *Cursor) bool {
         if (self.y == 0)
             return false;
         self.y -= 1;
@@ -44,7 +44,7 @@ pub const Cursor = struct {
         self.x = x;
         self.y = y;
     }
-    fn update(self: Cursor) void {
+    pub fn update(self: Cursor) void {
         const cursor = self.x + self.y * VGA_WIDTH;
         utils.out(CURSOR_CMD, @as(u8, 0x0F));
         utils.out(CURSOR_DATA, @truncate(u8, (cursor & 0xFF)));

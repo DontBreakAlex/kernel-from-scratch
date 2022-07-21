@@ -58,12 +58,12 @@ fn consume() void {
                 var intermediate = params;
                 while (intermediate < slice.len and slice[intermediate] >= 0x20 and slice[intermediate] <= 0x2F)
                     intermediate += 1;
-                const final = intermediate + 1;
+                const final = intermediate;
                 if (final >= slice.len)
                     break;
                 if (slice[final] >= 0x40 and slice[final] <= 0x7F) {
                     out: {
-                        handleEscapeCode(slice[1..params], slice[params..intermediate], slice[final]) catch break :out;
+                        handleEscapeCode(slice[2..params], slice[params..intermediate], slice[final]) catch break :out;
                         bufferOut.discard(final);
                         continue;
                     }
@@ -75,5 +75,16 @@ fn consume() void {
 }
 
 fn handleEscapeCode(params: []const u8, intermediate: []const u8, final: u8) !void {
-    vga.format("{s} {s} {}\n", .{ params, intermediate, final });
+    // vga.format("Params: '{s}'\nInter: '{s}'\nFinal: '{}'\n", .{ params, intermediate, final });
+    switch (final) {
+        'A' => {
+            const count = try std.fmt.parseInt(usize, params, 10);
+            while (count) : (count -= 1)
+                vga.CURSOR.up();
+            vga.CURSOR.update();
+        },
+        else =>  {
+            return error.UnknownCommand;
+        }
+    }
 }
