@@ -12,7 +12,7 @@ pub var inode = kernfs.Inode{
     .refcount = 1,
     .kind = .{
         .Device = .{
-            .write = undefined,
+            .write = write,
             .rawWrite = undefined,
             .read = read,
             .rawRead = undefined
@@ -64,7 +64,7 @@ fn consume() void {
                 if (slice[final] >= 0x40 and slice[final] <= 0x7F) {
                     out: {
                         handleEscapeCode(slice[2..params], slice[params..intermediate], slice[final]) catch break :out;
-                        bufferOut.discard(final);
+                        bufferOut.discard(final + 1);
                         continue;
                     }
                 }
@@ -76,42 +76,60 @@ fn consume() void {
 
 fn handleEscapeCode(params: []const u8, intermediate: []const u8, final: u8) !void {
     // vga.format("Params: '{s}'\nInter: '{s}'\nFinal: '{}'\n", .{ params, intermediate, final });
+    _ = intermediate;
     switch (final) {
         'A' => {
-            const count = try std.fmt.parseInt(usize, params, 10);
-            while (count) : (count -= 1)
-                vga.CURSOR.up();
+            var count = try std.fmt.parseInt(usize, params, 10);
+            while (count != 0) : (count -= 1)
+                _ = vga.CURSOR.up();
             vga.CURSOR.update();
         },
         'B' => {
-            const count = try std.fmt.parseInt(usize, params, 10);
-            while (count) : (count -= 1)
-                vga.CURSOR.down();
+            var count = try std.fmt.parseInt(usize, params, 10);
+            while (count != 0) : (count -= 1)
+                _ = vga.CURSOR.down();
             vga.CURSOR.update();
         },
         'C' => {
-            const count = try std.fmt.parseInt(usize, params, 10);
-            while (count) : (count -= 1)
-                vga.CURSOR.left();
+            var count = try std.fmt.parseInt(usize, params, 10);
+            while (count != 0) : (count -= 1)
+                _ = vga.CURSOR.left();
             vga.CURSOR.update();
         },
         'D' => {
-            const count = try std.fmt.parseInt(usize, params, 10);
-            while (count) : (count -= 1)
-                vga.CURSOR.rigth();
+            var count = try std.fmt.parseInt(usize, params, 10);
+            while (count != 0) : (count -= 1)
+                _ = vga.CURSOR.right();
             vga.CURSOR.update();
         },
         'E' => {
-            const count = try std.fmt.parseInt(usize, params, 10);
-            while (count) : (count -= 1)
-                vga.CURSOR.newline();
+            var count = try std.fmt.parseInt(usize, params, 10);
+            while (count != 0) : (count -= 1)
+                _ = vga.CURSOR.newline();
             vga.CURSOR.update();
         },
         'H' => {
-            // Set position
+            var iter = std.mem.tokenize(u8, params, ";");
+            const row = try std.fmt.parseInt(u8, iter.next() orelse return error.NotEnouthArgs, 10);
+            const column = try std.fmt.parseInt(u8, iter.next() orelse return error.NotEnouthArgs, 10);
+            vga.CURSOR.goto(row, column);
+        },
+        'J' => {
+            const arg = try std.fmt.parseInt(usize, params, 10);
+            if (arg == 2 or arg == 3) {
+                _ = vga.clear();
+                return;
+            }
+            return error.UnknownCommand;
         },
         else =>  {
             return error.UnknownCommand;
         }
     }
+}
+
+pub const Writer = std.io.Writer(void, anyerror, write);
+
+pub fn format(comptime fmt: []const u8, args: anytype) void {
+    std.fmt.format(Writer{ .context = {} }, fmt, args) catch {};
 }

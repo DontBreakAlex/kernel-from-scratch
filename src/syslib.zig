@@ -269,3 +269,19 @@ const PageAllocator = struct {
         munmap(buf);
     }
 };
+
+pub const tty = struct {
+    pub fn clear() void {
+        _ = write(1, "\x1b[2J");
+    }
+
+    fn writeCallBack(_: void, buff: []const u8) anyerror!usize {
+        return @intCast(usize, write(1, buff));
+    }
+
+    pub const Writer = std.io.Writer(void, anyerror, writeCallBack);
+
+    pub fn format(comptime fmt: []const u8, args: anytype) void {
+        std.fmt.format(Writer{ .context = {} }, fmt, args) catch {};
+    }
+};

@@ -65,8 +65,10 @@ pub fn startProcess(func: Fn) !void {
     var dentry = try dirent.DirEnt.create(inoderef, null, &.{}, dirent.Type.CharDev);
     inoderef.acquire();
     process.fd[0] = try fs.File.create(dentry, fcntl.O_RDONLY);
+    process.fd[1] = try fs.File.create(dentry, fcntl.O_WRONLY);
     dentry.release();
     errdefer process.fd[0].?.close();
+    errdefer process.fd[1].?.close();
     process.parent = null;
 
     var i: usize = 0;

@@ -13,21 +13,21 @@ extern const kbegin: u8;
 const motd = "Welcome to kernel-o-tron ! (0x{x:0>8}-0x{x:0>8})\n";
 
 pub fn run() void {
-    vga.clear();
-    vga.format(motd, .{ @ptrToInt(&kbegin), @ptrToInt(&kend) });
+    lib.tty.clear();
+    lib.tty.format(motd, .{ @ptrToInt(&kbegin), @ptrToInt(&kend) });
 
     while (true) {
-        vga.putChar('>');
+        _ = lib.write(1, ">");
         if (readLine()) |line| {
             var args = std.mem.tokenize(u8, line.items, " ");
             if (commands.find(args.next() orelse continue)) |command| {
                 _ = command(&args);
             } else {
-                vga.format("Command not found: {s}\n", .{line.items});
+                lib.tty.format("Command not found: {s}\n", .{line.items});
             }
             line.deinit();
         } else |err| {
-            vga.format("\nReadline error: \"{s}\"\n", .{err});
+            lib.tty.format("\nReadline error: \"{s}\"\n", .{err});
         }
     }
 }
