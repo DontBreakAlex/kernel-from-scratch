@@ -4,7 +4,12 @@ const dirent = @import("dirent.zig");
 const mem = @import("../memory/mem.zig");
 
 const Type = mode.Type;
-const Children = std.TailQueue(*Inode);
+const Child = struct { // This needs to be a true dirent
+    inode: *Inode,
+    namelen: u8,
+    name: [251]u8,
+};
+const Children = std.TailQueue(Child);
 const InodeRef = dirent.InodeRef;
 const Kind = union(enum) { Directory: Children, Symlink: InodeRef, Device: Fops };
 const Fops = struct {
@@ -36,9 +41,11 @@ pub const Inode = struct {
         return Self.create(Kind{ .Symlink = target });
     }
 
-    pub fn link(self: *Self, child: *Self) !void {
+    pub fn createChild(self: *Self, child: *Self, name: []const u8) !void {
         var node = try mem.allocator.create(Children.Node);
-        node.data = child;
+        node.data.inode = child;
+        node.data.namelen = @intCast(u8, name.len);
+        std.mem.copy(u8, &node.data.name, name);
         self.kind.Directory.append(node);
     }
 
@@ -67,5 +74,30 @@ pub const Inode = struct {
         if (self.refcount == 0) {
             @panic("Released kernfs inode ?!");
         }
+    }
+
+    const Dentry = dirent.Dentry;
+    pub fn getDents(self: *const Self, ptr: [*]Dentry, cnt: *usize, offset: usize) !usize {
+        if (offset >= self.kind.Directory.len) {
+            cnt.* = 0;
+            return 0;
+        }
+        var cursor = self.kind.Directory.first;
+        var dst = ptr[0..cnt.*];
+        var i: usize = 0;
+        while (i < offset and cursor != null) : (i += 1)
+            cursor = cursor.?.next;
+        i = 0;
+        while (cursor) |entry| {
+            if (i >= dst.len)
+                break;
+            dst[i].inode = @truncate(u32, @ptrToInt(entry.data.inode));
+            dst[i].namelen = entry.data.namelen;
+            std.mem.copy(u8, &dst[i].name, entry.data.name[0..entry.data.namelen]);
+            i += 1;
+            cursor = cursor.?.next;
+        }
+        cnt.* = i;
+        return i;
     }
 };

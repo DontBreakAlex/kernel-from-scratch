@@ -98,9 +98,9 @@ pub const InodeRef = union(enum) {
 
     pub fn getDents(self: Self, ptr: [*]Dentry, cnt: *usize, offset: usize) !usize {
         return switch (self) {
-            .ext => self.ext.getDents(ptr, cnt, offset),
+            .ext => try self.ext.getDents(ptr, cnt, offset),
             .pipe => unreachable,
-            .kern => unreachable,
+            .kern => try self.kern.getDents(ptr, cnt, offset),
         };
     }
 
@@ -148,7 +148,7 @@ pub const DirEnt = struct {
         if (parent) |p| {
             p.acquire();
             errdefer p.release();
-            try cache.dirents.put(.{ .parent = p, .name = p.getName() }, self);
+            try cache.dirents.put(.{ .parent = p, .name = name }, self);
         }
         self.* = .{
             .refcount = 1,
