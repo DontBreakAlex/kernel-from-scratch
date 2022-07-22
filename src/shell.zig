@@ -42,21 +42,21 @@ pub fn readLine() !ArrayList(u8) {
         _ = lib.read(0, std.mem.asBytes(&key), 1);
         switch (key.key) {
             .BACKSPACE => if (n != 0 and n == line.items.len) {
-                vga.erase();
+                lib.tty.erase();
                 n -= 1;
                 _ = line.pop();
             },
             .LEFT_ARROW => if (n != 0) {
                 n -= 1;
-                vga.CURSOR.backward();
+                lib.tty.backward();
             },
             .RIGHT_ARROW => if (n < line.items.len) {
                 n += 1;
-                vga.CURSOR.forward();
+                lib.tty.forward();
             },
             else => if (key.toAscii()) |char| {
                 if (char == '\n') {
-                    vga.CURSOR.newline();
+                    _ = lib.write(1, "\n");
                     return line;
                 }
                 if (n == line.items.len) {
@@ -65,10 +65,10 @@ pub fn readLine() !ArrayList(u8) {
                     vga.putChar(char);
                 } else {
                     try line.insert(n, char);
-                    var cursor = vga.CURSOR;
+                    _ = lib.write(1, "\x1b[s");
                     vga.putStr(line.items[n..line.items.len]);
-                    cursor.forward();
-                    vga.CURSOR = cursor;
+                    // lib.tty.forward();
+                    _ = lib.write(1, "\x1b[u");
                     n += 1;
                 }
             },

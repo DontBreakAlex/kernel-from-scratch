@@ -173,8 +173,8 @@ pub fn readWithEvent(inode: InodeRef, dst: []u8, offset: usize) !usize {
     var ret: usize = undefined;
     if (events.getPtr(Event{ .IO_READ = inode })) |array| {
         try queue.ensureUnusedCapacity(array.items.len);
-        if (array.items.len == 0)
-            @panic("Check");
+        // if (array.items.len == 1)
+        //     @panic("Check");
         ret = try inode.rawRead(dst, offset);
         queue.writeAssumeCapacity(array.items);
         array.clearRetainingCapacity();

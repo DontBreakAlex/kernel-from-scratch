@@ -5,6 +5,7 @@ const kernfs = @import("io/kernfs.zig");
 const std = @import("std");
 
 const Buffer = utils.Buffer;
+const Cursor = @import("cursor.zig").Cursor;
 
 var bufferIn = Buffer.init();
 // zig fmt: off
@@ -74,36 +75,38 @@ fn consume() void {
     }
 }
 
+var cursor = Cursor{ .x = 0, .y = 0 };
+
 fn handleEscapeCode(params: []const u8, intermediate: []const u8, final: u8) !void {
     // vga.format("Params: '{s}'\nInter: '{s}'\nFinal: '{}'\n", .{ params, intermediate, final });
     _ = intermediate;
     switch (final) {
         'A' => {
-            var count = try std.fmt.parseInt(usize, params, 10);
+            var count = if (params.len != 0) try std.fmt.parseInt(usize, params, 10) else 1;
             while (count != 0) : (count -= 1)
                 _ = vga.CURSOR.up();
             vga.CURSOR.update();
         },
         'B' => {
-            var count = try std.fmt.parseInt(usize, params, 10);
+            var count = if (params.len != 0) try std.fmt.parseInt(usize, params, 10) else 1;
             while (count != 0) : (count -= 1)
                 _ = vga.CURSOR.down();
             vga.CURSOR.update();
         },
         'C' => {
-            var count = try std.fmt.parseInt(usize, params, 10);
+            var count = if (params.len != 0) try std.fmt.parseInt(usize, params, 10) else 1;
             while (count != 0) : (count -= 1)
                 _ = vga.CURSOR.left();
             vga.CURSOR.update();
         },
         'D' => {
-            var count = try std.fmt.parseInt(usize, params, 10);
+            var count = if (params.len != 0) try std.fmt.parseInt(usize, params, 10) else 1;
             while (count != 0) : (count -= 1)
                 _ = vga.CURSOR.right();
             vga.CURSOR.update();
         },
         'E' => {
-            var count = try std.fmt.parseInt(usize, params, 10);
+            var count = if (params.len != 0) try std.fmt.parseInt(usize, params, 10) else 1;
             while (count != 0) : (count -= 1)
                 _ = vga.CURSOR.newline();
             vga.CURSOR.update();
@@ -121,6 +124,15 @@ fn handleEscapeCode(params: []const u8, intermediate: []const u8, final: u8) !vo
                 return;
             }
             return error.UnknownCommand;
+        },
+        'P' => {
+            vga.erase();
+        },
+        's' => {
+            cursor = vga.CURSOR;
+        },
+        'u' => {
+            vga.CURSOR = cursor;
         },
         else =>  {
             return error.UnknownCommand;

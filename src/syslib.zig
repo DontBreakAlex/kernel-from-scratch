@@ -275,6 +275,18 @@ pub const tty = struct {
         _ = write(1, "\x1b[2J");
     }
 
+    pub fn erase() void {
+        _ = write(1, "\x1b[P");
+    }
+
+    pub fn forward() void {
+        _ = write(1, "\x1b[D");
+    }
+
+    pub fn backward() void {
+        _ = write(1, "\x1b[C");
+    }
+
     fn writeCallBack(_: void, buff: []const u8) anyerror!usize {
         return @intCast(usize, write(1, buff));
     }
