@@ -22,6 +22,7 @@ pub fn read(fd: isize, buffer: []u8, count: usize) isize {
 pub fn write(fd: isize, buffer: []const u8) isize {
     return asm volatile (
         \\mov $4, %%eax
+        \\xchg %%bx, %%bx
         \\int $0x80
         : [ret] "=&{eax}" (-> isize),
         : [fd] "{ebx}" (fd),
