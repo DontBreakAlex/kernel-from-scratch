@@ -10,6 +10,7 @@ const scheduler = @import("scheduler.zig");
 const paging = @import("memory/paging.zig");
 const pipefs = @import("io/pipefs.zig");
 const fs = @import("io/fs.zig");
+const tty = @import("tty.zig");
 
 const Buffer = utils.Buffer;
 pub const Key = kbm.Key;
@@ -25,11 +26,6 @@ pub const KeyPress = packed struct {
 
 const KEYBOARD_STATUS: u8 = 0x64;
 const KEYBOARD_DATA: u8 = 0x60;
-
-pub var inode: pipefs.Inode = .{
-    .refcount = 1,
-    .buffer = Buffer.init(),
-};
 
 pub fn init() void {
     idt.setInterruptHandler(pic.PIC1_OFFSET + 1, handleKeyboardInterrupt, .{ .save_fpu = false });
@@ -60,7 +56,7 @@ fn handleScancode(scan_code: u8) void {
             .key = key,
             .uppercase = state.uppercase,
         };
-        _ = scheduler.writeWithEvent(.{ .pipe = &inode }, std.mem.asBytes(&key_press), undefined) catch vga.putStr("Could not handle keypress\n");
+        tty.recieve(std.mem.asBytes(&key_press));
     }
     if (state.special) state.special = false;
 }

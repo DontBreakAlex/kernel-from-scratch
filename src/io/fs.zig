@@ -5,6 +5,8 @@ const log = @import("../log.zig");
 const mem = @import("../memory/mem.zig");
 const cache = @import("cache.zig");
 const dirent = @import("dirent.zig");
+const kernfs = @import("kernfs.zig");
+const devfs = @import("devfs.zig");
 const Mode = @import("mode.zig").Mode;
 const Fs = ext.Ext2FS;
 const DirEnt = dirent.DirEnt;
@@ -46,9 +48,12 @@ pub fn init() !void {
         .name = undefined,
         .namelen = 0,
         .e_type = .Directory,
-        .children = null,
+        .mnt = null,
+        .unused = undefined,
     };
 
+    var dev_mnt = try root_dirent.findChildren("dev");
+    try devfs.init(dev_mnt);
     // log.format("{s}\n", .{ std.mem.bytesAsValue(Mode, std.mem.asBytes(&root_dirent.inode.ext.mode)) });
 }
 
@@ -64,7 +69,7 @@ pub const File = struct {
 
     pub fn create(dentry: *DirEnt, mode: u16) !*Self {
         var self = try mem.allocator.create(Self);
-        dentry.take();
+        dentry.acquire();
         self.* = .{
             .refcount = 1,
             .dentry = dentry,
@@ -118,3 +123,8 @@ pub const File = struct {
         return ret;
     }
 };
+
+/// HashMap of all mountpoints.
+/// Mounted fs root is the key, the value is where the dir is mounted
+pub const MountPoints = std.AutoHashMap(*DirEnt, *DirEnt);
+pub var mount_points = MountPoints.init(mem.allocator);

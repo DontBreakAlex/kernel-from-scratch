@@ -14,6 +14,7 @@ const srl = @import("serial.zig");
 const log = @import("log.zig");
 const ata = @import("io/ata.zig");
 const fs = @import("io/fs.zig");
+const tty = @import("tty.zig");
 
 pub fn panic(msg: []const u8, _: ?*std.builtin.StackTrace) noreturn {
     @setCold(true);

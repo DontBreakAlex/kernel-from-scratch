@@ -101,7 +101,7 @@ pub const AtaDevice = struct {
     }
 
     pub fn write(self: AtaDevice, src: []u8, offset: u28) !void {
-        log.format("Writting buffer at offset {}...\n", .{ offset });
+        log.format("Writting buffer at offset {}...\n", .{offset});
         std.debug.assert(src.len % 512 == 0);
         std.debug.assert(src.len / 512 + 1 < 256);
         const drive = self.getSelector() | ENABLE_LBA | @truncate(u8, offset >> 24);
