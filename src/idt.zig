@@ -55,8 +55,8 @@ fn buildEntry(base: usize, selector: u16, gate_type: u4, privilege: u2) IdtEntry
     };
 }
 
-pub fn setIdtEntry(index: u8, handler: usize) void {
-    idt_entries[index] = buildEntry(handler, gdt.KERN_CODE, ISR_GATE_TYPE, 0x0);
+pub fn setIdtEntry(index: u8, handler: usize, privilege: u2) void {
+    idt_entries[index] = buildEntry(handler, gdt.KERN_CODE, ISR_GATE_TYPE, privilege);
 }
 
 const InterruptHandler = fn (*Regs) void;
@@ -111,7 +111,7 @@ extern var isr_stub_table: [32]u32;
 pub fn init() void {
     var i: u8 = 0;
     while (i < 32) : (i += 1) {
-        setIdtEntry(i, isr_stub_table[i]);
+        setIdtEntry(i, isr_stub_table[i], 0);
     }
 
     idt_ptr.base = @ptrToInt(&idt_entries);

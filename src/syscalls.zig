@@ -22,8 +22,8 @@ const Regs = idt.Regs;
 const Dentry = dirent.Dentry;
 
 pub fn init() void {
-    idt.setIdtEntry(0x80, @ptrToInt(syscall_handler));
-    idt.setIdtEntry(0x81, @ptrToInt(preempt));
+    idt.setIdtEntry(0x80, @ptrToInt(syscall_handler), 3);
+    idt.setIdtEntry(0x81, @ptrToInt(preempt), 0);
 }
 
 // TODO: Check cr3 and stack
