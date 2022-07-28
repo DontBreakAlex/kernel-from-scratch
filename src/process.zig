@@ -66,6 +66,7 @@ pub const Process = struct {
     /// Resume the process. Does not update current process.
     pub fn restore(self: *Process) void {
         // Check if there is a signal to be delivered
+        scheduler.tss.esp0 = self.kstack;
         if (self.signals.count != 0) {
             const sig = self.signals.peekItem(0);
             const handler = self.handlers[@enumToInt(sig)];
@@ -114,6 +115,7 @@ pub const Process = struct {
 
     pub fn start(self: *Process) void {
         scheduler.runningProcess = self;
+        scheduler.tss.esp0 = self.kstack;
         asm volatile (
             \\mov %[pd], %%cr3
             \\mov %[new_esp], %%esp

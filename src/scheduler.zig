@@ -51,7 +51,7 @@ const TSS = packed struct {
     ss0: u32,
 };
 
-extern var tss: TSS;
+pub extern var tss: TSS;
 
 pub fn init() void {
     tss.ss0 = gdt.KERN_DATA;

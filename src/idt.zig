@@ -65,9 +65,9 @@ pub const Config = struct {
     swap_cr3: bool = false,
 };
 
-pub fn setInterruptHandler(index: u8, comptime handler: InterruptHandler, comptime config: Config) void {
+pub fn setInterruptHandler(index: u8, comptime handler: InterruptHandler, comptime config: Config, privilege: u2) void {
     const isr = @ptrToInt(buildIsr(handler, config));
-    idt_entries[index] = buildEntry(isr, gdt.KERN_CODE, ISR_GATE_TYPE, 0x0);
+    idt_entries[index] = buildEntry(isr, gdt.KERN_CODE, ISR_GATE_TYPE, privilege);
 }
 
 fn buildIsr(comptime handler: InterruptHandler, comptime config: Config) fn () callconv(.Naked) void {
