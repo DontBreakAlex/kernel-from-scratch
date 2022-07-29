@@ -236,6 +236,10 @@ pub fn sync() isize {
     );
 }
 
+pub fn putStr(str: []const u8) void {
+    _ = write(1, str);
+}
+
 const PageAllocator = struct {
     const vtable = Allocator.VTable{
         .alloc = alloc,

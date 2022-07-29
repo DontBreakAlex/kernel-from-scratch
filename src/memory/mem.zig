@@ -38,7 +38,7 @@ pub fn allocKstack(page_count: usize, user_pd: PageDirectory) !usize {
 /// Frees a kernel stack. Takes size of the stack in pages.
 pub fn freeKstack(addr: usize, stack_size: usize) void {
     const last_page = addr - PAGE_SIZE;
-    const first_page = addr - PAGE_SIZE * stack_size;
+    const first_page = addr - PAGE_SIZE * stack_size + 1;
     var i: usize = 0;
     while (i < stack_size) : (i += 1) {
         paging.kernelPageDirectory.freeVirt(last_page - i * PAGE_SIZE) catch unreachable;

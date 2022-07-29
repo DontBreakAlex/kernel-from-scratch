@@ -190,7 +190,8 @@ pub const Process = struct {
         _ = scheduler.processes.remove(self.pid);
         self.signals.deinit();
         self.pd.deinit();
-        mem.freeKstack(self.kstack, KERNEL_STACK_SIZE);
+        // mem.freeKstack(self.kstack, KERNEL_STACK_SIZE);
+        // No need to free the kernel stack: it is already freed by the page directory
         for (self.fd) |fd|
             if (fd) |file|
                 file.close();
