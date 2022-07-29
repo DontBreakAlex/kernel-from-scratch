@@ -66,11 +66,11 @@ pub fn readLine(allocator: Allocator) !ArrayList(u8) {
                 if (n == line.items.len) {
                     try line.append(char);
                     n += 1;
-                    vga.putChar(char);
+                    _ = lib.write(1, std.mem.asBytes(&char));
                 } else {
                     try line.insert(n, char);
                     _ = lib.write(1, "\x1b[s");
-                    vga.putStr(line.items[n..line.items.len]);
+                    _ = lib.write(1, line.items[n..line.items.len]);
                     // lib.tty.forward();
                     _ = lib.write(1, "\x1b[u");
                     n += 1;
