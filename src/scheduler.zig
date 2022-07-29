@@ -13,6 +13,7 @@ const cache = @import("io/cache.zig");
 const fcntl = @import("io/fcntl.zig");
 const log = @import("log.zig");
 const tty = @import("tty.zig");
+const gdt = @import("gdt.zig");
 
 const Process = proc.Process;
 const PageDirectory = paging.PageDirectory;
@@ -43,6 +44,19 @@ pub var runningProcess: *Process = undefined;
 const Children = proc.Children;
 const SignalQueue = proc.SignalQueue;
 const ProcessState = proc.ProcessState;
+
+const TSS = packed struct {
+    ununsed: u32,
+    esp0: u32,
+    ss0: u32,
+};
+
+pub extern var tss: TSS;
+
+pub fn init() void {
+    tss.ss0 = gdt.KERN_DATA;
+}
+
 pub fn startProcess(func: Fn) !void {
     const process: *Process = try allocator.create(Process);
     process.pid = proc.getNewPid();
@@ -73,22 +87,28 @@ pub fn startProcess(func: Fn) !void {
 
     var i: usize = 0;
     while (i < 256) : (i += 1) {
-        try process.pd.mapOneToOne(paging.PAGE_SIZE * i);
+        try process.pd.mapOneToOne(paging.PAGE_SIZE * i, paging.USER);
     }
+    try process.pd.setFlags(0xb8000, paging.USER | paging.WRITE);
     serial.format("Shell has PD at 0x{x:0>8}\n", .{@ptrToInt(process.pd.cr3)});
-    process.kstack = try mem.allocKstack(2);
+    process.kstack = try mem.allocKstack(2, process.pd);
     serial.format("Kernel stack bottom: 0x{x:0>8}\n", .{process.kstack});
     var esp = try paging.pageAllocator.alloc();
-    try process.pd.mapVirtToPhy(process.state.SavedState.esp - paging.PAGE_SIZE, esp, paging.WRITE);
-    process.state.SavedState.esp -= 16;
-    esp += 4088;
+    try process.pd.mapVirtToPhy(process.state.SavedState.esp - paging.PAGE_SIZE, esp, paging.WRITE | paging.USER);
+    process.state.SavedState.esp -= 4;
+    esp = process.kstack - 4;
+    @intToPtr(*usize, esp).* = gdt.USER_DATA | 3; // ss = data selector | target ring
+    esp -= 4;
+    @intToPtr(*usize, esp).* = process.state.SavedState.esp; // Iret will restore this to esp
+    esp -= 4;
     @intToPtr(*usize, esp).* = 0x202; // eflags
     esp -= 4;
-    @intToPtr(*usize, esp).* = 0x8; // cs
+    @intToPtr(*usize, esp).* = gdt.USER_CODE | 3; // cs
     esp -= 4;
     @intToPtr(*usize, esp).* = @ptrToInt(func); // eip
     // utils.boch_break();
     try processes.put(process.pid, process);
+    tss.esp0 = process.kstack;
     process.start();
 }
 

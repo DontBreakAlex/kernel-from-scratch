@@ -4,9 +4,7 @@ pub const Signal = @import("process.zig").Signal;
 const Allocator = std.mem.Allocator;
 const GeneralPurposeAllocator = std.heap.GeneralPurposeAllocator;
 const PAGE_SIZE = @import("memory/paging.zig").PAGE_SIZE;
-const pageAllocator = Allocator{ .ptr = undefined, .vtable = &PageAllocator.vtable };
-var generalPurposeAllocator = GeneralPurposeAllocator(.{ .safety = false, .stack_trace_frames = 0 }){ .backing_allocator = pageAllocator };
-pub var userAllocator = generalPurposeAllocator.allocator();
+pub const pageAllocator = Allocator{ .ptr = undefined, .vtable = &PageAllocator.vtable };
 
 pub fn read(fd: isize, buffer: []u8, count: usize) isize {
     return asm volatile (
@@ -236,6 +234,10 @@ pub fn sync() isize {
         \\int $0x80
         : [ret] "=&{eax}" (-> isize),
     );
+}
+
+pub fn putStr(str: []const u8) void {
+    _ = write(1, str);
 }
 
 const PageAllocator = struct {

@@ -11,4 +11,3 @@ pub fn init(dev_dirent: *DirEnt) !void {
     try dev_dirent.mount(.{ .kern = inode });
     try inode.createChild(&tty.inode, "tty0");
 }
-

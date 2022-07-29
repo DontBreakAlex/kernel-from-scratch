@@ -28,7 +28,7 @@ const KEYBOARD_STATUS: u8 = 0x64;
 const KEYBOARD_DATA: u8 = 0x60;
 
 pub fn init() void {
-    idt.setInterruptHandler(pic.PIC1_OFFSET + 1, handleKeyboardInterrupt, .{ .save_fpu = false });
+    idt.setInterruptHandler(pic.PIC1_OFFSET + 1, handleKeyboardInterrupt, .{ .save_fpu = false }, 3);
 
     pic.unMask(0x01);
     vga.putStr("Keyboard initialized\n");

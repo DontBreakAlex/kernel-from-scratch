@@ -7,8 +7,8 @@ SECTIONS
             KEEP(*(.multiboot))
         }
 
-	.gdt 0x800 : {
-		*.gdt
+	.tss 0x800 : {
+		KEEP(*(.tss))
 	}
 
     kbegin = .;

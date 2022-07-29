@@ -1,4 +1,5 @@
 display_library: x, options="gui_debug"
 ata0-master: type=cdrom, path=/home/alexandre/Documents/kernel-from-scratch/grub.iso, status=inserted
+ata1-master: type=disk, path=/home/alexandre/Documents/kernel-from-scratch/ext.img, status=inserted
 boot: cdrom
 magic_break: enabled=1

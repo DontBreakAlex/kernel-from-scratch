@@ -22,8 +22,8 @@ const Regs = idt.Regs;
 const Dentry = dirent.Dentry;
 
 pub fn init() void {
-    idt.setIdtEntry(0x80, @ptrToInt(syscall_handler));
-    idt.setIdtEntry(0x81, @ptrToInt(preempt));
+    idt.setIdtEntry(0x80, @ptrToInt(syscall_handler), 3);
+    idt.setIdtEntry(0x81, @ptrToInt(preempt), 0);
 }
 
 // TODO: Check cr3 and stack
@@ -56,7 +56,6 @@ pub fn syscall_handler() callconv(.Naked) void {
         \\mov %%cr3, %%ecx
         \\mov %%esp, %%edx
         \\mov %[new_cr3], %%cr3
-        \\mov (%[new_stack]), %%esp
         \\push %%edx
         \\push %%ecx
         \\push %%ebp
@@ -65,14 +64,13 @@ pub fn syscall_handler() callconv(.Naked) void {
         \\pop %%ecx
         \\pop %%edx
         \\mov %%ecx, %%cr3
-        \\mov %%edx, %%esp
+        \\mov %%edx, %%esp // Probably not needed
         \\fxrstor (%%esp)
         \\mov %%ebp, %%esp
         \\popa
         \\iret
         :
         : [new_cr3] "r" (paging.kernelPageDirectory.cr3),
-          [new_stack] "r" (&scheduler.runningProcess.kstack),
         : "ebp", "ecx", "edx"
     );
 }
@@ -85,19 +83,14 @@ pub fn syscall_handler() callconv(.Naked) void {
 // edi: arg5
 // ebp: arg6
 
-export fn syscallHandlerInKS(regs_ptr: *Regs, u_cr3: *[1024]PageEntry, us_esp: usize) callconv(.C) void {
-    const PD = PageDirectory{ .cr3 = u_cr3 };
+export fn syscallHandlerInKS(regs: *Regs, u_cr3: *[1024]PageEntry, saved_esp: usize) callconv(.C) void {
     scheduler.canSwitch = false;
-    const regs = PD.vPtrToPhy(Regs, regs_ptr) catch |err| {
-        vga.format("{}\n", .{err});
-        @panic("Syscall failure");
-    };
     const userEax: *volatile isize = @ptrCast(*volatile isize, &regs.eax);
     scheduler.canSwitch = true;
     @setRuntimeSafety(false);
     userEax.* = switch (regs.eax) {
         1 => exit(regs.ebx),
-        2 => fork(regs_ptr, us_esp) catch |err| cat: {
+        2 => fork(regs, saved_esp) catch |err| cat: {
             serial.format("Fork error: {}\n", .{err});
             break :cat -1;
         },
@@ -128,7 +121,7 @@ export fn syscallHandlerInKS(regs_ptr: *Regs, u_cr3: *[1024]PageEntry, us_esp: u
     // serial.format("eax = {}\n", .{ userEax.* });
     if (scheduler.wantsToSwitch) {
         scheduler.wantsToSwitch = false;
-        scheduler.schedule(us_esp, @ptrToInt(regs_ptr), @ptrToInt(u_cr3));
+        scheduler.schedule(saved_esp, @ptrToInt(regs), @ptrToInt(u_cr3));
     }
 }
 

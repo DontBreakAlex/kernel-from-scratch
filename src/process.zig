@@ -6,6 +6,7 @@ const paging = @import("memory/paging.zig");
 const scheduler = @import("scheduler.zig");
 const dirent = @import("io/dirent.zig");
 const fs = @import("io/fs.zig");
+const gdt = @import("gdt.zig");
 
 pub const FD_COUNT = 8;
 pub const US_STACK_BASE = 0x1000000;
@@ -65,6 +66,7 @@ pub const Process = struct {
     /// Resume the process. Does not update current process.
     pub fn restore(self: *Process) void {
         // Check if there is a signal to be delivered
+        scheduler.tss.esp0 = self.kstack;
         if (self.signals.count != 0) {
             const sig = self.signals.peekItem(0);
             const handler = self.handlers[@enumToInt(sig)];
@@ -113,13 +115,16 @@ pub const Process = struct {
 
     pub fn start(self: *Process) void {
         scheduler.runningProcess = self;
+        scheduler.tss.esp0 = self.kstack;
         asm volatile (
             \\mov %[pd], %%cr3
             \\mov %[new_esp], %%esp
+            \\mov %[data], %%ds
             \\iret
             :
-            : [new_esp] "r" (self.state.SavedState.esp),
+            : [new_esp] "r" (self.kstack - 20),
               [pd] "r" (self.state.SavedState.cr3),
+              [data] "r" (@as(u16, gdt.USER_DATA | 3)),
             : "memory"
         );
     }
@@ -129,7 +134,7 @@ pub const Process = struct {
         var i: usize = 0;
         while (i < page_count) {
             // TODO: De-alloc already allocated pages on failure (or do lazy alloc)
-            self.pd.allocVirt(v_addr + paging.PAGE_SIZE * i, paging.WRITE) catch return error.OutOfMemory;
+            self.pd.allocVirt(v_addr + paging.PAGE_SIZE * i, paging.WRITE | paging.USER) catch return error.OutOfMemory;
             i += 1;
         }
         return v_addr;
@@ -171,7 +176,7 @@ pub const Process = struct {
         new_process.owner_id = 0;
         new_process.vmem = vmem.VMemManager{};
         new_process.vmem.copy_from(&self.vmem);
-        new_process.kstack = try mem.allocKstack(KERNEL_STACK_SIZE);
+        new_process.kstack = try mem.allocKstack(KERNEL_STACK_SIZE, new_process.pd);
         errdefer mem.freeKstack(new_process.kstack, KERNEL_STACK_SIZE);
         serial.format("Process with PID {} has PD at 0x{x:0>8}\n", .{ new_process.pid, @ptrToInt(new_process.pd.cr3) });
         serial.format("Kernel stack bottom: 0x{x:0>8}\n", .{new_process.kstack});
@@ -185,7 +190,8 @@ pub const Process = struct {
         _ = scheduler.processes.remove(self.pid);
         self.signals.deinit();
         self.pd.deinit();
-        mem.freeKstack(self.kstack, KERNEL_STACK_SIZE);
+        // mem.freeKstack(self.kstack, KERNEL_STACK_SIZE);
+        // No need to free the kernel stack: it is already freed by the page directory
         for (self.fd) |fd|
             if (fd) |file|
                 file.close();

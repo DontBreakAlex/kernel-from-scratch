@@ -33,6 +33,8 @@ _start:
 	mov esp, stack_bottom
 	cli ; We don't want any interrupt while seting the GDT
 	lgdt [gdtr_descr]
+    mov ax, 0x28
+    ltr ax
 	; Enable SSE
 	mov eax, cr0
 	and ax, 0xFFFB
@@ -46,9 +48,6 @@ _start:
 	.setcs:
 	mov ax, 0x10 ; Data segment
 	mov ds, ax
-	mov es, ax
-	mov fs, ax
-	mov gs, ax
 	mov ss, ax
 
 	; xchg bx, bx
@@ -63,8 +62,6 @@ _start:
 	hlt
 	jmp .hang
 .end:
-
-section .gdt
 
 gdt_start:
 gdt_null:	; Null entry
@@ -118,9 +115,21 @@ u_data:
 	db 11110010b
 	db 11001111b
 	db 0x00
+tss_segment:
+    dw 0x68
+    dw 0x800
+    db 0x0
+    db 10001001b
+    db 0x0
+    db 0x0
 
 gdt_end:
 
 gdtr_descr :
   dw gdt_end - gdt_start - 1
   dd gdt_start
+
+section .tss
+global tss
+tss:
+    times 104 db 0

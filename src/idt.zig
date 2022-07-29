@@ -1,4 +1,5 @@
 const vga = @import("vga.zig");
+const gdt = @import("gdt.zig");
 const utils = @import("utils.zig");
 const paging = @import("memory/paging.zig");
 const scheduler = @import("scheduler.zig");
@@ -23,7 +24,6 @@ const NUMBER_OF_ENTRIES: u16 = 256;
 // The total size of all the IDT entries (-1 for the same reason as the GDT).
 const TABLE_SIZE: u16 = @sizeOf(IdtEntry) * NUMBER_OF_ENTRIES - 1;
 const ISR_GATE_TYPE = 0xE; // 80386 32-bit interrupt gate
-const KERN_CODE = 0x08;
 
 var idt_ptr: IdtPtr = IdtPtr{
     .limit = TABLE_SIZE,
@@ -55,8 +55,8 @@ fn buildEntry(base: usize, selector: u16, gate_type: u4, privilege: u2) IdtEntry
     };
 }
 
-pub fn setIdtEntry(index: u8, handler: usize) void {
-    idt_entries[index] = buildEntry(handler, KERN_CODE, ISR_GATE_TYPE, 0x0);
+pub fn setIdtEntry(index: u8, handler: usize, privilege: u2) void {
+    idt_entries[index] = buildEntry(handler, gdt.KERN_CODE, ISR_GATE_TYPE, privilege);
 }
 
 const InterruptHandler = fn (*Regs) void;
@@ -65,9 +65,9 @@ pub const Config = struct {
     swap_cr3: bool = false,
 };
 
-pub fn setInterruptHandler(index: u8, comptime handler: InterruptHandler, comptime config: Config) void {
+pub fn setInterruptHandler(index: u8, comptime handler: InterruptHandler, comptime config: Config, privilege: u2) void {
     const isr = @ptrToInt(buildIsr(handler, config));
-    idt_entries[index] = buildEntry(isr, KERN_CODE, ISR_GATE_TYPE, 0x0);
+    idt_entries[index] = buildEntry(isr, gdt.KERN_CODE, ISR_GATE_TYPE, privilege);
 }
 
 fn buildIsr(comptime handler: InterruptHandler, comptime config: Config) fn () callconv(.Naked) void {
@@ -111,7 +111,7 @@ extern var isr_stub_table: [32]u32;
 pub fn init() void {
     var i: u8 = 0;
     while (i < 32) : (i += 1) {
-        setIdtEntry(i, isr_stub_table[i]);
+        setIdtEntry(i, isr_stub_table[i], 0);
     }
 
     idt_ptr.base = @ptrToInt(&idt_entries);

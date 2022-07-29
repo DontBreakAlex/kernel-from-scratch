@@ -7,6 +7,8 @@ const mem = @import("memory/mem.zig");
 const lib = @import("syslib.zig");
 
 const ArrayList = std.ArrayList;
+const GeneralPurposeAllocator = std.heap.GeneralPurposeAllocator;
+const Allocator = std.mem.Allocator;
 
 extern const kend: u8;
 extern const kbegin: u8;
@@ -15,10 +17,12 @@ const motd = "Welcome to kernel-o-tron ! (0x{x:0>8}-0x{x:0>8})\n";
 pub fn run() void {
     lib.tty.clear();
     lib.tty.format(motd, .{ @ptrToInt(&kbegin), @ptrToInt(&kend) });
+    var generalPurposeAllocator = GeneralPurposeAllocator(.{ .safety = false, .stack_trace_frames = 0 }){ .backing_allocator = lib.pageAllocator };
+    var allocator = generalPurposeAllocator.allocator();
 
     while (true) {
         _ = lib.write(1, ">");
-        if (readLine()) |line| {
+        if (readLine(allocator)) |line| {
             var args = std.mem.tokenize(u8, line.items, " ");
             if (commands.find(args.next() orelse continue)) |command| {
                 _ = command(&args);
@@ -32,8 +36,8 @@ pub fn run() void {
     }
 }
 
-pub fn readLine() !ArrayList(u8) {
-    var line: ArrayList(u8) = ArrayList(u8).init(lib.userAllocator);
+pub fn readLine(allocator: Allocator) !ArrayList(u8) {
+    var line: ArrayList(u8) = ArrayList(u8).init(allocator);
     errdefer line.deinit();
     var n: usize = 0;
 
@@ -62,11 +66,11 @@ pub fn readLine() !ArrayList(u8) {
                 if (n == line.items.len) {
                     try line.append(char);
                     n += 1;
-                    vga.putChar(char);
+                    _ = lib.write(1, std.mem.asBytes(&char));
                 } else {
                     try line.insert(n, char);
                     _ = lib.write(1, "\x1b[s");
-                    vga.putStr(line.items[n..line.items.len]);
+                    _ = lib.write(1, line.items[n..line.items.len]);
                     // lib.tty.forward();
                     _ = lib.write(1, "\x1b[u");
                     n += 1;
