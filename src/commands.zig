@@ -10,7 +10,7 @@ pub const CommandFn = fn (args: ArgsIterator) u8;
 pub const Command = struct { name: []const u8, cmd: CommandFn };
 extern const stack_bottom: u8;
 
-pub const commands: [17]Command = .{
+pub const commands: [18]Command = .{
     .{ .name = "echo", .cmd = echo },
     // .{ .name = "pstack", .cmd = printStack },
     // .{ .name = "ptrace", .cmd = printTrace },
@@ -30,6 +30,7 @@ pub const commands: [17]Command = .{
     .{ .name = "cat", .cmd = cat },
     .{ .name = "ls", .cmd = ls },
     .{ .name = "write", .cmd = write },
+    .{ .name = "exec", .cmd = exec },
 };
 
 pub fn find(name: []const u8) ?CommandFn {
@@ -264,4 +265,9 @@ fn write(args: ArgsIterator) u8 {
         return 1;
     }
     return 0;
+}
+
+fn exec(args: ArgsIterator) u8 {
+    const path = args.next() orelse return 1;
+    return @intCast(u8, lib.execve(path));
 }

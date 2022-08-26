@@ -140,7 +140,11 @@ fn handleEscapeCode(params: []const u8, intermediate: []const u8, final: u8) !vo
     }
 }
 
-pub const Writer = std.io.Writer(void, anyerror, write);
+fn writeCallBack(_: void, str: []const u8) error{}!usize{
+    return write(str);
+}
+
+pub const Writer = std.io.Writer(void, anyerror, writeCallBack);
 
 pub fn format(comptime fmt: []const u8, args: anytype) void {
     std.fmt.format(Writer{ .context = {} }, fmt, args) catch {};
