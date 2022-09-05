@@ -102,7 +102,7 @@ export fn syscallHandlerInKS(regs: *Regs, u_cr3: *[1024]PageEntry, saved_esp: us
         5 => @import("syscalls/open.zig").open(regs.ebx, regs.ecx, regs.edx, @truncate(u16, regs.esi)),
         6 => close(regs.ebx),
         7 => waitpid(),
-        11 => @import("syscalls/execve.zig").execve(regs.ebx, regs.ecx, frame, saved_esp),
+        11 => @import("syscalls/execve.zig").execve(regs.ebx, regs.ecx, frame),
         20 => getpid(),
         36 => sync(),
         37 => kill(regs.ebx, regs.ecx),
