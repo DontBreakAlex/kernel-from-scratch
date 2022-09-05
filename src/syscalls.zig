@@ -19,6 +19,7 @@ const PageAllocator = @import("memory/page_allocator.zig").PageAllocator;
 const Event = scheduler.Event;
 const Process = scheduler.Process;
 const Regs = idt.Regs;
+const IretFrame = idt.IretFrame;
 const Dentry = dirent.Dentry;
 
 pub fn init() void {
@@ -87,6 +88,8 @@ export fn syscallHandlerInKS(regs: *Regs, u_cr3: *[1024]PageEntry, saved_esp: us
     scheduler.canSwitch = false;
     const userEax: *volatile isize = @ptrCast(*volatile isize, &regs.eax);
     scheduler.canSwitch = true;
+    var frame = @intToPtr(*IretFrame, @ptrToInt(regs) + 32);
+    // serial.format("{x}\n", .{ frame });
     @setRuntimeSafety(false);
     userEax.* = switch (regs.eax) {
         1 => exit(regs.ebx),
@@ -99,7 +102,7 @@ export fn syscallHandlerInKS(regs: *Regs, u_cr3: *[1024]PageEntry, saved_esp: us
         5 => @import("syscalls/open.zig").open(regs.ebx, regs.ecx, regs.edx, @truncate(u16, regs.esi)),
         6 => close(regs.ebx),
         7 => waitpid(),
-        11 => @import("syscalls/execve.zig").execve(regs.ebx, regs.ecx),
+        11 => @import("syscalls/execve.zig").execve(regs.ebx, regs.ecx, frame, saved_esp),
         20 => getpid(),
         36 => sync(),
         37 => kill(regs.ebx, regs.ecx),

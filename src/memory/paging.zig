@@ -224,6 +224,7 @@ pub const PageDirectory = struct {
         //   Dealloc phy_addr
         //  Unmap One-To-One
         //  Dealloc page
+        // TODO: Make sure that the stacks are freed correctly
         for (self.cr3) |*tables| {
             if (tables.flags & PRESENT == 1) {
                 const table_addr: usize = @intCast(usize, tables.phy_addr) << 12;

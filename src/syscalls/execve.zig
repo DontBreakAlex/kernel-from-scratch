@@ -5,19 +5,23 @@ const tty = @import("../tty.zig");
 const mem = @import("../memory/mem.zig");
 const serial = @import("../serial.zig");
 const paging = @import("../memory/paging.zig");
+const proc = @import("../process.zig");
+const idt = @import("../idt.zig");
 
 const DirEnt = @import("../io/dirent.zig").DirEnt;
 const ElfHeader = elf.ElfHeader;
 const ProgramHeader = elf.ProgramHeader;
 const PageDirectory = paging.PageDirectory;
+const ProcessState = proc.ProcessState;
+const IretFrame = idt.IretFrame;
 
-pub noinline fn execve(buff: usize, size: usize) isize {
+pub noinline fn execve(buff: usize, size: usize, frame: *IretFrame, saved_esp: usize) isize {
     var path = scheduler.runningProcess.pd.vBufferToPhy(size, buff) catch return -1;
-    do_execve(path) catch return -1;
+    do_execve(path, frame, saved_esp) catch return -1;
     return 0;
 }
 
-fn do_execve(path: []const u8) !void {
+fn do_execve(path: []const u8, frame: *IretFrame, saved_esp: usize) !void {
     var dentry: *DirEnt = undefined;
     if ((try scheduler.runningProcess.cwd.resolve(path, &dentry)) != .Found)
         return error.NotFound;
@@ -37,17 +41,17 @@ fn do_execve(path: []const u8) !void {
             // TODO: Alloc correct size
             try new_cr3.allocVirt(entry.vaddr, paging.USER);
             var slice = try new_cr3.vBufferToPhy(entry.filesz, entry.vaddr);
-            try dentry.inode.read(slice, entry.offset);
+            _ = try dentry.inode.read(slice, entry.offset);
         }
     }
     scheduler.runningProcess.pd.deinit();
     // TODO: Probably more things to do, like resetting signal handlers
     scheduler.runningProcess.pd = new_cr3;
-    process.state = .{ .SavedState = ProcessState{
-        .cr3 = @ptrToInt(process.pd.cr3),
-        .esp = US_STACK_BASE - 4,
-        .regs = 0,
-    } };
+    scheduler.runningProcess.state.SavedState.cr3 = @ptrToInt(new_cr3.cr3); 
+    frame.esp = proc.US_STACK_BASE - 4;
+    frame.eip = header.entry;
+    var cr3 = @intToPtr(*usize, saved_esp - 8);
+    cr3.* = scheduler.runningProcess.state.SavedState.cr3;
 }
 
 fn validate_header(header: *const ElfHeader) !void {
