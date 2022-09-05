@@ -38,12 +38,7 @@ fn do_execve(path: []const u8, frame: *IretFrame) !void {
     for (phtable) |entry| {
         // serial.format("{x}\n", .{ ent });
         if (entry.p_type == .LOAD) {
-            // TODO: Alloc correct size
-            try scheduler.runningProcess.pd.allocVirt(entry.vaddr, paging.USER | paging.WRITE);
-            var slice = try scheduler.runningProcess.pd.vBufferToPhy(entry.filesz, entry.vaddr);
-            const ret = try dentry.inode.read(slice, entry.offset);
-            _ = ret;
-            serial.format("{}\n", .{ scheduler.runningProcess.pd.virtToPhy(0x402008) });
+            try load_entry(entry, dentry);
         }
     }
     // TODO: Probably more things to do, like resetting signal handlers
@@ -54,6 +49,26 @@ fn do_execve(path: []const u8, frame: *IretFrame) !void {
     utils.push(&esp, @as(u32, 0));
     frame.esp = esp;
     frame.eip = header.entry;
+}
+
+fn load_entry(entry: ProgramHeader, dentry: *DirEnt) !void {
+        var page = std.mem.alignBackward(entry.vaddr, paging.PAGE_SIZE);
+        const last_page = std.mem.alignBackward(entry.vaddr + entry.memsz, paging.PAGE_SIZE);
+
+        var file_offset = entry.offset;
+        var to_load = entry.filesz;
+        var mem_offset = entry.vaddr - page;
+
+        while (page <= last_page) : (page += paging.PAGE_SIZE) {
+            try scheduler.runningProcess.pd.allocVirt(page, paging.USER | paging.WRITE);
+            const will_load = std.math.min(to_load, paging.PAGE_SIZE - mem_offset);
+            var slice = try scheduler.runningProcess.pd.vBufferToPhy(will_load, page + mem_offset);
+            if ((try dentry.inode.read(slice, file_offset)) != will_load)
+                @panic("Failed to load ELF");
+            file_offset += will_load;
+            to_load -= will_load;
+            mem_offset = 0;
+        }
 }
 
 fn validate_header(header: *const ElfHeader) !void {

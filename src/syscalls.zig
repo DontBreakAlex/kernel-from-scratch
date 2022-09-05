@@ -118,6 +118,7 @@ export fn syscallHandlerInKS(regs: *Regs, u_cr3: *[1024]PageEntry, saved_esp: us
         177 => sigwait(),
         222 => usage(regs.ebx) catch -1,
         223 => command(regs.ebx),
+        243 => @import("syscalls/thread.zig").set_thread_area(),
         else => {
             @panic("Unhandled syscall");
         },
