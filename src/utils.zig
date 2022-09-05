@@ -125,3 +125,8 @@ pub inline fn setNthBit(buff: []u8, n: usize) void {
     const offset = @intCast(u3, n % 8);
     buff[index] &= 128 >> offset;
 }
+
+pub fn push(esp: *usize, x: anytype) void {
+    esp.* = esp.* - @sizeOf(@TypeOf(x));
+    @intToPtr(*@TypeOf(x), esp.*).* = x;
+}

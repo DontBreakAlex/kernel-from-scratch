@@ -99,3 +99,34 @@ pub const ProgramHeader = packed struct {
     flags: u32,
     p_align: u32 
 };
+
+pub const AuxiliaryVectorType = enum(i32) {
+    NULL = 0,
+    IGNORE = 1,
+    EXECFD = 2,
+    PHDR = 3,
+    PHENT = 4,
+    PHNUM = 5,
+    PAGESZ = 6,
+    BASE = 7,
+    FLAGS = 8,
+    ENTRY = 9,
+    NOTELF = 10,
+    UID = 11,
+    EUID = 12,
+    GID = 13,
+    EGID = 14,
+    PLATFORM = 15,
+    HWCAP = 16,
+    CLKTCK = 17,
+    SECURE = 23,
+    BASE_PLATFORM = 24,
+    RANDOM = 25,
+    HWCAP2 = 26,
+    EXECFN = 31,
+};
+
+pub const AuxiliaryVectorValue = packed struct {
+    _type: AuxiliaryVectorType,
+    value: u32,
+};
