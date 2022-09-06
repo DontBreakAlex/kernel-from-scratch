@@ -52,23 +52,23 @@ fn do_execve(path: []const u8, frame: *IretFrame) !void {
 }
 
 fn load_entry(entry: ProgramHeader, dentry: *DirEnt) !void {
-        var page = std.mem.alignBackward(entry.vaddr, paging.PAGE_SIZE);
-        const last_page = std.mem.alignBackward(entry.vaddr + entry.memsz, paging.PAGE_SIZE);
+    var page = std.mem.alignBackward(entry.vaddr, paging.PAGE_SIZE);
+    const last_page = std.mem.alignBackward(entry.vaddr + entry.memsz, paging.PAGE_SIZE);
 
-        var file_offset = entry.offset;
-        var to_load = entry.filesz;
-        var mem_offset = entry.vaddr - page;
+    var file_offset = entry.offset;
+    var to_load = entry.filesz;
+    var mem_offset = entry.vaddr - page;
 
-        while (page <= last_page) : (page += paging.PAGE_SIZE) {
-            try scheduler.runningProcess.pd.allocVirt(page, paging.USER | paging.WRITE);
-            const will_load = std.math.min(to_load, paging.PAGE_SIZE - mem_offset);
-            var slice = try scheduler.runningProcess.pd.vBufferToPhy(will_load, page + mem_offset);
-            if ((try dentry.inode.read(slice, file_offset)) != will_load)
-                @panic("Failed to load ELF");
-            file_offset += will_load;
-            to_load -= will_load;
-            mem_offset = 0;
-        }
+    while (page <= last_page) : (page += paging.PAGE_SIZE) {
+        try scheduler.runningProcess.pd.allocVirt(page, paging.USER | paging.WRITE);
+        const will_load = std.math.min(to_load, paging.PAGE_SIZE - mem_offset);
+        var slice = try scheduler.runningProcess.pd.vBufferToPhy(will_load, page + mem_offset);
+        if ((try dentry.inode.read(slice, file_offset)) != will_load)
+            @panic("Failed to load ELF");
+        file_offset += will_load;
+        to_load -= will_load;
+        mem_offset = 0;
+    }
 }
 
 fn validate_header(header: *const ElfHeader) !void {

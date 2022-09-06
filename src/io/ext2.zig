@@ -231,7 +231,7 @@ pub const Inode = struct {
             const index_within_block = src_cursor % cache.BLOCK_SIZE;
             var block = try cache.getOrReadBuffer(self.fs.drive, self.getNthBlock(block_index));
             const will_read = std.math.min(to_read, cache.BLOCK_SIZE - index_within_block);
-            std.mem.copy(u8, dst[dst_cursor..will_read + dst_cursor], block.data.slice[index_within_block..will_read + index_within_block]);
+            std.mem.copy(u8, dst[dst_cursor .. will_read + dst_cursor], block.data.slice[index_within_block .. will_read + index_within_block]);
             defer cache.releaseBuffer(block);
             to_read -= will_read;
             src_cursor += will_read;

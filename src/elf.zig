@@ -43,7 +43,7 @@ pub const ElfHeader = packed struct {
     /// Object file version
     version: u32,
     /// Virtual address of the program entry point
-    entry: u32, 
+    entry: u32,
     /// Offset of the program header table
     phoff: u32,
     /// Offset of the section header table
@@ -72,16 +72,7 @@ pub const ObjectFileType = enum(u16) {
     CORE = 4,
 };
 
-pub const SegmentType = enum(u32) {
-    NULL = 0,
-    LOAD = 1,
-    DYNAMIC = 2,
-    INTERP = 3,
-    NOTE = 4,
-    SHLIB = 5,
-    PHDR = 6,
-    _
-};
+pub const SegmentType = enum(u32) { NULL = 0, LOAD = 1, DYNAMIC = 2, INTERP = 3, NOTE = 4, SHLIB = 5, PHDR = 6, _ };
 
 pub const ProgramHeader = packed struct {
     /// Type of segment
@@ -97,7 +88,7 @@ pub const ProgramHeader = packed struct {
     /// Size fo the segment in memory (could be zero)
     memsz: u32,
     flags: u32,
-    p_align: u32 
+    p_align: u32,
 };
 
 pub const AuxiliaryVectorType = enum(i32) {

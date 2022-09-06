@@ -122,12 +122,17 @@ tss_segment:
     db 10001001b
     db 0x0
     db 0x0
+tls_segment:
+	dd 0x0
+	dd 0x0
 
 gdt_end:
 
 gdtr_descr :
   dw gdt_end - gdt_start - 1
   dd gdt_start
+
+global gdt_start
 
 section .tss
 global tss
