@@ -92,7 +92,7 @@ export fn syscallHandlerInKS(regs: *Regs, u_cr3: *[1024]PageEntry, saved_esp: us
     // serial.format("{x}\n", .{ frame });
     @setRuntimeSafety(false);
     userEax.* = switch (regs.eax) {
-        1 => exit(regs.ebx),
+        1 => @import("syscalls/exit.zig").exit(regs.ebx),
         2 => fork(regs, saved_esp) catch |err| cat: {
             serial.format("Fork error: {}\n", .{err});
             break :cat -1;
@@ -121,6 +121,7 @@ export fn syscallHandlerInKS(regs: *Regs, u_cr3: *[1024]PageEntry, saved_esp: us
         222 => usage(regs.ebx) catch -1,
         223 => command(regs.ebx),
         243 => @import("syscalls/thread.zig").set_thread_area(regs.ebx),
+        252 => @import("syscalls/exit.zig").exit(regs.ebx),
         258 => @import("syscalls/thread.zig").set_tid_address(regs.ebx),
         else => {
             serial.format("Unhandled syscall: {}\n", .{regs.eax});
@@ -189,21 +190,6 @@ noinline fn read(fd: usize, buff: usize, count: usize) isize {
         return @intCast(isize, file.read(user_buf) catch return -1);
     }
     return -1;
-}
-
-noinline fn exit(code: usize) isize {
-    scheduler.canSwitch = false;
-    scheduler.runningProcess.status = .Zombie;
-    scheduler.runningProcess.state = .{ .ExitCode = code };
-    if (scheduler.runningProcess.parent) |parent| {
-        if (parent.status == .Sleeping) {
-            parent.status = .Paused;
-            scheduler.queue.writeItem(parent) catch @panic("Alloc failure in exit");
-        }
-    } else @panic("Init process exited");
-    scheduler.canSwitch = true;
-    scheduler.schedule(undefined, undefined, undefined);
-    return 0;
 }
 
 noinline fn usage(u_ptr: usize) !isize {

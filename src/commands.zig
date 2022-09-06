@@ -269,5 +269,17 @@ fn write(args: ArgsIterator) u8 {
 
 fn exec(args: ArgsIterator) u8 {
     const path = args.next() orelse return 1;
-    return @intCast(u8, lib.execve(path));
+    const pid = lib.fork();
+    if (pid == -1) {
+        lib.putStr("Fork failure\n");
+        return 1;
+    }
+    if (pid == 0) {
+        _ = lib.execve(path);
+    }
+    if (lib.wait() != pid) {
+        lib.putStr("Wait failure\n");
+        return 1;
+    }
+    return 0;
 }

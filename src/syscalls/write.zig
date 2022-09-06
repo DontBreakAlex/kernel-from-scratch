@@ -15,12 +15,15 @@ pub noinline fn write(fd: usize, buff: usize, count: usize) isize {
 }
 
 pub noinline fn writev(fd: usize, iovec_ptr: usize, iovec_cnt: usize) isize {
-    // var ret = 0;
-    _ = fd;
+    var ret: usize = 0;
     const phy_ptr = scheduler.runningProcess.pd.virtToPhy(iovec_ptr) orelse return -1;
     var vecs = @intToPtr([*]IoVec, phy_ptr)[0..iovec_cnt];
-    serial.format("vecs: {x}\n", .{vecs});
-    return -58;
+    for (vecs) |vec| {
+        var buff = @intToPtr([*]u8, scheduler.runningProcess.pd.virtToPhy(vec.iov_base) orelse return -1)[0..vec.iov_len];
+        serial.format("vec: {s}\n", .{ buff });
+        ret += do_write(fd, buff) catch return -1;
+    }
+    return @intCast(isize, ret);
 }
 
 fn do_write(fd: usize, buffer: []const u8) !usize {
