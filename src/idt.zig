@@ -187,3 +187,11 @@ pub const Regs = struct {
     ecx: usize,
     eax: usize,
 };
+
+pub const IretFrame = packed struct {
+    eip: u32,
+    code_segment: u32,
+    eflags: u32,
+    esp: u32,
+    stack_segment: u32,
+};

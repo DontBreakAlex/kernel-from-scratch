@@ -30,7 +30,7 @@ pub fn write(fd: isize, buffer: []const u8) isize {
 
 pub fn mmap(cnt: usize) ![]u8 {
     var buf = asm volatile (
-        \\mov $9, %%eax
+        \\mov $90, %%eax
         \\int $0x80
         : [ret] "=&{eax}" (-> isize),
         : [cnt] "{ebx}" (cnt),
@@ -43,7 +43,7 @@ pub fn mmap(cnt: usize) ![]u8 {
 
 pub fn munmap(buf: []u8) void {
     asm volatile (
-        \\mov $11, %%eax
+        \\mov $91, %%eax
         \\int $0x80
         :
         : [addr] "{ebx}" (buf.ptr),
@@ -240,6 +240,16 @@ pub fn putStr(str: []const u8) void {
     _ = write(1, str);
 }
 
+pub fn execve(buf: []const u8) isize {
+    return asm volatile (
+        \\mov $11, %%eax
+        \\int $0x80
+        : [ret] "=&{eax}" (-> isize),
+        : [addr] "{ebx}" (buf.ptr),
+          [len] "{ecx}" (buf.len),
+        : "eax", "memory"
+    );
+}
 const PageAllocator = struct {
     const vtable = Allocator.VTable{
         .alloc = alloc,

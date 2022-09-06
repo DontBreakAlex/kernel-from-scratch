@@ -10,7 +10,7 @@ pub const CommandFn = fn (args: ArgsIterator) u8;
 pub const Command = struct { name: []const u8, cmd: CommandFn };
 extern const stack_bottom: u8;
 
-pub const commands: [17]Command = .{
+pub const commands: [18]Command = .{
     .{ .name = "echo", .cmd = echo },
     // .{ .name = "pstack", .cmd = printStack },
     // .{ .name = "ptrace", .cmd = printTrace },
@@ -30,6 +30,7 @@ pub const commands: [17]Command = .{
     .{ .name = "cat", .cmd = cat },
     .{ .name = "ls", .cmd = ls },
     .{ .name = "write", .cmd = write },
+    .{ .name = "exec", .cmd = exec },
 };
 
 pub fn find(name: []const u8) ?CommandFn {
@@ -261,6 +262,23 @@ fn write(args: ArgsIterator) u8 {
     var ret = lib.write(fd, data);
     if (ret != data.len) {
         vga.putStr("Error: write failed\n");
+        return 1;
+    }
+    return 0;
+}
+
+fn exec(args: ArgsIterator) u8 {
+    const path = args.next() orelse return 1;
+    const pid = lib.fork();
+    if (pid == -1) {
+        lib.putStr("Fork failure\n");
+        return 1;
+    }
+    if (pid == 0) {
+        _ = lib.execve(path);
+    }
+    if (lib.wait() != pid) {
+        lib.putStr("Wait failure\n");
         return 1;
     }
     return 0;

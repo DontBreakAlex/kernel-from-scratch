@@ -14,6 +14,7 @@ const fcntl = @import("io/fcntl.zig");
 const log = @import("log.zig");
 const tty = @import("tty.zig");
 const gdt = @import("gdt.zig");
+const idt = @import("idt.zig");
 
 const Process = proc.Process;
 const PageDirectory = paging.PageDirectory;
@@ -21,6 +22,7 @@ const allocator = mem.allocator;
 const US_STACK_BASE = proc.US_STACK_BASE;
 const KERNEL_STACK_SIZE = proc.KERNEL_STACK_SIZE;
 const InodeRef = dirent.InodeRef;
+const IretFrame = idt.IretFrame;
 
 pub var wantsToSwitch: bool = false;
 pub var canSwitch: bool = true;
@@ -107,6 +109,8 @@ pub fn startProcess(func: Fn) !void {
     esp -= 4;
     @intToPtr(*usize, esp).* = @ptrToInt(func); // eip
     // utils.boch_break();
+    // var frame = @intToPtr(*IretFrame, esp);
+    // serial.format("{x}\n", .{ frame });
     try processes.put(process.pid, process);
     tss.esp0 = process.kstack;
     process.start();

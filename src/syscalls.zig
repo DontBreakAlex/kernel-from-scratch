@@ -19,6 +19,7 @@ const PageAllocator = @import("memory/page_allocator.zig").PageAllocator;
 const Event = scheduler.Event;
 const Process = scheduler.Process;
 const Regs = idt.Regs;
+const IretFrame = idt.IretFrame;
 const Dentry = dirent.Dentry;
 
 pub fn init() void {
@@ -87,34 +88,43 @@ export fn syscallHandlerInKS(regs: *Regs, u_cr3: *[1024]PageEntry, saved_esp: us
     scheduler.canSwitch = false;
     const userEax: *volatile isize = @ptrCast(*volatile isize, &regs.eax);
     scheduler.canSwitch = true;
+    var frame = @intToPtr(*IretFrame, @ptrToInt(regs) + 32);
+    // serial.format("{x}\n", .{ frame });
     @setRuntimeSafety(false);
     userEax.* = switch (regs.eax) {
-        1 => exit(regs.ebx),
+        1 => @import("syscalls/exit.zig").exit(regs.ebx),
         2 => fork(regs, saved_esp) catch |err| cat: {
             serial.format("Fork error: {}\n", .{err});
             break :cat -1;
         },
         3 => read(regs.ebx, regs.ecx, regs.edx),
-        4 => write(regs.ebx, regs.ecx, regs.edx),
+        4 => @import("syscalls/write.zig").write(regs.ebx, regs.ecx, regs.edx),
         5 => @import("syscalls/open.zig").open(regs.ebx, regs.ecx, regs.edx, @truncate(u16, regs.esi)),
         6 => close(regs.ebx),
         7 => waitpid(),
-        9 => mmap(regs.ebx),
-        11 => munmap(regs.ebx, regs.ecx),
+        11 => @import("syscalls/execve.zig").execve(regs.ebx, regs.ecx, frame),
         20 => getpid(),
         36 => sync(),
         37 => kill(regs.ebx, regs.ecx),
         42 => @import("syscalls/pipe.zig").pipe(regs.ebx) catch -1,
         48 => signal(regs.ebx, regs.ecx),
+        54 => @import("syscalls/ioctl.zig").ioctl(regs.ebx, regs.ecx, regs.edx),
         78 => getdents(regs.ebx, regs.ecx, regs.edx),
         79 => getcwd(regs.ebx, regs.ecx),
         80 => chdir(regs.ebx, regs.ecx),
+        90 => mmap(regs.ebx),
+        91 => munmap(regs.ebx, regs.ecx),
         102 => getuid(),
+        146 => @import("syscalls/write.zig").writev(regs.ebx, regs.ecx, regs.edx),
         162 => sleep(),
         177 => sigwait(),
         222 => usage(regs.ebx) catch -1,
         223 => command(regs.ebx),
+        243 => @import("syscalls/thread.zig").set_thread_area(regs.ebx),
+        252 => @import("syscalls/exit.zig").exit(regs.ebx),
+        258 => @import("syscalls/thread.zig").set_tid_address(regs.ebx),
         else => {
+            serial.format("Unhandled syscall: {}\n", .{regs.eax});
             @panic("Unhandled syscall");
         },
     };
@@ -180,31 +190,6 @@ noinline fn read(fd: usize, buff: usize, count: usize) isize {
         return @intCast(isize, file.read(user_buf) catch return -1);
     }
     return -1;
-}
-
-noinline fn write(fd: usize, buff: usize, count: usize) isize {
-    scheduler.canSwitch = false;
-    defer scheduler.canSwitch = true;
-    if (scheduler.runningProcess.fd[fd]) |file| {
-        var user_buf = scheduler.runningProcess.pd.vBufferToPhy(count, buff) catch return -1;
-        return @intCast(isize, file.write(user_buf) catch return -1);
-    }
-    return -1;
-}
-
-noinline fn exit(code: usize) isize {
-    scheduler.canSwitch = false;
-    scheduler.runningProcess.status = .Zombie;
-    scheduler.runningProcess.state = .{ .ExitCode = code };
-    if (scheduler.runningProcess.parent) |parent| {
-        if (parent.status == .Sleeping) {
-            parent.status = .Paused;
-            scheduler.queue.writeItem(parent) catch @panic("Alloc failure in exit");
-        }
-    } else @panic("Init process exited");
-    scheduler.canSwitch = true;
-    scheduler.schedule(undefined, undefined, undefined);
-    return 0;
 }
 
 noinline fn usage(u_ptr: usize) !isize {
