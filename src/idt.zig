@@ -1,4 +1,5 @@
 const vga = @import("vga.zig");
+const log = @import("log.zig");
 const gdt = @import("gdt.zig");
 const utils = @import("utils.zig");
 const paging = @import("memory/paging.zig");
@@ -130,14 +131,14 @@ const InterruptFrame = packed struct {
 };
 
 export fn exception(frame: *InterruptFrame) callconv(.C) void {
-    vga.format("Exception: {s} with code {d} at 0x{x:0>8}\n", .{
+    log.format("Exception: {s} with code {d} at 0x{x:0>8}\n", .{
         EXCEPTIONS[frame.index],
         frame.code,
         frame.eip,
     });
     if (frame.index == 14) {
-        vga.format("Fauld addr: 0x{x:0>8}\n", .{utils.get_register(.cr2)});
-        vga.format("Current cr3: 0x{x:0>8}\n", .{utils.get_register(.cr3)});
+        log.format("Fauld addr: 0x{x:0>8}\n", .{utils.get_register(.cr2)});
+        log.format("Current cr3: 0x{x:0>8}\n", .{utils.get_register(.cr3)});
         utils.halt();
     }
 }

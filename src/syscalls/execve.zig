@@ -30,13 +30,11 @@ fn do_execve(path: []const u8, frame: *IretFrame) !void {
     var header: ElfHeader = undefined;
     _ = try dentry.inode.read(std.mem.asBytes(&header), 0);
     try validate_header(&header);
-    // serial.format("{s}", .{ header });
     const phtable = try mem.allocator.alloc(ProgramHeader, header.phnum);
     defer mem.allocator.free(phtable);
     const size = try dentry.inode.read(std.mem.sliceAsBytes(phtable), header.phoff);
-    serial.format("{} {}\n", .{ size, header.phentsize * header.phnum });
+    std.debug.assert(size == header.phentsize * header.phnum);
     for (phtable) |entry| {
-        // serial.format("{x}\n", .{ ent });
         if (entry.p_type == .LOAD) {
             try load_entry(entry, dentry);
         }

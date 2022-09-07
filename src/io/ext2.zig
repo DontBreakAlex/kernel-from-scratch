@@ -229,7 +229,7 @@ pub const Inode = struct {
         while (to_read != 0) {
             const block_index = src_cursor / cache.BLOCK_SIZE;
             const index_within_block = src_cursor % cache.BLOCK_SIZE;
-            var block = try cache.getOrReadBuffer(self.fs.drive, self.getNthBlock(block_index));
+            var block = try cache.getOrReadBuffer(self.fs.drive, try self.getNthBlock(block_index));
             const will_read = std.math.min(to_read, cache.BLOCK_SIZE - index_within_block);
             std.mem.copy(u8, dst[dst_cursor .. will_read + dst_cursor], block.data.slice[index_within_block .. will_read + index_within_block]);
             defer cache.releaseBuffer(block);
@@ -249,7 +249,7 @@ pub const Inode = struct {
         while (to_write != 0) {
             const block_index = disk_cursor / cache.BLOCK_SIZE;
             const index_within_block = disk_cursor % cache.BLOCK_SIZE;
-            var block_id = self.getNthBlock(block_index);
+            var block_id = try self.getNthBlock(block_index);
             if (block_id == 0) {
                 block_id = try self.fs.allocBlock();
                 self.setNthBlock(block_index, block_id);
@@ -266,11 +266,23 @@ pub const Inode = struct {
         std.debug.assert(to_write == 0);
     }
 
-    fn getNthBlock(self: *const Self, n: u32) u32 {
+    const PTR_PER_BLOCK = cache.BLOCK_SIZE / 4;
+
+    fn getNthBlock(self: *const Self, n: u32) !u32 {
         return switch (n) {
             0...11 => self.blocks[n],
+            12...PTR_PER_BLOCK => {
+                return self.getNthByteOfBlock(self.i_block, n - 12);
+            },
             else => @panic("Unimplemented"),
         };
+    }
+
+    fn getNthByteOfBlock(self: *const Self, block: u32, n: u32) !u32 {
+        var buffer = try cache.getOrReadBuffer(self.fs.drive, block);
+        defer cache.releaseBuffer(buffer);
+        var data = std.mem.bytesAsSlice(u32, buffer.data.slice);
+        return data[n];
     }
 
     fn setNthBlock(self: *Self, n: u32, blk: u32) void {
@@ -386,7 +398,7 @@ pub const Inode = struct {
 
     pub fn addChild(self: *Self, name: []const u8, inode: usize, indicator: Type) !void {
         const last_used_blk_index = self.size / self.fs.superblock.getBlockSize() - 1;
-        const blk = try cache.getOrReadBuffer(self.fs.drive, self.getNthBlock(last_used_blk_index));
+        const blk = try cache.getOrReadBuffer(self.fs.drive, try self.getNthBlock(last_used_blk_index));
         defer cache.releaseBuffer(blk);
         var current = @ptrCast(*DiskDirent, blk.data.slice); // TODO: Reuse released blocks
         while (@ptrToInt(current) + current.size != @ptrToInt(blk.data.slice) + blk.data.slice.len)
