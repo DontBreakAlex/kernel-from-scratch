@@ -31,7 +31,7 @@ export fn kernel_main() void {
     srl.init() catch vga.putStr("Failed to init serial\n");
     idt.init();
     pic.init();
-    // pit.init();
+    pit.init();
     srl.format("Phy memory: 0x{x:0>8}-0x{x:0>8}\n", .{ 0x100000, 0x100000 + mlb.MULTIBOOT.mem_upper * 1024 });
     mem.init(mlb.MULTIBOOT.mem_upper / 4);
     // mlb.loadSymbols() catch {};
