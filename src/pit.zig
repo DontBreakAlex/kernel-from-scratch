@@ -25,12 +25,15 @@ pub fn init() void {
     utils.enable_int();
 }
 
+var ticksPerSecond = (BASE_FREQ / @as(usize, DIVISOR));
+
 pub fn setDivisor(divisor: u16) void {
     utils.disable_int();
     utils.out(PIT_CMD_PORT, 0b00110100);
     utils.out(PIT_DATA_PORT, @truncate(u8, divisor));
     utils.out(PIT_DATA_PORT, @truncate(u8, divisor >> 8));
     DIVISOR = divisor;
+    ticksPerSecond = (BASE_FREQ / @as(usize, DIVISOR));
     utils.enable_int();
 }
 
@@ -40,15 +43,22 @@ pub fn setFrequency(frequency: usize) void {
 
 /// Number of ticks since kernel started
 var ticksSinceBoot: usize = 0;
+var epoch: usize = 0;
+var counter: usize = 0;
 
 pub fn handleIrq0() void {
     ticksSinceBoot += 1;
-    showUptime();
+    counter += 1;
+    if (counter >= ticksPerSecond) {
+        counter = 0;
+        epoch += 1;
+    }
+
     utils.out(pic.MASTER_CMD, pic.EOI);
 }
 
 fn showUptime() void {
-    var seconds = ticksSinceBoot / (BASE_FREQ / @as(usize, DIVISOR));
+    var seconds = ticksSinceBoot / ticksPerSecond;
     var hours = seconds / 60;
     seconds %= 60;
     var days = hours / 24;

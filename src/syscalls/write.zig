@@ -20,7 +20,7 @@ pub noinline fn writev(fd: usize, iovec_ptr: usize, iovec_cnt: usize) isize {
     var vecs = @intToPtr([*]IoVec, phy_ptr)[0..iovec_cnt];
     for (vecs) |vec| {
         var buff = @intToPtr([*]u8, scheduler.runningProcess.pd.virtToPhy(vec.iov_base) orelse return -1)[0..vec.iov_len];
-        serial.format("vec: {s}\n", .{ buff });
+        serial.format("vec: {s}\n", .{buff});
         ret += do_write(fd, buff) catch return -1;
     }
     return @intCast(isize, ret);
