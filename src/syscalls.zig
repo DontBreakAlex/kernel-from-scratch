@@ -103,17 +103,19 @@ export fn syscallHandlerInKS(regs: *Regs, u_cr3: *[1024]PageEntry, saved_esp: us
         6 => close(regs.ebx),
         7 => waitpid(),
         11 => @import("syscalls/execve.zig").execve(regs.ebx, regs.ecx, frame),
+        13 => @import("syscalls/time.zig").time(regs.ebx),
         20 => getpid(),
         36 => sync(),
         37 => kill(regs.ebx, regs.ecx),
         42 => @import("syscalls/pipe.zig").pipe(regs.ebx) catch -1,
+        45 => @import("syscalls/brk.zig").brk(regs.ebx),
         48 => signal(regs.ebx, regs.ecx),
         54 => @import("syscalls/ioctl.zig").ioctl(regs.ebx, regs.ecx, regs.edx),
         78 => getdents(regs.ebx, regs.ecx, regs.edx),
         79 => getcwd(regs.ebx, regs.ecx),
         80 => chdir(regs.ebx, regs.ecx),
-        90 => mmap(regs.ebx),
-        91 => munmap(regs.ebx, regs.ecx),
+        500 => mmap(regs.ebx),
+        501 => munmap(regs.ebx, regs.ecx),
         102 => getuid(),
         146 => @import("syscalls/write.zig").writev(regs.ebx, regs.ecx, regs.edx),
         162 => sleep(),
@@ -123,9 +125,10 @@ export fn syscallHandlerInKS(regs: *Regs, u_cr3: *[1024]PageEntry, saved_esp: us
         243 => @import("syscalls/thread.zig").set_thread_area(regs.ebx),
         252 => @import("syscalls/exit.zig").exit(regs.ebx),
         258 => @import("syscalls/thread.zig").set_tid_address(regs.ebx),
-        else => {
+        else => blk: {
             serial.format("Unhandled syscall: {}\n", .{regs.eax});
-            @panic("Unhandled syscall");
+            // @panic("Unhandled syscall");
+            break :blk -58;
         },
     };
     // serial.format("eax = {}\n", .{ userEax.* });

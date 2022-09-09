@@ -42,6 +42,8 @@ pub const Process = struct {
     vmem: vmem.VMemManager,
     fd: [FD_COUNT]?*File,
     cwd: *DirEnt,
+    base_brk: usize,
+    brk: usize,
 
     pub fn queueSignal(self: *Process, sig: Signal) !void {
         const ret = try self.signals.writeItem(sig);
