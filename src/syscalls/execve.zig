@@ -25,9 +25,7 @@ pub noinline fn execve(buff: usize, size: usize, frame: *IretFrame, regs: *Regs)
 }
 
 fn do_execve(path: []const u8, frame: *IretFrame, regs: *Regs) !void {
-    var dentry: *DirEnt = undefined;
-    if ((try scheduler.runningProcess.cwd.resolve(path, &dentry)) != .Found)
-        return error.NotFound;
+    var dentry: *DirEnt = try scheduler.runningProcess.cwd.resolve(path);
     var header: ElfHeader = undefined;
     _ = try dentry.inode.read(std.mem.asBytes(&header), 0);
     try validate_header(&header);

@@ -280,8 +280,8 @@ noinline fn getcwd(buff: usize, size: usize) isize {
 
 noinline fn chdir(buff: usize, size: usize) isize {
     var path = scheduler.runningProcess.pd.vBufferToPhy(size, buff) catch return -1;
-    const result = scheduler.runningProcess.cwd.resolve(path, &scheduler.runningProcess.cwd) catch return -1;
-    return if (result == .Found) 0 else -1;
+    scheduler.runningProcess.cwd = scheduler.runningProcess.cwd.resolve(path) catch return -1;
+    return 0;
 }
 
 noinline fn getdents(fd: usize, buff: usize, size: usize) isize {

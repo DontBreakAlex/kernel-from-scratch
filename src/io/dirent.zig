@@ -221,11 +221,13 @@ pub const DirEnt = struct {
     }
 
     const Iterator = std.mem.TokenIterator(u8);
-    const ResolveResult = enum {
-        Found,
-        ParentExists,
+    const ResolveResult = union(enum) {
+        NotFound,
+        Found: *DirEnt,
+        ParentExists: *DirEnt,
     };
-    pub fn resolve(self: *DirEnt, path: []const u8, ptr: **DirEnt) !ResolveResult {
+
+    pub fn resolveWithResult(self: *DirEnt, path: []const u8) !ResolveResult {
         var cursor: *DirEnt = if (path[0] == '/') &fs.root_dirent else self;
         var iterator: Iterator = std.mem.tokenize(u8, path, "/");
         while (iterator.next()) |name| {
@@ -240,15 +242,20 @@ pub const DirEnt = struct {
             } else |err| {
                 if (err == error.NotFound) {
                     if (iterator.next() == null) {
-                        ptr.* = cursor;
-                        return .ParentExists;
+                        return ResolveResult{ .ParentExists = cursor };
                     }
                 }
                 return err;
             }
         }
-        ptr.* = cursor;
-        return .Found;
+        return ResolveResult{ .Found = cursor };
+    }
+
+    pub fn resolve(self: *DirEnt, path: []const u8) !*DirEnt {
+        return switch (try self.resolveWithResult(path)) {
+            .Found => |d| d,
+            else => return error.NotFound,
+        };
     }
 
     pub fn findChildren(self: *DirEnt, name: []const u8) !*DirEnt {

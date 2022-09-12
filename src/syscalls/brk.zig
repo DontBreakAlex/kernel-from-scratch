@@ -5,9 +5,9 @@ const paging = @import("../memory/paging.zig");
 const s = @import("../scheduler.zig");
 
 pub noinline fn brk(new_brk: usize) isize {
-    serial.format("brk called with: 0x{x}\n", .{ new_brk });
+    serial.format("brk called with: 0x{x}\n", .{new_brk});
     if (new_brk == 0) {
-        serial.format("brk returned 0x{x}\n", .{ s.runningProcess.brk });
+        serial.format("brk returned 0x{x}\n", .{s.runningProcess.brk});
         return @intCast(isize, s.runningProcess.brk);
     }
     if (new_brk > s.runningProcess.brk)
@@ -15,7 +15,7 @@ pub noinline fn brk(new_brk: usize) isize {
     else
         reduceBrk(new_brk) catch @panic("brk failure");
     s.runningProcess.brk = new_brk;
-    serial.format("brk return 0x{x}\n", .{ s.runningProcess.brk });
+    serial.format("brk return 0x{x}\n", .{s.runningProcess.brk});
     return @intCast(isize, new_brk);
     // return 0;
 }
