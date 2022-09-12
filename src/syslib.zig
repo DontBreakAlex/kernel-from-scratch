@@ -30,7 +30,7 @@ pub fn write(fd: isize, buffer: []const u8) isize {
 
 pub fn mmap(cnt: usize) ![]u8 {
     var buf = asm volatile (
-        \\mov $90, %%eax
+        \\mov $500, %%eax
         \\int $0x80
         : [ret] "=&{eax}" (-> isize),
         : [cnt] "{ebx}" (cnt),
@@ -43,7 +43,7 @@ pub fn mmap(cnt: usize) ![]u8 {
 
 pub fn munmap(buf: []u8) void {
     asm volatile (
-        \\mov $91, %%eax
+        \\mov $501, %%eax
         \\int $0x80
         :
         : [addr] "{ebx}" (buf.ptr),

@@ -63,7 +63,6 @@ pub fn setIdtEntry(index: u8, handler: usize, privilege: u2) void {
 const InterruptHandler = fn (*Regs) void;
 pub const Config = struct {
     save_fpu: bool = false,
-    swap_cr3: bool = false,
 };
 
 pub fn setInterruptHandler(index: u8, comptime handler: InterruptHandler, comptime config: Config, privilege: u2) void {

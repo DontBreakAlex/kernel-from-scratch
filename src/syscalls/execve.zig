@@ -16,14 +16,15 @@ const PageDirectory = paging.PageDirectory;
 const ProcessState = proc.ProcessState;
 const IretFrame = idt.IretFrame;
 const AuxiliaryVectorValue = elf.AuxiliaryVectorValue;
+const Regs = idt.Regs;
 
-pub noinline fn execve(buff: usize, size: usize, frame: *IretFrame) isize {
+pub noinline fn execve(buff: usize, size: usize, frame: *IretFrame, regs: *Regs) isize {
     var path = scheduler.runningProcess.pd.vBufferToPhy(size, buff) catch return -1;
-    do_execve(path, frame) catch return -1;
+    do_execve(path, frame, regs) catch return -1;
     return 0;
 }
 
-fn do_execve(path: []const u8, frame: *IretFrame) !void {
+fn do_execve(path: []const u8, frame: *IretFrame, regs: *Regs) !void {
     var dentry: *DirEnt = undefined;
     if ((try scheduler.runningProcess.cwd.resolve(path, &dentry)) != .Found)
         return error.NotFound;
@@ -34,17 +35,23 @@ fn do_execve(path: []const u8, frame: *IretFrame) !void {
     defer mem.allocator.free(phtable);
     const size = try dentry.inode.read(std.mem.sliceAsBytes(phtable), header.phoff);
     std.debug.assert(size == header.phentsize * header.phnum);
+    var brk: usize = 0;
     for (phtable) |entry| {
         if (entry.p_type == .LOAD) {
             try load_entry(entry, dentry);
+            if (entry.vaddr + entry.memsz > brk)
+                brk = entry.vaddr + entry.memsz;
         }
     }
     // TODO: Probably more things to do, like resetting signal handlers
+    scheduler.runningProcess.base_brk = brk;
+    scheduler.runningProcess.brk = brk;
     var esp: usize = proc.US_STACK_BASE - 8;
     utils.push(&esp, AuxiliaryVectorValue{ ._type = .NULL, .value = undefined });
     utils.push(&esp, @as(u32, 0));
     utils.push(&esp, @as(u32, 0));
     utils.push(&esp, @as(u32, 0));
+    regs.edx = 0;
     frame.esp = esp;
     frame.eip = header.entry;
 }

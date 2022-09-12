@@ -24,8 +24,8 @@ pub var inode = kernfs.Inode{
 pub fn recieve(buff: []const u8) void {
     bufferIn.write(buff) catch vga.putStr("Could not handle keypress\n");
     if (scheduler.events.getPtr(.{ .IO_WRITE = .{ .kern = &inode } })) |array| {
-        if (array.items.len == 0)
-            @panic("Check");
+        // if (array.items.len == 0)
+        //     @panic("Check");
         scheduler.queue.write(array.items) catch unreachable;
         array.clearRetainingCapacity();
     }
