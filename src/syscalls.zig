@@ -89,7 +89,7 @@ export fn syscallHandlerInKS(regs: *Regs, u_cr3: *[1024]PageEntry, saved_esp: us
     const userEax: *volatile isize = @ptrCast(*volatile isize, &regs.eax);
     scheduler.canSwitch = true;
     var frame = @intToPtr(*IretFrame, @ptrToInt(regs) + 32);
-    // serial.format("{x}\n", .{ frame });
+    serial.format("{}\n", .{ regs.eax });
     @setRuntimeSafety(false);
     userEax.* = switch (regs.eax) {
         1 => @import("syscalls/exit.zig").exit(regs.ebx),
@@ -120,6 +120,7 @@ export fn syscallHandlerInKS(regs: *Regs, u_cr3: *[1024]PageEntry, saved_esp: us
         146 => @import("syscalls/write.zig").writev(regs.ebx, regs.ecx, regs.edx),
         162 => sleep(),
         177 => sigwait(),
+        195 => @import("syscalls/stat.zig").stat64(regs.ebx, regs.ecx),
         222 => usage(regs.ebx) catch -1,
         223 => command(regs.ebx),
         243 => @import("syscalls/thread.zig").set_thread_area(regs.ebx),

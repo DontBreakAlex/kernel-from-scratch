@@ -27,7 +27,7 @@ pub const Mode = packed struct {
 
     pub fn toU16(self: *const Mode) u16 {
         const bytes = std.mem.asBytes(self);
-        return bytes[1] | @intCast(u16, bytes[0]) << 8;
+        return bytes[0] | @intCast(u16, bytes[1]) << 8;
     }
 
     pub fn fromU16(raw_mode: u16) Mode {

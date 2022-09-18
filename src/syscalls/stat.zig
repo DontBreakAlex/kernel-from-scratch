@@ -1,5 +1,7 @@
+const std = @import("std");
 const time = @import("../time.zig");
 const s = @import("../scheduler.zig");
+const serial = @import("../serial.zig");
 
 const DirEnt = @import("../io/dirent.zig").DirEnt;
 const Timespec = time.Timespec;
@@ -42,19 +44,32 @@ pub const Stat64 = struct {
     st_ino: u64,
 };
 
-pub noinline fn stat64(ptr: usize, size: usize, statbuf: usize) isize {
+pub noinline fn stat64(ptr: usize, statbuf: usize) isize {
     do_stat64(
-        s.runningProcess.pd.vBufferToPhy(size, ptr) catch return -1,
-        @intToPtr(s.runningProcess.pd.virtToPhy(statbuf)) orelse return -1,
-    );
+        std.mem.span(@intToPtr([*:0]const u8, s.runningProcess.pd.virtToPhy(ptr) orelse return -1)),
+        @intToPtr(*Stat64, s.runningProcess.pd.virtToPhy(statbuf) orelse return -1),
+    ) catch return -1;
+    return 0;
 }
 
 fn do_stat64(path: []const u8, statbuf: *Stat64) !void {
-    var dentry: *DirEnt = try s.runningProcess.cwd.resolve(path, &dentry);
+    serial.format("stat64 called with path={s}, statbuf={*}\n", .{ path, statbuf });
+    var dentry: *DirEnt = try s.runningProcess.cwd.resolve(path);
 
     statbuf.st_dev = dentry.inode.getDevId();
+    statbuf.st_ino = dentry.inode.getId();
     statbuf.__st_ino = dentry.inode.getId();
     statbuf.st_mode = dentry.inode.getMode();
     statbuf.st_nlink = dentry.inode.getLinkCount();
     statbuf.st_uid = dentry.inode.getUid();
+    statbuf.st_gid = dentry.inode.getGid();
+    statbuf.st_rdev = 0;
+    statbuf.st_size = dentry.inode.getSize();
+    statbuf.st_blksize = dentry.inode.getBlkSize();
+    statbuf.st_blocks = @intCast(u32, @divTrunc(statbuf.st_size + 511, 512));
+    statbuf.st_atim = .{ .tv_sec = 0, .tv_nsec = 0 };
+    statbuf.st_mtim = .{ .tv_sec = 0, .tv_nsec = 0 };
+    statbuf.st_ctim = .{ .tv_sec = 0, .tv_nsec = 0 };
+
+    serial.format("{s}\n", .{statbuf.*} );
 }

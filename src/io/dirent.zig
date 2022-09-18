@@ -129,47 +129,67 @@ pub const InodeRef = union(enum) {
     }
 
     pub fn getDevId(self: Self) usize {
-        switch (self) {
+        return switch (self) {
             .ext => self.ext.getDevId(),
             .pipe => 1,
             .kern => 2,
-        }
+        };
     }
 
     pub fn getId(self: Self) u32 {
-        switch (self) {
+        return switch (self) {
             .ext => self.ext.getId(),
             .pipe => self.pipe.getId(),
             .kern => self.kern.getId(),
-        }
+        };
     }
 
     pub fn getMode(self: Self) u16 {
-        switch (self) {
+        return switch (self) {
             .ext => self.ext.mode.toU16(),
             .pipe => 511,
             .kern => 511,
-        }
+        };
     }
 
     pub fn getLinkCount(self: Self) u16 {
-        switch (self) {
+        return switch (self) {
             .ext => self.ext.links_count,
             .pipe => 1,
             .kern => 1,
-        }
+        };
     }
 
     pub fn getUid(self: Self) u16 {
-        switch (self) {
+        return switch (self) {
             .ext => self.ext.uid,
-        }
+            .pipe => 0,
+            .kern => 0,
+        };
     }
 
     pub fn getGid(self: Self) u16 {
-        switch (self) {
+        return switch (self) {
             .ext => self.ext.gid,
-        }
+            .pipe => 0,
+            .kern => 0,
+        };
+    }
+
+    pub fn getSize(self: Self) usize {
+        return switch (self) {
+            .ext => self.ext.size,
+            .pipe => 0,
+            .kern => 0,
+        };
+    }
+
+    pub fn getBlkSize(self: Self) usize {
+        return switch (self) {
+            .ext => self.ext.fs.superblock.getBlockSize(),
+            .pipe => 0,
+            .kern => 0,
+        };
     }
 };
 
