@@ -1,6 +1,7 @@
 const time = @import("../time.zig");
 const s = @import("../scheduler.zig");
 
+const DirEnt = @import("../io/dirent.zig").DirEnt;
 const Timespec = time.Timespec;
 
 pub const Stat = struct {
@@ -50,4 +51,10 @@ pub noinline fn stat64(ptr: usize, size: usize, statbuf: usize) isize {
 
 fn do_stat64(path: []const u8, statbuf: *Stat64) !void {
     var dentry: *DirEnt = try s.runningProcess.cwd.resolve(path, &dentry);
+
+    statbuf.st_dev = dentry.inode.getDevId();
+    statbuf.__st_ino = dentry.inode.getId();
+    statbuf.st_mode = dentry.inode.getMode();
+    statbuf.st_nlink = dentry.inode.getLinkCount();
+    statbuf.st_uid = dentry.inode.getUid();
 }

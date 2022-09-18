@@ -65,4 +65,8 @@ pub const Inode = struct {
     pub fn currentSize(self: *const Self) usize {
         return self.buffer.readableLength();
     }
+
+    pub fn getId(self: *const Self) u32 {
+        return @ptrToInt(self);
+    }
 };

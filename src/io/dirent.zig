@@ -127,6 +127,50 @@ pub const InodeRef = union(enum) {
             .kern => unreachable,
         };
     }
+
+    pub fn getDevId(self: Self) usize {
+        switch (self) {
+            .ext => self.ext.getDevId(),
+            .pipe => 1,
+            .kern => 2,
+        }
+    }
+
+    pub fn getId(self: Self) u32 {
+        switch (self) {
+            .ext => self.ext.getId(),
+            .pipe => self.pipe.getId(),
+            .kern => self.kern.getId(),
+        }
+    }
+
+    pub fn getMode(self: Self) u16 {
+        switch (self) {
+            .ext => self.ext.mode.toU16(),
+            .pipe => 511,
+            .kern => 511,
+        }
+    }
+
+    pub fn getLinkCount(self: Self) u16 {
+        switch (self) {
+            .ext => self.ext.links_count,
+            .pipe => 1,
+            .kern => 1,
+        }
+    }
+
+    pub fn getUid(self: Self) u16 {
+        switch (self) {
+            .ext => self.ext.uid,
+        }
+    }
+
+    pub fn getGid(self: Self) u16 {
+        switch (self) {
+            .ext => self.ext.gid,
+        }
+    }
 };
 
 pub const DirEnt = struct {
