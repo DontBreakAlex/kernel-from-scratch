@@ -13,6 +13,8 @@ const pipe_ = @import("pipe.zig");
 const dirent = @import("io/dirent.zig");
 const cache = @import("io/cache.zig");
 
+const DEBUG = @import("constants.zig").DEBUG;
+
 const PageDirectory = paging.PageDirectory;
 const PageEntry = paging.PageEntry;
 const PageAllocator = @import("memory/page_allocator.zig").PageAllocator;
@@ -89,25 +91,22 @@ export fn syscallHandlerInKS(regs: *Regs, u_cr3: *[1024]PageEntry, saved_esp: us
     const userEax: *volatile isize = @ptrCast(*volatile isize, &regs.eax);
     scheduler.canSwitch = true;
     var frame = @intToPtr(*IretFrame, @ptrToInt(regs) + 32);
-    serial.format("{}\n", .{ regs.eax });
+    // serial.format("{}\n", .{ regs.eax });
     @setRuntimeSafety(false);
     userEax.* = switch (regs.eax) {
         1 => @import("syscalls/exit.zig").exit(regs.ebx),
-        2 => fork(regs, saved_esp) catch |err| cat: {
-            serial.format("Fork error: {}\n", .{err});
-            break :cat -1;
-        },
-        3 => read(regs.ebx, regs.ecx, regs.edx),
+        2 => @import("syscalls/fork.zig").fork(regs, saved_esp),
+        3 => @import("syscalls/read.zig").read(regs.ebx, regs.ecx, regs.edx),
         4 => @import("syscalls/write.zig").write(regs.ebx, regs.ecx, regs.edx),
-        5 => @import("syscalls/open.zig").open(regs.ebx, regs.ecx, regs.edx, @truncate(u16, regs.esi)),
-        6 => close(regs.ebx),
+        5 => @import("syscalls/open.zig").open(regs.ebx, regs.ecx, @truncate(u16, regs.edx)),
+        6 => @import("syscalls/close.zig").close(regs.ebx),
         7 => waitpid(),
         11 => @import("syscalls/execve.zig").execve(regs.ebx, regs.ecx, frame, regs),
         13 => @import("syscalls/time.zig").time(regs.ebx),
         20 => getpid(),
         36 => sync(),
         37 => kill(regs.ebx, regs.ecx),
-        42 => @import("syscalls/pipe.zig").pipe(regs.ebx) catch -1,
+        42 => @import("syscalls/pipe.zig").pipe(regs.ebx),
         45 => @import("syscalls/brk.zig").brk(regs.ebx),
         48 => signal(regs.ebx, regs.ecx),
         54 => @import("syscalls/ioctl.zig").ioctl(regs.ebx, regs.ecx, regs.edx),
@@ -129,10 +128,11 @@ export fn syscallHandlerInKS(regs: *Regs, u_cr3: *[1024]PageEntry, saved_esp: us
         else => blk: {
             serial.format("Unhandled syscall: {}\n", .{regs.eax});
             // @panic("Unhandled syscall");
-            break :blk -58;
+            break :blk -38;
         },
     };
-    // serial.format("eax = {}\n", .{ userEax.* });
+    if (comptime DEBUG)
+        serial.format(", returned {}\n", .{userEax.*});
     if (scheduler.wantsToSwitch) {
         scheduler.wantsToSwitch = false;
         scheduler.schedule(saved_esp, @ptrToInt(regs), @ptrToInt(u_cr3));
@@ -160,21 +160,6 @@ noinline fn getuid() isize {
     return scheduler.runningProcess.owner_id;
 }
 
-noinline fn fork(regs_ptr: *idt.Regs, us_esp: usize) !isize {
-    const new_process = try scheduler.runningProcess.clone();
-    errdefer new_process.deinit();
-    new_process.state.SavedState.esp = us_esp;
-    new_process.state.SavedState.regs = @ptrToInt(regs_ptr);
-    scheduler.canSwitch = false;
-    {
-        const regs = try new_process.pd.vPtrToPhy(idt.Regs, regs_ptr);
-        regs.eax = 0;
-    }
-    try scheduler.queue.writeItem(new_process);
-    scheduler.canSwitch = true;
-    return new_process.pid;
-}
-
 noinline fn sleep() isize {
     if (!scheduler.canSwitch)
         unreachable;
@@ -184,16 +169,6 @@ noinline fn sleep() isize {
 
 noinline fn signal(sig: usize, handler: usize) isize {
     return @bitCast(isize, scheduler.runningProcess.setSigHanlder(@intToEnum(proc.Signal, @truncate(u8, sig)), handler));
-}
-
-noinline fn read(fd: usize, buff: usize, count: usize) isize {
-    scheduler.canSwitch = false;
-    defer scheduler.canSwitch = true;
-    if (scheduler.runningProcess.fd[fd]) |file| {
-        var user_buf = scheduler.runningProcess.pd.vBufferToPhy(count, buff) catch return -1;
-        return @intCast(isize, file.read(user_buf) catch return -1);
-    }
-    return -1;
 }
 
 noinline fn usage(u_ptr: usize) !isize {
@@ -247,14 +222,6 @@ noinline fn sigwait() isize {
     scheduler.runningProcess.status = .Sleeping;
     scheduler.wantsToSwitch = true;
     return 0;
-}
-
-noinline fn close(fd: usize) isize {
-    if (scheduler.runningProcess.fd[fd]) |file| {
-        file.close();
-        return 0;
-    }
-    return -1;
 }
 
 noinline fn command(cmd: usize) isize {

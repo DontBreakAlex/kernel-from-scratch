@@ -2,8 +2,14 @@ const f = @import("../io/fcntl.zig");
 const scheduler = @import("../scheduler.zig");
 const createPipe = @import("../pipe.zig").createPipe;
 const fs = @import("../io/fs.zig");
+const serial = @import("../serial.zig");
 
-pub noinline fn pipe(us_fds: usize) !isize {
+pub noinline fn pipe(us_fds: usize) isize {
+    if (comptime @import("../constants.zig").DEBUG)
+        serial.format("pipe called with fds=0x{x}", .{us_fds});
+    return do_pipe(us_fds) catch return -1;
+}
+pub noinline fn do_pipe(us_fds: usize) !isize {
     const new_pipe = try createPipe();
     defer new_pipe.release();
     const ks_fds = try scheduler.runningProcess.pd.vPtrToPhy([2]usize, @intToPtr(*[2]usize, us_fds));

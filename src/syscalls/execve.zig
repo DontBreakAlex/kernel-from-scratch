@@ -20,6 +20,8 @@ const Regs = idt.Regs;
 
 pub noinline fn execve(buff: usize, size: usize, frame: *IretFrame, regs: *Regs) isize {
     var path = scheduler.runningProcess.pd.vBufferToPhy(size, buff) catch return -1;
+    if (comptime @import("../constants.zig").DEBUG)
+        serial.format("execve called with path={s}", .{path});
     do_execve(path, frame, regs) catch return -1;
     return 0;
 }

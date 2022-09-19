@@ -2,13 +2,19 @@ const scheduler = @import("../scheduler.zig");
 const std = @import("std");
 const f = @import("../io/fcntl.zig");
 const log = @import("../log.zig");
+const serial = @import("../serial.zig");
 
 const DirEnt = @import("../io/dirent.zig").DirEnt;
 const File = @import("../io/fs.zig").File;
 const Mode = @import("../io/mode.zig").Mode;
 
-pub noinline fn open(buff: usize, size: usize, flags: usize, raw_mode: u16) isize {
-    var path = scheduler.runningProcess.pd.vBufferToPhy(size, buff) catch return -1;
+pub noinline fn open(buff: usize, flags: usize, raw_mode: u16) isize {
+    var path = std.mem.span(@intToPtr([*:0]const u8, scheduler.runningProcess.pd.virtToPhy(buff) orelse return -1));
+    if (comptime @import("../constants.zig").DEBUG)
+        serial.format("open called with path={s}, flags={}, mode={}", .{ path, flags, raw_mode });
+    return do_open(path, flags, raw_mode);
+}
+fn do_open(path: []const u8, flags: usize, raw_mode: u16) isize {
     var dentry: *DirEnt = switch (scheduler.runningProcess.cwd.resolveWithResult(path) catch return -1) {
         .Found => |d| d,
         .ParentExists => |d| blk: {
