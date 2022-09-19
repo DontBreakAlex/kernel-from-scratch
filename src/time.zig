@@ -4,6 +4,11 @@ const log = @import("log.zig");
 const CMOS_ADDR = 0x70;
 const CMOS_DATA = 0x71;
 
+pub const Timespec = struct {
+    tv_sec: i32,
+    tv_nsec: i32,
+};
+
 pub var seconds_since_epoch: usize = 0;
 
 fn isCmosUpadating() bool {

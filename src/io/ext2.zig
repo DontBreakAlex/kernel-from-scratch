@@ -218,6 +218,8 @@ pub const Inode = struct {
     size: u32,
     refcount: usize,
     dirty: bool,
+    uid: u16,
+    gid: u16,
 
     pub fn rawRead(self: *const Self, dst: []u8, offset: u32) !void {
         if (dst.len + offset > self.size)
@@ -439,6 +441,14 @@ pub const Inode = struct {
         try self.addChild(name, inode.id, e_type);
         return inode;
     }
+
+    pub fn getDevId(self: *const Self) usize {
+        return @ptrToInt(self.fs.superblock);
+    }
+
+    pub fn getId(self: *const Self) u32 {
+        return self.id;
+    }
 };
 
 const cache = @import("cache.zig");
@@ -495,6 +505,8 @@ pub const Ext2FS = struct {
             .links_count = node.links_count,
             .refcount = 1,
             .dirty = false,
+            .uid = node.uid,
+            .gid = node.gid,
         };
     }
 

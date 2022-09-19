@@ -100,4 +100,8 @@ pub const Inode = struct {
         cnt.* = i;
         return i;
     }
+
+    pub fn getId(self: *const Self) u32 {
+        return @ptrToInt(self);
+    }
 };

@@ -127,6 +127,70 @@ pub const InodeRef = union(enum) {
             .kern => unreachable,
         };
     }
+
+    pub fn getDevId(self: Self) usize {
+        return switch (self) {
+            .ext => self.ext.getDevId(),
+            .pipe => 1,
+            .kern => 2,
+        };
+    }
+
+    pub fn getId(self: Self) u32 {
+        return switch (self) {
+            .ext => self.ext.getId(),
+            .pipe => self.pipe.getId(),
+            .kern => self.kern.getId(),
+        };
+    }
+
+    pub fn getMode(self: Self) u16 {
+        return switch (self) {
+            .ext => self.ext.mode.toU16(),
+            .pipe => 511,
+            .kern => 511,
+        };
+    }
+
+    pub fn getLinkCount(self: Self) u16 {
+        return switch (self) {
+            .ext => self.ext.links_count,
+            .pipe => 1,
+            .kern => 1,
+        };
+    }
+
+    pub fn getUid(self: Self) u16 {
+        return switch (self) {
+            .ext => self.ext.uid,
+            .pipe => 0,
+            .kern => 0,
+        };
+    }
+
+    pub fn getGid(self: Self) u16 {
+        return switch (self) {
+            .ext => self.ext.gid,
+            .pipe => 0,
+            .kern => 0,
+        };
+    }
+
+    pub fn getSize(self: Self) usize {
+        return switch (self) {
+            .ext => self.ext.size,
+            .pipe => 0,
+            .kern => 0,
+        };
+    }
+
+    pub fn getBlkSize(self: Self) usize {
+        return switch (self) {
+            .ext => self.ext.fs.superblock.getBlockSize(),
+            .pipe => 0,
+            .kern => 0,
+        };
+    }
 };
 
 pub const DirEnt = struct {
@@ -221,11 +285,13 @@ pub const DirEnt = struct {
     }
 
     const Iterator = std.mem.TokenIterator(u8);
-    const ResolveResult = enum {
-        Found,
-        ParentExists,
+    const ResolveResult = union(enum) {
+        NotFound,
+        Found: *DirEnt,
+        ParentExists: *DirEnt,
     };
-    pub fn resolve(self: *DirEnt, path: []const u8, ptr: **DirEnt) !ResolveResult {
+
+    pub fn resolveWithResult(self: *DirEnt, path: []const u8) !ResolveResult {
         var cursor: *DirEnt = if (path[0] == '/') &fs.root_dirent else self;
         var iterator: Iterator = std.mem.tokenize(u8, path, "/");
         while (iterator.next()) |name| {
@@ -240,15 +306,20 @@ pub const DirEnt = struct {
             } else |err| {
                 if (err == error.NotFound) {
                     if (iterator.next() == null) {
-                        ptr.* = cursor;
-                        return .ParentExists;
+                        return ResolveResult{ .ParentExists = cursor };
                     }
                 }
                 return err;
             }
         }
-        ptr.* = cursor;
-        return .Found;
+        return ResolveResult{ .Found = cursor };
+    }
+
+    pub fn resolve(self: *DirEnt, path: []const u8) !*DirEnt {
+        return switch (try self.resolveWithResult(path)) {
+            .Found => |d| d,
+            else => return error.NotFound,
+        };
     }
 
     pub fn findChildren(self: *DirEnt, name: []const u8) !*DirEnt {
