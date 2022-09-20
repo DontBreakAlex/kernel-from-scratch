@@ -11,7 +11,6 @@ const pipefs = @import("io/pipefs.zig");
 const fs = @import("io/fs.zig");
 const pipe_ = @import("pipe.zig");
 const dirent = @import("io/dirent.zig");
-const cache = @import("io/cache.zig");
 
 const DEBUG = @import("constants.zig").DEBUG;
 
@@ -100,22 +99,22 @@ export fn syscallHandlerInKS(regs: *Regs, u_cr3: *[1024]PageEntry, saved_esp: us
         4 => @import("syscalls/write.zig").write(regs.ebx, regs.ecx, regs.edx),
         5 => @import("syscalls/open.zig").open(regs.ebx, regs.ecx, @truncate(u16, regs.edx)),
         6 => @import("syscalls/close.zig").close(regs.ebx),
-        7 => waitpid(),
+        7 => @import("syscalls/wait.zig").waitpid(regs.ebx, regs.ecx, regs.edx),
         11 => @import("syscalls/execve.zig").execve(regs.ebx, regs.ecx, frame, regs),
         13 => @import("syscalls/time.zig").time(regs.ebx),
-        20 => getpid(),
-        36 => sync(),
-        37 => kill(regs.ebx, regs.ecx),
+        20 => @import("syscalls/get.zig").getpid(),
+        36 => @import("syscalls/sync.zig").sync(),
+        37 => @import("syscalls/kill.zig").kill(regs.ebx, regs.ecx),
         42 => @import("syscalls/pipe.zig").pipe(regs.ebx),
         45 => @import("syscalls/brk.zig").brk(regs.ebx),
-        48 => signal(regs.ebx, regs.ecx),
+        48 => @import("syscalls/signal.zig").signal(regs.ebx, regs.ecx),
         54 => @import("syscalls/ioctl.zig").ioctl(regs.ebx, regs.ecx, regs.edx),
-        78 => getdents(regs.ebx, regs.ecx, regs.edx),
-        79 => getcwd(regs.ebx, regs.ecx),
+        78 => @import("syscalls/getdents.zig").getdents(regs.ebx, regs.ecx, regs.edx),
+        79 => @import("syscalls/get.zig").getcwd(regs.ebx, regs.ecx),
         80 => chdir(regs.ebx, regs.ecx),
         500 => mmap(regs.ebx),
         501 => munmap(regs.ebx, regs.ecx),
-        102 => getuid(),
+        102 => @import("syscalls/get.zig").getuid(),
         146 => @import("syscalls/write.zig").writev(regs.ebx, regs.ecx, regs.edx),
         162 => sleep(),
         177 => sigwait(),
@@ -152,14 +151,6 @@ noinline fn munmap(addr: usize, count: usize) isize {
     return 0;
 }
 
-noinline fn getpid() isize {
-    return scheduler.runningProcess.pid;
-}
-
-noinline fn getuid() isize {
-    return scheduler.runningProcess.owner_id;
-}
-
 noinline fn sleep() isize {
     if (!scheduler.canSwitch)
         unreachable;
@@ -167,52 +158,11 @@ noinline fn sleep() isize {
     return 0;
 }
 
-noinline fn signal(sig: usize, handler: usize) isize {
-    return @bitCast(isize, scheduler.runningProcess.setSigHanlder(@intToEnum(proc.Signal, @truncate(u8, sig)), handler));
-}
-
 noinline fn usage(u_ptr: usize) !isize {
     scheduler.canSwitch = false;
     defer scheduler.canSwitch = true;
     var u_struct = try scheduler.runningProcess.pd.vPtrToPhy(PageAllocator.AllocatorUsage, @intToPtr(*PageAllocator.AllocatorUsage, u_ptr));
     u_struct.* = paging.pageAllocator.usage();
-    return 0;
-}
-
-noinline fn waitpid() isize {
-    scheduler.canSwitch = false;
-    defer scheduler.canSwitch = true;
-    var child = scheduler.runningProcess.childrens.first;
-    var prev: ?*proc.Child = null;
-    while (true) {
-        scheduler.runningProcess.status = .Sleeping;
-        scheduler.canSwitch = true;
-        asm volatile ("int $0x81");
-        scheduler.canSwitch = false;
-        while (child) |c| {
-            if (c.data.status == .Zombie) {
-                const pid = c.data.pid;
-                serial.format("Process {} found dead child with PID {}\n", .{ scheduler.runningProcess.pid, pid });
-                if (prev) |p| {
-                    _ = p.removeNext();
-                } else {
-                    _ = scheduler.runningProcess.childrens.popFirst();
-                }
-                c.data.deinit();
-                return @intCast(isize, pid);
-            }
-            prev = c;
-            child = c.next;
-        }
-    }
-    return -1;
-}
-
-noinline fn kill(pid: usize, sig: usize) isize {
-    scheduler.canSwitch = false;
-    defer scheduler.canSwitch = true;
-    const process = scheduler.processes.get(@intCast(u16, pid)) orelse return -1;
-    process.queueSignal(@intToEnum(proc.Signal, sig)) catch return -1;
     return 0;
 }
 
@@ -239,30 +189,8 @@ noinline fn command(cmd: usize) isize {
     return 0;
 }
 
-noinline fn getcwd(buff: usize, size: usize) isize {
-    var user_buf = scheduler.runningProcess.pd.vBufferToPhy(size, buff) catch return -1;
-    var cnt = scheduler.runningProcess.cwd.copyPath(user_buf) catch return -1;
-    user_buf[cnt] = 0;
-    return @intCast(isize, cnt) + 1;
-}
-
 noinline fn chdir(buff: usize, size: usize) isize {
     var path = scheduler.runningProcess.pd.vBufferToPhy(size, buff) catch return -1;
     scheduler.runningProcess.cwd = scheduler.runningProcess.cwd.resolve(path) catch return -1;
-    return 0;
-}
-
-noinline fn getdents(fd: usize, buff: usize, size: usize) isize {
-    if (fd >= proc.FD_COUNT) return -1;
-    var ptr = @intToPtr([*]Dentry, scheduler.runningProcess.pd.virtToPhy(buff) orelse return -1);
-    var cnt = size;
-    var file = scheduler.runningProcess.fd[fd] orelse return -1;
-    _ = file.getDents(ptr, &cnt) catch return -1;
-    return @intCast(isize, cnt);
-}
-
-noinline fn sync() isize {
-    cache.syncAllBuffers();
-    fs.root_fs.sync() catch {};
     return 0;
 }
