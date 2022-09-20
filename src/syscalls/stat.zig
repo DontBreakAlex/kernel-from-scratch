@@ -45,15 +45,15 @@ pub const Stat64 = struct {
 };
 
 pub noinline fn stat64(ptr: usize, statbuf: usize) isize {
-    do_stat64(
-        std.mem.span(@intToPtr([*:0]const u8, s.runningProcess.pd.virtToPhy(ptr) orelse return -1)),
-        @intToPtr(*Stat64, s.runningProcess.pd.virtToPhy(statbuf) orelse return -1),
-    ) catch return -1;
+    var path = std.mem.span(@intToPtr([*:0]const u8, s.runningProcess.pd.virtToPhy(ptr) orelse return -1));
+    var buff = @intToPtr(*Stat64, s.runningProcess.pd.virtToPhy(statbuf) orelse return -1);
+    if (comptime @import("../constants.zig").DEBUG)
+        serial.format("stat64 called with path={s}, statbuf=0x{x}", .{ path, statbuf });
+    do_stat64(path, buff) catch return -1;
     return 0;
 }
 
 fn do_stat64(path: []const u8, statbuf: *Stat64) !void {
-    serial.format("stat64 called with path={s}, statbuf={*}\n", .{ path, statbuf });
     var dentry: *DirEnt = try s.runningProcess.cwd.resolve(path);
 
     statbuf.st_dev = dentry.inode.getDevId();
@@ -71,5 +71,5 @@ fn do_stat64(path: []const u8, statbuf: *Stat64) !void {
     statbuf.st_mtim = .{ .tv_sec = 0, .tv_nsec = 0 };
     statbuf.st_ctim = .{ .tv_sec = 0, .tv_nsec = 0 };
 
-    serial.format("{s}\n", .{statbuf.*} );
+    serial.format("{s}\n", .{statbuf.*});
 }

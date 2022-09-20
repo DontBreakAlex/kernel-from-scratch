@@ -82,9 +82,11 @@ pub fn startProcess(func: Fn) !void {
     inoderef.acquire();
     process.fd[0] = try fs.File.create(dentry, fcntl.O_RDONLY);
     process.fd[1] = try fs.File.create(dentry, fcntl.O_WRONLY);
+    process.fd[2] = try fs.File.create(dentry, fcntl.O_WRONLY);
     dentry.release();
     errdefer process.fd[0].?.close();
     errdefer process.fd[1].?.close();
+    errdefer process.fd[2].?.close();
     process.parent = null;
 
     var i: usize = 0;

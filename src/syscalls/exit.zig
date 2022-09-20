@@ -1,6 +1,13 @@
 const scheduler = @import("../scheduler.zig");
+const serial = @import("../serial.zig");
 
 pub noinline fn exit(code: usize) isize {
+    if (comptime @import("../constants.zig").DEBUG)
+        serial.format("exit called with code={}", .{code});
+    return do_exit(code);
+}
+
+fn do_exit(code: usize) isize {
     scheduler.canSwitch = false;
     scheduler.runningProcess.status = .Zombie;
     scheduler.runningProcess.state = .{ .ExitCode = code };

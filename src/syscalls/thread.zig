@@ -16,12 +16,13 @@ const UserDescriptor = packed struct {
 
 pub noinline fn set_thread_area(descriptor: usize) isize {
     const phy_descriptor = scheduler.runningProcess.pd.virtToPhy(descriptor) orelse return -1;
+    if (comptime @import("../constants.zig").DEBUG)
+        serial.format("set_thread_area called with desc=0x{x}", .{phy_descriptor});
     do_set_thread_area(@intToPtr(*UserDescriptor, phy_descriptor));
     return 0;
 }
 
 fn do_set_thread_area(descriptor: *UserDescriptor) void {
-    serial.format("set_thread_area called {x}\n", .{descriptor});
     if (descriptor.seg_not_present == 1)
         @panic("Attempt to free TLS");
     if (descriptor.entry_number == gdt.TLS_SEG / 8 or descriptor.entry_number == ~@as(u32, 0)) {
@@ -43,13 +44,13 @@ fn do_set_thread_area(descriptor: *UserDescriptor) void {
         gdt_segment.base_high = @truncate(u8, (descriptor.base_addr >> 24));
 
         descriptor.entry_number = gdt.TLS_SEG / 8;
-        serial.format("{x}\n", .{descriptor});
     } else {
         @panic("Unhandled TLS");
     }
 }
 
 pub noinline fn set_tid_address(addr: usize) isize {
-    serial.format("set_tid_address called {}\n", .{addr});
+    if (comptime @import("../constants.zig").DEBUG)
+        serial.format("set_tid_address called {}\n", .{addr});
     return 0;
 }

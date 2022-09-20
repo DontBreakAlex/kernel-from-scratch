@@ -10,11 +10,15 @@ pub noinline fn write(fd: usize, buff: usize, count: usize) isize {
     scheduler.canSwitch = false;
     defer scheduler.canSwitch = true;
     var user_buf = scheduler.runningProcess.pd.vBufferToPhy(count, buff) catch return -1;
+    if (comptime @import("../constants.zig").DEBUG)
+        serial.format("write called with fd={}", .{fd});
     const ret = do_write(fd, user_buf) catch return -1;
     return @intCast(isize, ret);
 }
 
 pub noinline fn writev(fd: usize, iovec_ptr: usize, iovec_cnt: usize) isize {
+    if (comptime @import("../constants.zig").DEBUG)
+        serial.format("writev called with fd={}", .{fd});
     var ret: usize = 0;
     const phy_ptr = scheduler.runningProcess.pd.virtToPhy(iovec_ptr) orelse return -1;
     var vecs = @intToPtr([*]IoVec, phy_ptr)[0..iovec_cnt];
