@@ -223,7 +223,7 @@ pub const Inode = struct {
 
     pub fn rawRead(self: *const Self, dst: []u8, offset: u32) !void {
         if (dst.len + offset > self.size)
-            return error.BufferTooLong;
+            return error.BadAddress; // EFAULT
         var dst_cursor = @as(u32, 0);
         var to_read = dst.len;
         var src_cursor = offset;

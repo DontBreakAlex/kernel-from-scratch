@@ -7,9 +7,11 @@ const cache = @import("cache.zig");
 const serial = @import("../serial.zig");
 const kernfs = @import("./kernfs.zig");
 const log = @import("../log.zig");
+const errno = @import("../syscalls/errno.zig");
 
 const MAX_NESTED = 256;
 const Inode = ext.Inode;
+const SyscallError = errno.SyscallError;
 
 pub const Type = @import("mode.zig").Type;
 const Mode = @import("mode.zig").Mode;
@@ -20,178 +22,7 @@ pub const Dentry = packed struct {
     name: [256]u8,
 };
 
-pub const InodeRef = union(enum) {
-    const Self = @This();
-
-    ext: *ext.Inode,
-    pipe: *pipe.Inode,
-    kern: *kernfs.Inode,
-
-    pub fn lookupChild(self: Self, name: []const u8, indicator: *u8) !?InodeRef {
-        return switch (self) {
-            .ext => try self.ext.lookupChild(name, indicator),
-            .pipe => null,
-            .kern => unreachable,
-        };
-    }
-
-    pub fn compare(lhs: Self, rhs: Self) bool {
-        if (@enumToInt(lhs) != @enumToInt(rhs))
-            return false;
-        return switch (lhs) {
-            .ext => lhs.ext == rhs.ext,
-            .pipe => lhs.pipe == rhs.pipe,
-            .kern => unreachable,
-        };
-    }
-
-    pub fn currentSize(self: *const Self) usize {
-        return switch (self) {
-            .ext => self.ext.currentSize(),
-            .pipe => self.pipe.currentSize(),
-            .kern => unreachable,
-        };
-    }
-
-    pub fn hasOffset(self: Self) bool {
-        return switch (self) {
-            .ext => true,
-            .pipe => false,
-            .kern => false,
-        };
-    }
-
-    pub fn read(self: Self, buff: []u8, offset: usize) !usize {
-        return try switch (self) {
-            .ext => self.ext.read(buff, offset),
-            .pipe => self.pipe.read(buff),
-            .kern => self.kern.read(buff),
-        };
-    }
-
-    pub fn rawRead(self: Self, buff: []u8, offset: usize) !usize {
-        _ = offset;
-        return switch (self) {
-            .ext => unreachable,
-            .pipe => try self.pipe.rawRead(buff),
-            .kern => self.kern.rawRead(buff),
-        };
-    }
-
-    pub fn write(self: Self, buff: []const u8, offset: usize) !usize {
-        _ = offset;
-        return switch (self) {
-            .ext => try self.ext.write(buff, offset),
-            .pipe => try self.pipe.write(buff),
-            .kern => self.kern.write(buff),
-        };
-    }
-
-    pub fn rawWrite(self: Self, buff: []const u8, offset: usize) !usize {
-        _ = offset;
-        return switch (self) {
-            .ext => unreachable,
-            .pipe => try self.pipe.rawWrite(buff),
-            .kern => self.kern.rawWrite(buff),
-        };
-    }
-
-    pub fn getDents(self: Self, ptr: [*]Dentry, cnt: *usize, offset: usize) !usize {
-        return switch (self) {
-            .ext => try self.ext.getDents(ptr, cnt, offset),
-            .pipe => unreachable,
-            .kern => try self.kern.getDents(ptr, cnt, offset),
-        };
-    }
-
-    pub fn acquire(self: Self) void {
-        switch (self) {
-            .ext => self.ext.acquire(),
-            .pipe => self.pipe.acquire(),
-            .kern => self.kern.acquire(),
-        }
-    }
-
-    pub fn release(self: Self) void {
-        switch (self) {
-            .ext => self.ext.release(),
-            .pipe => self.pipe.release(),
-            .kern => self.kern.release(),
-        }
-    }
-
-    pub fn createChild(self: Self, name: []const u8, e_type: Type, mode: Mode) !InodeRef {
-        return switch (self) {
-            .ext => InodeRef{ .ext = try self.ext.createChild(name, e_type, mode) },
-            .pipe => unreachable,
-            .kern => unreachable,
-        };
-    }
-
-    pub fn getDevId(self: Self) usize {
-        return switch (self) {
-            .ext => self.ext.getDevId(),
-            .pipe => 1,
-            .kern => 2,
-        };
-    }
-
-    pub fn getId(self: Self) u32 {
-        return switch (self) {
-            .ext => self.ext.getId(),
-            .pipe => self.pipe.getId(),
-            .kern => self.kern.getId(),
-        };
-    }
-
-    pub fn getMode(self: Self) u16 {
-        return switch (self) {
-            .ext => self.ext.mode.toU16(),
-            .pipe => 511,
-            .kern => 511,
-        };
-    }
-
-    pub fn getLinkCount(self: Self) u16 {
-        return switch (self) {
-            .ext => self.ext.links_count,
-            .pipe => 1,
-            .kern => 1,
-        };
-    }
-
-    pub fn getUid(self: Self) u16 {
-        return switch (self) {
-            .ext => self.ext.uid,
-            .pipe => 0,
-            .kern => 0,
-        };
-    }
-
-    pub fn getGid(self: Self) u16 {
-        return switch (self) {
-            .ext => self.ext.gid,
-            .pipe => 0,
-            .kern => 0,
-        };
-    }
-
-    pub fn getSize(self: Self) usize {
-        return switch (self) {
-            .ext => self.ext.size,
-            .pipe => 0,
-            .kern => 0,
-        };
-    }
-
-    pub fn getBlkSize(self: Self) usize {
-        return switch (self) {
-            .ext => self.ext.fs.superblock.getBlockSize(),
-            .pipe => 0,
-            .kern => 0,
-        };
-    }
-};
+pub const InodeRef = @import("inoderef.zig").InodeRef;
 
 pub const DirEnt = struct {
     const Self = @This();
@@ -291,7 +122,7 @@ pub const DirEnt = struct {
         ParentExists: *DirEnt,
     };
 
-    pub fn resolveWithResult(self: *DirEnt, path: []const u8) !ResolveResult {
+    pub fn resolveWithResult(self: *DirEnt, path: []const u8) SyscallError!ResolveResult {
         var cursor: *DirEnt = if (path[0] == '/') &fs.root_dirent else self;
         var iterator: Iterator = std.mem.tokenize(u8, path, "/");
         while (iterator.next()) |name| {
@@ -304,7 +135,7 @@ pub const DirEnt = struct {
                     cursor = next;
                 }
             } else |err| {
-                if (err == error.NotFound) {
+                if (err == error.NoSuchFile) {
                     if (iterator.next() == null) {
                         return ResolveResult{ .ParentExists = cursor };
                     }
@@ -315,10 +146,10 @@ pub const DirEnt = struct {
         return ResolveResult{ .Found = cursor };
     }
 
-    pub fn resolve(self: *DirEnt, path: []const u8) !*DirEnt {
+    pub fn resolve(self: *DirEnt, path: []const u8) errno.SyscallError!*DirEnt {
         return switch (try self.resolveWithResult(path)) {
             .Found => |d| d,
-            else => return error.NotFound,
+            else => return error.NoSuchFile,
         };
     }
 
@@ -332,7 +163,7 @@ pub const DirEnt = struct {
         if (try self.inode.lookupChild(name, &indicator)) |inode| {
             return DirEnt.create(inode, self, name, try Type.fromTypeIndicator(indicator));
         }
-        return error.NotFound;
+        return error.NoSuchFile;
     }
 
     pub fn createChild(self: *Self, name: []const u8, e_type: Type, mode: Mode) !*DirEnt {
@@ -352,7 +183,7 @@ pub const DirEnt = struct {
             return error.AlreadyMounted;
         self.mnt = self.inode;
         self.inode = to_mount;
-        log.format("Mounted {s} on {*}\n", .{ to_mount, self });
+        // log.format("Mounted {s} on {*}\n", .{ to_mount, self });
     }
 
     pub fn umount(self: *Self) !void {

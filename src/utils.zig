@@ -1,4 +1,5 @@
 const IdtPtr = @import("idt.zig").IdtPtr;
+const paging = @import("memory/paging.zig");
 const std = @import("std");
 const mlb = @import("multiboot.zig");
 const vga = @import("vga.zig");
@@ -126,7 +127,13 @@ pub inline fn setNthBit(buff: []u8, n: usize) void {
     buff[index] &= 128 >> offset;
 }
 
-pub fn push(esp: *usize, x: anytype) void {
+const PageDirectory = paging.PageDirectory;
+
+pub fn push(esp: *usize, x: anytype, pd: ?PageDirectory) void {
     esp.* = esp.* - @sizeOf(@TypeOf(x));
-    @intToPtr(*@TypeOf(x), esp.*).* = x;
+    if (pd) |p| {
+        (p.vPtrToPhy(@TypeOf(x), @intToPtr(*@TypeOf(x), esp.*)) catch unreachable).* = x;
+    } else {
+        @intToPtr(*@TypeOf(x), esp.*).* = x;
+    }
 }

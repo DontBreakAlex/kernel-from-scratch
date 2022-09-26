@@ -7,6 +7,12 @@ pub noinline fn getpid() isize {
     return scheduler.runningProcess.pid;
 }
 
+pub noinline fn getppid() isize {
+    if (comptime @import("../constants.zig").DEBUG)
+        serial.format("getppid called", .{});
+    return scheduler.runningProcess.parent.?.pid;
+}
+
 pub noinline fn getuid() isize {
     if (comptime @import("../constants.zig").DEBUG)
         serial.format("getuid called", .{});

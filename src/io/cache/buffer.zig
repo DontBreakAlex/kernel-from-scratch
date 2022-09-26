@@ -62,7 +62,7 @@ pub fn getOrReadBuffer(disk: *AtaDevice, block: usize) !*Buffer {
         }
     } else {
         // Alloc new block
-        var buffer: *Buffer = getAvailableBuffer() orelse return error.OutOfBuffer;
+        var buffer: *Buffer = getAvailableBuffer() orelse return error.OutOfMemory;
         const buffer_header = BufferHeader{ .drive = disk.*, .lba = lba };
         try hashMap.put(buffer_header, buffer);
         // Assumes that the disk is selected

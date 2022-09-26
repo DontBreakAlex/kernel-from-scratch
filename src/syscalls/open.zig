@@ -3,6 +3,7 @@ const std = @import("std");
 const f = @import("../io/fcntl.zig");
 const log = @import("../log.zig");
 const serial = @import("../serial.zig");
+const errno = @import("errno.zig");
 
 const DirEnt = @import("../io/dirent.zig").DirEnt;
 const File = @import("../io/fs.zig").File;
@@ -11,7 +12,7 @@ const Mode = @import("../io/mode.zig").Mode;
 pub noinline fn open(buff: usize, flags: usize, raw_mode: u16) isize {
     var path = std.mem.span(@intToPtr([*:0]const u8, scheduler.runningProcess.pd.virtToPhy(buff) orelse return -1));
     if (comptime @import("../constants.zig").DEBUG)
-        serial.format("open called with path={s}, flags={}, mode={}", .{ path, flags, raw_mode });
+        serial.format("open called with path={s}, flags={o}, mode={}", .{ path, flags, raw_mode });
     return do_open(path, flags, raw_mode);
 }
 fn do_open(path: []const u8, flags: usize, raw_mode: u16) isize {
@@ -36,6 +37,7 @@ fn do_open(path: []const u8, flags: usize, raw_mode: u16) isize {
     var file: *File = switch (dentry.e_type) {
         .Directory => if (flags & f.O_DIRECTORY == 0) return -1 else File.create(dentry, @truncate(u16, flags & f.O_ACCMODE)) catch return -1,
         .Regular => File.create(dentry, @truncate(u16, flags & f.O_ACCMODE)) catch return -1,
+        .CharDev => File.create(dentry, @truncate(u16, flags & f.O_ACCMODE)) catch return -1,
         else => return -1,
     };
     // log.format("{s}\n", .{ file.dentry.inode.ext.mode });

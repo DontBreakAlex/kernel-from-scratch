@@ -16,6 +16,7 @@ const ata = @import("io/ata.zig");
 const fs = @import("io/fs.zig");
 const tty = @import("tty.zig");
 const time = @import("time.zig");
+const lib = @import("syslib.zig");
 
 pub fn panic(msg: []const u8, _: ?*std.builtin.StackTrace) noreturn {
     @setCold(true);
@@ -43,22 +44,16 @@ export fn kernel_main() void {
     ata.init() catch log.format("Failed to init cache\n", .{});
     fs.init() catch @panic("Failed to init filesystem !");
     sch.init();
-    sch.startProcess(shl.run) catch {};
+    sch.startProcess(init) catch {};
 }
 
-const PataSatus = packed struct {
-    err: u1,
-    idx: u1,
-    corr: u1,
-    drq: u1,
-    srv: u1,
-    df: u1,
-    rdy: u1,
-    bsy: u1,
-};
-
-fn disk() void {
-    ata.detectDisks();
-    const cmd = @import("commands.zig");
-    cmd.poweroff(undefined);
+fn init() void {
+    const pid = lib.fork();
+    if (pid == -1)
+        @panic("Fork failure\n");
+    if (pid == 0)
+        _ = lib.execve("/bin/sh");
+    if (lib.wait() != pid)
+        @panic("Wait failure\n");
+    @import("commands.zig").poweroff(undefined);
 }

@@ -61,7 +61,7 @@ pub const Type = enum {
             5 => .FIFO,
             6 => .Socket,
             7 => .Symlink,
-            else => return error.WrongTypeIndicator,
+            else => return error.IOError,
         };
     }
 

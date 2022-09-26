@@ -3,9 +3,15 @@ const vga = @import("vga.zig");
 const scheduler = @import("scheduler.zig");
 const kernfs = @import("io/kernfs.zig");
 const std = @import("std");
+const termio = @import("io/termio.zig");
+const errno = @import("syscalls/errno.zig");
+const inoderef = @import("io/inoderef.zig");
+const serial = @import("serial.zig");
 
 const Buffer = utils.Buffer;
 const Cursor = @import("cursor.zig").Cursor;
+const Status = inoderef.Status;
+const ENOIOCTLCMD = @import("syscalls/ioctl.zig").ENOIOCTLCMD;
 
 var bufferIn = Buffer.init();
 // zig fmt: off
@@ -16,7 +22,9 @@ pub var inode = kernfs.Inode{
             .write = write,
             .rawWrite = undefined,
             .read = read,
-            .rawRead = undefined
+            .rawRead = undefined,
+            .ioctl = ioctl,
+            .poll = poll,
         }
     }
 };
@@ -26,7 +34,23 @@ pub fn recieve(buff: []const u8) void {
     if (scheduler.events.getPtr(.{ .IO_WRITE = .{ .kern = &inode } })) |array| {
         // if (array.items.len == 0)
         //     @panic("Check");
-        scheduler.queue.write(array.items) catch unreachable;
+        var iter = array.iterator();
+        while (iter.next()) |pair| {
+            scheduler.queue.writeItem(pair.key_ptr.*) catch unreachable;
+        }
+        array.clearRetainingCapacity();
+    }
+}
+
+pub fn recieveItem(buff: u8) void {
+    bufferIn.writeItem(buff) catch vga.putStr("Could not handle keypress\n");
+    if (scheduler.events.getPtr(.{ .IO_WRITE = .{ .kern = &inode } })) |array| {
+        // if (array.items.len == 0)
+        //     @panic("Check");
+        var iter = array.iterator();
+        while (iter.next()) |pair| {
+            scheduler.queue.writeItem(pair.key_ptr.*) catch unreachable;
+        }
         array.clearRetainingCapacity();
     }
 }
@@ -148,4 +172,34 @@ pub const Writer = std.io.Writer(void, anyerror, writeCallBack);
 
 pub fn format(comptime fmt: []const u8, args: anytype) void {
     std.fmt.format(Writer{ .context = {} }, fmt, args) catch {};
+}
+
+fn ioctl(cmd: usize, arg: usize) isize {
+    switch (cmd) {
+        termio.TCGETS => {
+            var ptr = @intToPtr(*termio.Termios, scheduler.runningProcess.pd.virtToPhy(arg) orelse return -errno.EFAULT);
+            ptr.c_iflag = 0;
+            ptr.c_oflag = 0;
+            ptr.c_cflag = 48; // CS8, Character Size = 8
+            ptr.c_lflag = 0;
+            ptr.c_line = 0;
+            ptr.c_cc = .{0} ** termio.NCCS;
+            ptr.c_ispeed = 0;
+            ptr.c_ospeed = 0;
+            return 0;
+        },
+        termio.TCSETS => {
+            var ptr = @intToPtr(*termio.Termios, scheduler.runningProcess.pd.virtToPhy(arg) orelse return -errno.EFAULT);
+            serial.format("New termios={s}\n", .{ ptr });
+            return 0;
+        },
+        else => return -ENOIOCTLCMD,
+    }
+}
+
+fn poll() Status {
+    return .{
+        .readable = bufferIn.readableLength() != 0,
+        .writable = true,
+    };
 }

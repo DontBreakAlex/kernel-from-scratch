@@ -109,7 +109,7 @@ pub const Key = enum(u7) {
     pub fn toAscii(
         self: Key,
         uppercase: bool,
-    ) ?u8 {
+    ) u8 {
         if (uppercase) { // https://github.com/ziglang/zig/issues/2559
             return switch (self) {
                 .BACKSPACE => 0x08,
@@ -162,7 +162,7 @@ pub const Key = enum(u7) {
                 .X => 0x58,
                 .Y => 0x59,
                 .Z => 0x5A,
-                else => null,
+                else => @panic("Missing key"),
             };
         } else {
             return switch (self) {
@@ -216,7 +216,7 @@ pub const Key = enum(u7) {
                 .X => 0x78,
                 .Y => 0x79,
                 .Z => 0x7A,
-                else => null,
+                else => @panic("Missing key"),
             };
         }
     }

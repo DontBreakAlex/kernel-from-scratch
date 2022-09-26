@@ -9,5 +9,5 @@ var inode: *kernfs.Inode = undefined;
 pub fn init(dev_dirent: *DirEnt) !void {
     inode = try kernfs.Inode.create(.{ .Directory = .{} });
     try dev_dirent.mount(.{ .kern = inode });
-    try inode.createChild(&tty.inode, "tty0");
+    try inode.createChild(&tty.inode, "tty");
 }

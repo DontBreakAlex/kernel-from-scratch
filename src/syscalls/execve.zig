@@ -8,6 +8,7 @@ const paging = @import("../memory/paging.zig");
 const proc = @import("../process.zig");
 const idt = @import("../idt.zig");
 const utils = @import("../utils.zig");
+const errno = @import("errno.zig");
 
 const DirEnt = @import("../io/dirent.zig").DirEnt;
 const ElfHeader = elf.ElfHeader;
@@ -17,20 +18,21 @@ const ProcessState = proc.ProcessState;
 const IretFrame = idt.IretFrame;
 const AuxiliaryVectorValue = elf.AuxiliaryVectorValue;
 const Regs = idt.Regs;
+const SyscallError = errno.SyscallError;
 
 pub noinline fn execve(buff: usize, size: usize, frame: *IretFrame, regs: *Regs) isize {
-    var path = scheduler.runningProcess.pd.vBufferToPhy(size, buff) catch return -1;
+    var path = scheduler.runningProcess.pd.vBufferToPhy(size, buff) catch return -errno.EFAULT;
     if (comptime @import("../constants.zig").DEBUG)
         serial.format("execve called with path={s}", .{path});
-    do_execve(path, frame, regs) catch return -1;
+    do_execve(path, frame, regs) catch |err| return -errno.errorToErrno(err);
     return 0;
 }
 
-fn do_execve(path: []const u8, frame: *IretFrame, regs: *Regs) !void {
+fn do_execve(path: []const u8, frame: *IretFrame, regs: *Regs) SyscallError!void {
     var dentry: *DirEnt = try scheduler.runningProcess.cwd.resolve(path);
     var header: ElfHeader = undefined;
     _ = try dentry.inode.read(std.mem.asBytes(&header), 0);
-    try validate_header(&header);
+    validate_header(&header) catch return SyscallError.IOError;
     const phtable = try mem.allocator.alloc(ProgramHeader, header.phnum);
     defer mem.allocator.free(phtable);
     const size = try dentry.inode.read(std.mem.sliceAsBytes(phtable), header.phoff);
@@ -47,10 +49,10 @@ fn do_execve(path: []const u8, frame: *IretFrame, regs: *Regs) !void {
     scheduler.runningProcess.base_brk = brk;
     scheduler.runningProcess.brk = brk;
     var esp: usize = proc.US_STACK_BASE - 8;
-    utils.push(&esp, AuxiliaryVectorValue{ ._type = .NULL, .value = undefined });
-    utils.push(&esp, @as(u32, 0));
-    utils.push(&esp, @as(u32, 0));
-    utils.push(&esp, @as(u32, 0));
+    utils.push(&esp, AuxiliaryVectorValue{ ._type = .NULL, .value = undefined }, scheduler.runningProcess.pd);
+    utils.push(&esp, @as(u32, 0), scheduler.runningProcess.pd);
+    utils.push(&esp, @as(u32, 0), scheduler.runningProcess.pd);
+    utils.push(&esp, @as(u32, 0), scheduler.runningProcess.pd);
     regs.edx = 0;
     frame.esp = esp;
     frame.eip = header.entry;
@@ -65,9 +67,9 @@ fn load_entry(entry: ProgramHeader, dentry: *DirEnt) !void {
     var mem_offset = entry.vaddr - page;
 
     while (page <= last_page) : (page += paging.PAGE_SIZE) {
-        try scheduler.runningProcess.pd.allocVirt(page, paging.USER | paging.WRITE);
+        scheduler.runningProcess.pd.allocVirt(page, paging.USER | paging.WRITE) catch return error.BadAddress;
         const will_load = std.math.min(to_load, paging.PAGE_SIZE - mem_offset);
-        var slice = try scheduler.runningProcess.pd.vBufferToPhy(will_load, page + mem_offset);
+        var slice = scheduler.runningProcess.pd.vBufferToPhy(will_load, page + mem_offset) catch return error.BadAddress;
         if ((try dentry.inode.read(slice, file_offset)) != will_load)
             @panic("Failed to load ELF");
         file_offset += will_load;

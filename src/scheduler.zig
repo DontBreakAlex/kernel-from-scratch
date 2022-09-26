@@ -29,8 +29,8 @@ pub var canSwitch: bool = true;
 
 const ProcessMap = std.AutoHashMap(u16, *Process);
 const ProcessQueue = std.fifo.LinearFifo(*Process, .Dynamic);
-const EventList = std.ArrayListUnmanaged(*Process);
-const Events = std.AutoHashMap(Event, EventList);
+const EventSet = std.AutoArrayHashMapUnmanaged(*Process, void);
+const Events = std.AutoHashMap(Event, EventSet);
 const Fn = fn () void;
 pub const Event = union(enum) {
     IO_READ: InodeRef,
@@ -177,37 +177,46 @@ fn idle() void {
 
 pub fn queueEvent(key: Event, val: *Process) !void {
     var res = try events.getOrPut(key);
-    var array: *EventList = res.value_ptr;
+    var array: *EventSet = res.value_ptr;
     if (!res.found_existing)
-        array.* = EventList{};
-    try array.append(allocator, val);
+        array.* = EventSet{};
+    try array.put(allocator, val, {});
+}
+
+pub fn removeEvent(key: Event, val: *Process) void {
+    if (events.get(key)) |*set| {
+        _ = set.swapRemove(val);
+    }
 }
 
 pub fn writeWithEvent(inode: InodeRef, src: []const u8, offset: usize) !usize {
     if (events.getPtr(Event{ .IO_WRITE = inode })) |array| {
-        try queue.ensureUnusedCapacity(array.items.len);
+        try queue.ensureUnusedCapacity(array.count());
         const ret = try inode.rawWrite(src, offset);
-        queue.writeAssumeCapacity(array.items);
+        var iter = array.iterator();
+        while (iter.next()) |pair| {
+            queue.writeItemAssumeCapacity(pair.key_ptr.*);
+        }
         array.clearRetainingCapacity();
         return ret;
-    } else {
-        return inode.rawWrite(src, offset);
     }
+    return inode.rawWrite(src, offset);
 }
 
 pub fn readWithEvent(inode: InodeRef, dst: []u8, offset: usize) !usize {
-    var ret: usize = undefined;
     if (events.getPtr(Event{ .IO_READ = inode })) |array| {
-        try queue.ensureUnusedCapacity(array.items.len);
+        try queue.ensureUnusedCapacity(array.count());
         // if (array.items.len == 1)
         //     @panic("Check");
-        ret = try inode.rawRead(dst, offset);
-        queue.writeAssumeCapacity(array.items);
+        const ret = try inode.rawRead(dst, offset);
+        var iter = array.iterator();
+        while (iter.next()) |pair| {
+            queue.writeItemAssumeCapacity(pair.key_ptr.*);
+        }
         array.clearRetainingCapacity();
-    } else {
-        ret = try inode.rawRead(dst, offset);
+        return ret;
     }
-    return ret;
+    return inode.rawRead(dst, offset);
 }
 
 pub fn waitForEvent(event: Event) !void {

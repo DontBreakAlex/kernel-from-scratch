@@ -4,7 +4,7 @@ const log = @import("log.zig");
 const CMOS_ADDR = 0x70;
 const CMOS_DATA = 0x71;
 
-pub const Timespec = struct {
+pub const Timespec = extern struct {
     tv_sec: i32,
     tv_nsec: i32,
 };
@@ -70,7 +70,7 @@ pub fn readTimeFromRTC() void {
 
     seconds_since_epoch = daysSinceEpoch(2000 + @as(u32, years), months, days) * 86400 + @as(u32, hours) * 3600 + @as(u32, minutes) * 60 + @as(u32, seconds);
 
-    log.format("Current time: 20{:0>2}/{:0>2}/{:0>2} {:0>2}:{:0>2}:{:0>2}\nSeconds since epoch {}\n", .{ years, months, days, hours, minutes, seconds, seconds_since_epoch });
+    log.format("Current time: 20{:0>2}/{:0>2}/{:0>2} {:0>2}:{:0>2}:{:0>2}\nSeconds since epoch: {}\n", .{ years, months, days, hours, minutes, seconds, seconds_since_epoch });
 }
 
 fn daysSinceEpoch(year: u32, month: u32, day: u32) u32 {

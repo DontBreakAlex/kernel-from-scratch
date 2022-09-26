@@ -144,7 +144,7 @@ pub const AtaDevice = struct {
             }
 
             if (status.err == 1 or status.df == 1) {
-                return error.DriveError;
+                return error.IOError;
             }
         }
     }
@@ -161,7 +161,7 @@ pub const AtaDevice = struct {
             }
 
             if (status.err == 1 or status.df == 1) {
-                return error.DriveError;
+                return error.IOError;
             }
         }
     }

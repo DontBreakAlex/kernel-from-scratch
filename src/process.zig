@@ -8,7 +8,7 @@ const dirent = @import("io/dirent.zig");
 const fs = @import("io/fs.zig");
 const gdt = @import("gdt.zig");
 
-pub const FD_COUNT = 8;
+pub const FD_COUNT = 32;
 pub const US_STACK_BASE = 0x1000000;
 pub const KERNEL_STACK_SIZE = 2;
 

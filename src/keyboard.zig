@@ -19,7 +19,7 @@ pub const KeyPress = packed struct {
     key: Key,
     uppercase: bool,
 
-    pub fn toAscii(self: KeyPress) ?u8 {
+    pub fn toAscii(self: KeyPress) u8 {
         return self.key.toAscii(self.uppercase);
     }
 };
@@ -56,7 +56,7 @@ fn handleScancode(scan_code: u8) void {
             .key = key,
             .uppercase = state.uppercase,
         };
-        tty.recieve(std.mem.asBytes(&key_press));
+        tty.recieveItem(key_press.toAscii());
     }
     if (state.special) state.special = false;
 }
