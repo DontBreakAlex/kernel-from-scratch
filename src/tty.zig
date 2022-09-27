@@ -186,12 +186,10 @@ fn ioctl(cmd: usize, arg: usize) isize {
             ptr.c_cc = .{0} ** termio.NCCS;
             ptr.c_ispeed = 0;
             ptr.c_ospeed = 0;
-            return 0;
         },
         termio.TCSETS => {
             var ptr = @intToPtr(*termio.Termios, scheduler.runningProcess.pd.virtToPhy(arg) orelse return -errno.EFAULT);
             serial.format("\nNew termios={s}\n", .{ ptr });
-            return 0;
         },
         termio.TIOCGWINSZ => {
             var ptr = @intToPtr(*termio.Winsize, scheduler.runningProcess.pd.virtToPhy(arg) orelse return -errno.EFAULT);
@@ -199,11 +197,14 @@ fn ioctl(cmd: usize, arg: usize) isize {
             ptr.ws_row = 80;
             ptr.ws_xpixel = 640;
             ptr.ws_ypixel = 200;
-            return 0;
-
+        },
+        termio.TIOCGPGRP => {
+            var ptr = @intToPtr(*usize, scheduler.runningProcess.pd.virtToPhy(arg) orelse return -errno.EFAULT);
+            ptr.* = 1; // TODO: Handle process groups
         },
         else => return -ENOIOCTLCMD,
     }
+        return 0;
 }
 
 fn poll() Status {
