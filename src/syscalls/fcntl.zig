@@ -1,6 +1,7 @@
 const serial = @import("../serial.zig");
 const scheduler = @import("../scheduler.zig");
 const errno = @import("errno.zig");
+const dup = @import("dup.zig");
 
 const LINUX_BASE = 1024;
 
@@ -39,9 +40,9 @@ pub noinline fn fcntl64(fd: usize, cmd: usize, arg: usize) isize {
 }
 
 fn do_fcntl(fd: usize, cmd: Command, arg: usize) isize {
-    _ = fd;
     _ = arg;
     return switch (cmd) {
+        .F_DUPFD_CLOEXEC => @intCast(isize, dup.dupfd(fd) catch |err| return -errno.errorToErrno(err)),
         else => -errno.EINVAL,
     };
 }
