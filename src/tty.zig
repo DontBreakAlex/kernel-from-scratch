@@ -190,8 +190,17 @@ fn ioctl(cmd: usize, arg: usize) isize {
         },
         termio.TCSETS => {
             var ptr = @intToPtr(*termio.Termios, scheduler.runningProcess.pd.virtToPhy(arg) orelse return -errno.EFAULT);
-            serial.format("New termios={s}\n", .{ ptr });
+            serial.format("\nNew termios={s}\n", .{ ptr });
             return 0;
+        },
+        termio.TIOCGWINSZ => {
+            var ptr = @intToPtr(*termio.Winsize, scheduler.runningProcess.pd.virtToPhy(arg) orelse return -errno.EFAULT);
+            ptr.ws_col = 25;
+            ptr.ws_row = 80;
+            ptr.ws_xpixel = 640;
+            ptr.ws_ypixel = 200;
+            return 0;
+
         },
         else => return -ENOIOCTLCMD,
     }

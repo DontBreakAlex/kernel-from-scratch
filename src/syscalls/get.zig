@@ -16,7 +16,25 @@ pub noinline fn getppid() isize {
 pub noinline fn getuid() isize {
     if (comptime @import("../constants.zig").DEBUG)
         serial.format("getuid called", .{});
-    return scheduler.runningProcess.owner_id;
+    return scheduler.runningProcess.uid;
+}
+
+pub noinline fn getgid() isize {
+    if (comptime @import("../constants.zig").DEBUG)
+        serial.format("getgid called", .{});
+    return scheduler.runningProcess.gid;
+}
+
+pub noinline fn geteuid() isize {
+    if (comptime @import("../constants.zig").DEBUG)
+        serial.format("geteuid called", .{});
+    return scheduler.runningProcess.euid;
+}
+
+pub noinline fn getegid() isize {
+    if (comptime @import("../constants.zig").DEBUG)
+        serial.format("getegid called", .{});
+    return scheduler.runningProcess.egid;
 }
 
 pub noinline fn getcwd(buff: usize, size: usize) isize {

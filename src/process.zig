@@ -35,10 +35,13 @@ pub const Process = struct {
     signals: SignalQueue,
     handlers: [1]usize,
     state: State,
+    uid: u16,
+    gid: u16,
+    euid: u16,
+    egid: u16,
     // Phy addr
     kstack: usize,
     pd: PageDirectory,
-    owner_id: u16,
     vmem: vmem.VMemManager,
     fd: [FD_COUNT]?*File,
     cwd: *DirEnt,
@@ -175,7 +178,10 @@ pub const Process = struct {
         new_process.pd = try self.pd.dup();
         errdefer new_process.pd.deinit();
         new_process.state = State{ .SavedState = ProcessState{ .cr3 = @ptrToInt(new_process.pd.cr3), .esp = undefined, .regs = undefined } };
-        new_process.owner_id = 0;
+        new_process.uid = self.uid;
+        new_process.gid = self.gid;
+        new_process.euid = self.euid;
+        new_process.egid = self.egid;
         new_process.vmem = vmem.VMemManager{};
         new_process.vmem.copy_from(&self.vmem);
         new_process.kstack = try mem.allocKstack(KERNEL_STACK_SIZE, new_process.pd);
@@ -206,7 +212,7 @@ pub const Process = struct {
                 return i;
             }
         }
-        return error.NoFd;
+        return error.TooManyOpenFiles;
     }
 };
 

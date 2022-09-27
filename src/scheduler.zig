@@ -73,7 +73,10 @@ pub fn startProcess(func: Fn) !void {
         .regs = 0,
     } };
     process.cwd = &fs.root_dirent;
-    process.owner_id = 0;
+    process.uid = 0;
+    process.gid = 0;
+    process.euid = 0;
+    process.egid = 0;
     process.vmem = vmem.VMemManager{};
     process.vmem.init();
     process.fd = .{null} ** proc.FD_COUNT;
